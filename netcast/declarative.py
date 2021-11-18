@@ -61,7 +61,7 @@ get_factory, set_factory = _create_registry_api('factories', raise_for_missing=T
 get_construct, set_construct = _create_registry_api('constructs', raise_for_missing=True)
 get_reserve_args, set_reserve_args = _create_registry_api('reserve_args', default={})
 get_aliased_args, set_aliased_args = _create_registry_api('aliased_args', default={})
-get_field_reg, set_field_reg = _create_registry_api('field_reg', default={})
+get_field_subreg, set_field_subreg = _create_registry_api('field_subreg', default={})
 
 
 def _ensure_type(obj):
@@ -96,9 +96,9 @@ def _finalize_args(cls, args=None):
             set_name = get_alias(name)
         final_args[set_name] = field = wrap_field(value, name)
         setattr(cls, name, field)
-        field_reg = get_field_reg(cls)
-        field_reg[name] = field
-        set_field_reg(cls, field_reg)
+        field_subreg = get_field_subreg(cls)
+        field_subreg[name] = field
+        set_field_subreg(cls, field_subreg)
     return final_args
 
 
@@ -155,7 +155,7 @@ def create_decl(
 def get_fields(cls, aliased_form=False, final=False):
     if final:
         aliased_form = True
-    field_reg = get_field_reg(cls)
+    field_reg = get_field_subreg(cls)
     if field_reg:
         d = dict(field_reg)
     else:
