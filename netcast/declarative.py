@@ -208,7 +208,7 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
 
     def validate(self, instance, value):
         validate = instance.__validate__ and self._validate
-        if not validate:
+        if validate:
             self.subcon.build(value)  # mock build, raises an error
         return value
 
@@ -223,7 +223,6 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
         return value
 
     def __set__(self, instance, value):
-        print('set', instance, value)
         self.set(instance, self.validate(instance, value))
 
     def __truediv__(self, other):
