@@ -1,0 +1,3 @@
+import construct
+
+construct.a
