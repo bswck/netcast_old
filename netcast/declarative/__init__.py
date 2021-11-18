@@ -1,3 +1,0 @@
-import construct
-
-construct.a
