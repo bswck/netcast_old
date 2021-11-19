@@ -5,7 +5,7 @@ import construct as cs
 IGNORE_ATTRS = (
     '__setup__', '__validate__',
 
-    '__dict__', '__weakref__', '__repr__', '__hash__', '__str__', '__getattribute__',
+    '__call__', '__dict__', '__weakref__', '__repr__', '__hash__', '__str__', '__getattribute__',
     '__setattr__', '__delattr__', '__lt__', '__le__', '__eq__', '__ne__', '__gt__',
     '__ge__', '__init__', '__new__', '__reduce_ex__', '__reduce__',
     '__subclasshook__', '__init_subclass__', '__format__', '__sizeof__',
@@ -28,7 +28,7 @@ _main_registry = {
     'factories': {},
     'aliased_args': {},
     'reserve_args': {},
-    'field_subreg': {}
+    'field_subreg': {},
 }
 
 
@@ -159,7 +159,7 @@ def get_fields(cls, aliased_form=False, final=False):
     if field_reg:
         d = dict(field_reg)
     else:
-        d = cls if isinstance(cls, dict) else {k: getattr(cls, k) for k in dir(cls)}
+        d = cls if isinstance(cls, dict) else {k: v for k, v in vars(cls).items()}
     return {
         (
             get_alias(k)
@@ -201,7 +201,7 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
         self.name = name
         self.default = default
         self.registry = {'bind': {}}
-        self.get, self.set = _create_registry_api('bind', registry=self.registry)
+        self._get, self.set = _create_registry_api('bind', registry=self.registry)
         self._validate = validate
 
     def validate(self, instance, value):
@@ -210,15 +210,16 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
             self.subcon.build(value)  # mock build, raises an error
         return value
 
-    def __get__(self, instance, owner):
-        value = self.get(instance)
+    def get(self, instance):
+        value = self._get(instance)
         if value is M:
             if isinstance(self.subcon, cs.Const):
                 return self.subcon.value
-            # if self.default is M:
-            #     raise UnboundFieldError(self.name)
             return self.default
         return value
+
+    def __get__(self, instance, owner):
+        return self.get(instance)
 
     def __set__(self, instance, value):
         self.set(instance, self.validate(instance, value))
@@ -228,7 +229,14 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
     __rtruediv__ = __truediv__
 
 
-class DeclarativeConstruct:
+class DeclarativeConstructMeta(type):
+    def __repr__(self):
+        cls_name = self.__name__
+        fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
+        return (cls_name + f'({fields_fmt})').join('<>')
+
+
+class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
     __setup__ = True
     __validate__ = True
 
@@ -247,10 +255,16 @@ class DeclarativeConstruct:
             return self
         return object.__new__(cls)
 
+    def __call__(self, **args):
+        return self.__new__(type(self), **args)
+
     def __repr__(self):
         cls_name = type(self).__name__
         fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        return cls_name + f'({fields_fmt})'
+        repr_string = cls_name + f'({fields_fmt})'
+        if not self.__setup__:
+            return repr_string.join('<>')
+        return repr_string
 
 
 Struct = create_decl(cs.Struct)
