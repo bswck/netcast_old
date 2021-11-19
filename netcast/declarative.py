@@ -9,7 +9,7 @@ IGNORE_ATTRS = (
     '__setattr__', '__delattr__', '__lt__', '__le__', '__eq__', '__ne__', '__gt__',
     '__ge__', '__init__', '__new__', '__reduce_ex__', '__reduce__',
     '__subclasshook__', '__init_subclass__', '__format__', '__sizeof__',
-    '__dir__', '__class__', '__doc__', '__module__'
+    '__dir__', '__class__', '__doc__', '__module__', '__bytes__', '__int__', '__iter__'
 )
 
 C = TypeVar('C', bound=cs.Construct)
@@ -233,7 +233,10 @@ class DeclarativeConstructMeta(type):
     def __repr__(self):
         cls_name = self.__name__
         fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        return (cls_name + f'({fields_fmt})').join('<>')
+        repr_string = cls_name + f'({fields_fmt})'
+        if self.mro()[1] == DeclarativeConstruct:
+            return repr_string.join('<>')
+        return repr_string
 
 
 class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
@@ -257,6 +260,9 @@ class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
 
     def __call__(self, **args):
         return self.__new__(type(self), **args)
+
+    def __bytes__(self):
+        return serialize(self)
 
     def __repr__(self):
         cls_name = type(self).__name__
