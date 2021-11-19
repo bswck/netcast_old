@@ -262,7 +262,7 @@ class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
         cls_name = type(self).__name__
         fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
         repr_string = cls_name + f'({fields_fmt})'
-        if not self.__setup__:
+        if type(self).mro()[1] == DeclarativeConstruct:
             return repr_string.join('<>')
         return repr_string
 

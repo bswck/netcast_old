@@ -13,7 +13,11 @@ class Packet(nc.Struct):
 print('packet class:', Packet)
 packet = Packet(header='some header', ints=range(10))
 print('packet filled in:', packet)
-print('packet serialized:', nc.serialize(packet))
+serialized = nc.serialize(packet)
+print('packet serialized:', serialized)
+reinterpreted = nc.reinterpret(packet, serialized)
+print('packet reinterpreted:', reinterpreted)
+print('fields:', reinterpreted.header, reinterpreted.start, list(reinterpreted.ints))
 
 Packet = nc.Struct(
     header=cs.PascalString(cs.Byte, 'ascii'),
@@ -26,4 +30,8 @@ print()
 print('packet class:', Packet)
 packet = Packet(header='some header', ints=range(10))
 print('packet filled in:', packet)
-print('packet serialized:', nc.serialize(packet))
+serialized = nc.serialize(packet)
+print('packet serialized:', serialized)
+reinterpreted = nc.reinterpret(packet, serialized)
+print('packet reinterpreted:', reinterpreted)
+print('fields:', reinterpreted.header, reinterpreted.start, list(reinterpreted.ints))
