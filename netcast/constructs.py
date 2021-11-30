@@ -1,16 +1,24 @@
+import functools
+import operator
 from typing import Type, TypeVar, Sequence, Any
 
 import construct as cs
 
-IGNORE_ATTRS = (
-    '__setup__', '__validate__',
 
-    '__call__', '__dict__', '__weakref__', '__repr__', '__hash__', '__str__', '__getattribute__',
-    '__setattr__', '__delattr__', '__lt__', '__le__', '__eq__', '__ne__', '__gt__',
-    '__ge__', '__init__', '__new__', '__reduce_ex__', '__reduce__',
-    '__subclasshook__', '__init_subclass__', '__format__', '__sizeof__',
-    '__dir__', '__class__', '__doc__', '__module__', '__bytes__', '__int__', '__iter__'
+def _dunder(string):
+    return '__' + string + '__'
+
+
+STRIPPED_IGNORE_ATTRS = (
+    'setup', 'validate',
+
+    *vars(operator),
+    'call', 'dict', 'weakref', 'repr', 'hash', 'str', 'getattribute', 'setattr', 'delattr',
+    'init', 'new', 'reduceex', 'reduce', 'subclasshook', 'initsubclass', 'format', 'sizeof',
+    'dir', 'class', 'doc', 'module', 'bytes', 'int', 'iter'
 )
+
+IGNORE_ATTRS = tuple(map(_dunder, STRIPPED_IGNORE_ATTRS))
 
 C = TypeVar('C', bound=cs.Construct)
 
@@ -22,17 +30,16 @@ class _Missing:
 
 M = _Missing()
 
-
-_main_registry = {
+__registry = {
     'constructs': {},
     'factories': {},
     'aliased_args': {},
     'reserve_args': {},
-    'field_subreg': {},
+    'field_subregs': {},
 }
 
 
-def _create_registry_api(
+def create_dict_registry(
         key,
         default: Any = M,
         create_if_missing=True,
@@ -40,37 +47,43 @@ def _create_registry_api(
         registry=None
 ):
     if registry is None:
-        registry = _main_registry
+        registry = __registry
 
-    def _get(obj, quiet_if_missing=False):
+    prefix = 'get_from_'
+
+    @functools.wraps(prefix + key)
+    def op_get(obj, quiet_if_missing=False):
         raise_missing_here = raise_for_missing and not quiet_if_missing
-        v = registry[key].get(id(obj), default)
-        if create_if_missing and v is default:
-            registry[key][id(obj)] = v
-        if v is default and raise_missing_here:
+        value = registry[key].get(id(obj), default)
+        if create_if_missing and value is default:
+            registry[key][id(obj)] = value
+        if value is default and raise_missing_here:
             raise ValueError(f'value from {key} registry is missing')
-        return v
+        return value
 
-    def _set(obj, value):
+    prefix = 'set_from_'
+
+    @functools.wraps(prefix + key)
+    def op_set(obj, value):
         registry[key][id(obj)] = value
 
-    return _get, _set
+    return op_get, op_set
 
 
-get_factory, set_factory = _create_registry_api('factories', raise_for_missing=True)
-get_construct, set_construct = _create_registry_api('constructs', raise_for_missing=True)
-get_reserve_args, set_reserve_args = _create_registry_api('reserve_args', default={})
-get_aliased_args, set_aliased_args = _create_registry_api('aliased_args', default={})
-get_field_subreg, set_field_subreg = _create_registry_api('field_subreg', default={})
+get_factory, set_factory = create_dict_registry('factories', raise_for_missing=True)
+get_construct, set_construct = create_dict_registry('constructs', raise_for_missing=True)
+get_reserve_args, set_reserve_args = create_dict_registry('reserve_args', default={})
+get_aliased_args, set_aliased_args = create_dict_registry('aliased_args', default={})
+get_subreg, set_subreg = create_dict_registry('field_subregs', default={})
 
 
-def _ensure_type(obj):
+def ensure_type(obj):
     if isinstance(obj, type):
         return obj
     return type(obj)
 
 
-def _finalize_args(cls, args=None):
+def finalize_args(cls, args=None):
     if args is None:
         args = get_fields(cls)
     reserve_args = get_reserve_args(cls)
@@ -96,43 +109,45 @@ def _finalize_args(cls, args=None):
             set_name = get_alias(name)
         final_args[set_name] = field = wrap_field(value, name)
         setattr(cls, name, field)
-        field_subreg = get_field_subreg(cls)
+        field_subreg = get_subreg(cls)
         field_subreg[name] = field
-        set_field_subreg(cls, field_subreg)
+        set_subreg(cls, field_subreg)
     return final_args
 
 
-def _subclass_hook(cls):
-    cls.__setup__ and set_construct(cls, get_factory(cls.mro()[1])(**_finalize_args(cls)))
+def hook(cls):
+    cls.__setup__ and set_construct(cls, get_factory(cls.mro()[1])(**finalize_args(cls)))
 
 
-def _spawn_subclass(cls, args):
-    subcls = type(cls.__name__, (cls,), {'__setup__': False})
-    set_factory(subcls, get_factory(cls))
-    set_construct(subcls, get_factory(cls)(**_finalize_args(cls, args=args)))
+def create_subclass(class_, args):
+    subcls = type(class_.__name__, (class_,), {'__setup__': False})
+    set_factory(subcls, get_factory(class_))
+    set_construct(subcls, get_factory(class_)(**finalize_args(class_, args=args)))
     return object.__new__(subcls)  # type: ignore
 
 
-def serialize_from_object(decl, obj, **context_kwds):
+def serialize_from_object(class_, obj, **context_kwds):
+    fields = {**get_fields(class_, final=True), **obj}
     obj = {
-        k: v for k, v in {**get_fields(decl, final=True), **obj}.items()
-        if v is not M
+        key: value
+        for key, value in fields.items()
+        if value is not M
     }
-    return get_construct(_ensure_type(decl)).build(obj, **context_kwds)
+    return get_construct(ensure_type(class_)).build(obj, **context_kwds)
 
 
 def serialize(decl, **obj):
     return serialize_from_object(decl, obj)
 
 
-def reinterpret(decl, byte_string, **context_kwds):
-    container = get_construct(_ensure_type(decl)).parse(byte_string, **context_kwds)
+def reinterpret(class_, byte_string, **context_kwds):
+    container = get_construct(ensure_type(class_)).parse(byte_string, **context_kwds)
     for key, val in container.items():
-        setattr(decl, key, val)
-    return decl
+        setattr(class_, key, val)
+    return class_
 
 
-def create_decl(
+def create_class(
         factory: Type[C],
         reserve_args: Sequence[str] = (),
         **custom_reserve_args: str
@@ -142,33 +157,31 @@ def create_decl(
         if name in reserve_args:
             raise ValueError(f'double-passed {name!r} in reserved args')
         reserve_args[name] = reserved_arg
-    cls = type(
+    class_ = type(
         factory.__name__,
         (DeclarativeConstruct,),
-        {'__init_subclass__': _subclass_hook}
+        {'__init_subclass__': hook}
     )
-    set_factory(cls, factory)
-    set_reserve_args(cls, reserve_args)
-    return cls
+    set_factory(class_, factory)
+    set_reserve_args(class_, reserve_args)
+    return class_
 
 
-def get_fields(cls, aliased_form=False, final=False):
+def get_fields(class_, aliased_form=False, final=False):
     if final:
         aliased_form = True
-    field_reg = get_field_subreg(cls)
-    if field_reg:
-        d = dict(field_reg)
+    subreg = get_subreg(class_)
+    if subreg:
+        data = dict(subreg)
     else:
-        d = cls if isinstance(cls, dict) else {k: v for k, v in vars(cls).items()}
+        data = class_ if isinstance(class_, dict) else vars(class_)
     return {
         (
-            get_alias(k)
-            if k in get_aliased_args(cls)
-            and aliased_form
-            else k
-        ): v.get(cls) if final else v
-        for k, v in d.items()
-        if k not in IGNORE_ATTRS
+            get_alias(key) if key in get_aliased_args(class_) and aliased_form else key
+        ):
+            value.get(class_) if final else value
+        for key, value in data.items()
+        if key not in IGNORE_ATTRS
     }
 
 
@@ -182,11 +195,7 @@ def get_alias(name):
     return name + '_alias'
 
 
-class UnboundFieldError(ValueError):
-    pass
-
-
-class FieldDescriptor(cs.Subconstruct):  # noqa
+class FieldDescriptor(cs.Subconstruct):
     def __init__(self, subcon, name, default=M, validate=True):
         if not isinstance(subcon, cs.Construct):
             if isinstance(subcon, cs.bytestringtype):
@@ -201,13 +210,15 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
         self.name = name
         self.default = default
         self.registry = {'bind': {}}
-        self._get, self.set = _create_registry_api('bind', registry=self.registry)
+        (
+            self._get,
+            self._set
+        ) = create_dict_registry('bind', registry=self.registry)
         self._validate = validate
 
     def validate(self, instance, value):
-        validate = instance.__validate__ and self._validate
-        if validate:
-            self.subcon.build(value)  # mock build, raises an error
+        if instance.__validate__ and self._validate:
+            self.subcon.build(value)
         return value
 
     def get(self, instance):
@@ -222,18 +233,19 @@ class FieldDescriptor(cs.Subconstruct):  # noqa
         return self.get(instance)
 
     def __set__(self, instance, value):
-        self.set(instance, self.validate(instance, value))
+        self._set(instance, self.validate(instance, value))
 
     def __truediv__(self, other):
         return cs.Renamed(self, other)
+
     __rtruediv__ = __truediv__
 
 
 class DeclarativeConstructMeta(type):
     def __repr__(self):
-        cls_name = self.__name__
-        fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        repr_string = cls_name + f'({fields_fmt})'
+        class_name = self.__name__
+        fields_format = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
+        repr_string = class_name + f'({fields_format})'
         if self.mro()[1] == DeclarativeConstruct:
             return repr_string.join('<>')
         return repr_string
@@ -243,39 +255,39 @@ class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
     __setup__ = True
     __validate__ = True
 
-    def __new__(cls, **args):
+    def __new__(cls, **kwargs):
         if get_construct(cls, quiet_if_missing=True) is M:
-            return _spawn_subclass(cls, args)
-        elif args:
+            return create_subclass(cls, kwargs)
+        elif kwargs:
             fields = get_fields(cls)
             if not fields:
-                return _spawn_subclass(cls, args)
+                return create_subclass(cls, kwargs)
             self = object.__new__(cls)
-            for key, val in args.items():
+            for key, val in kwargs.items():
                 if key not in fields:
                     raise ValueError(f'unexpected argument: {key!r} (no such field)')
                 setattr(self, key, val)
             return self
         return object.__new__(cls)
 
-    def __call__(self, **args):
-        return self.__new__(type(self), **args)
+    def __call__(self, **kwargs):
+        return self.__new__(type(self), **kwargs)
 
     def __bytes__(self):
         return serialize(self)
 
     def __repr__(self):
-        cls_name = type(self).__name__
+        class_name = type(self).__name__
         fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        repr_string = cls_name + f'({fields_fmt})'
+        repr_string = class_name + f'({fields_fmt})'
         if type(self).mro()[1] == DeclarativeConstruct:
             return repr_string.join('<>')
         return repr_string
 
 
-Struct = create_decl(cs.Struct)
-Sequence = create_decl(cs.Sequence)
-FocusedSeq = create_decl(cs.FocusedSeq, reserve_args=['parsebuildfrom'])
-Union = create_decl(cs.Union, reserve_args=['parsefrom'])
-Select = create_decl(cs.Select)
-LazyStruct = create_decl(cs.LazyStruct)
+Struct = create_class(cs.Struct)
+Sequence = create_class(cs.Sequence)
+FocusedSeq = create_class(cs.FocusedSeq, reserve_args=['parsebuildfrom'])
+Union = create_class(cs.Union, reserve_args=['parsefrom'])
+Select = create_class(cs.Select)
+LazyStruct = create_class(cs.LazyStruct)
