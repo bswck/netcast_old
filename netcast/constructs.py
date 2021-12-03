@@ -41,7 +41,7 @@ __registry = {
 
 def create_dict_registry(
         key,
-        default: Any = M,
+        global_default: Any = M,
         create_if_missing=True,
         raise_for_missing=False,
         registry=None
@@ -52,7 +52,9 @@ def create_dict_registry(
     prefix = 'get_from_'
 
     @functools.wraps(prefix + key)
-    def op_get(obj, quiet_if_missing=False):
+    def op_get(obj, default=M, quiet_if_missing=False):
+        if default is M and global_default is not M:
+            default = global_default
         raise_missing_here = raise_for_missing and not quiet_if_missing
         value = registry[key].get(id(obj), default)
         if create_if_missing and value is default:
@@ -72,9 +74,9 @@ def create_dict_registry(
 
 get_factory, set_factory = create_dict_registry('factories', raise_for_missing=True)
 get_construct, set_construct = create_dict_registry('constructs', raise_for_missing=True)
-get_reserve_args, set_reserve_args = create_dict_registry('reserve_args', default={})
-get_aliased_args, set_aliased_args = create_dict_registry('aliased_args', default={})
-get_subreg, set_subreg = create_dict_registry('field_subregs', default={})
+get_reserve_args, set_reserve_args = create_dict_registry('reserve_args', global_default={})
+get_aliased_args, set_aliased_args = create_dict_registry('aliased_args', global_default={})
+get_subreg, set_subreg = create_dict_registry('field_subregs', global_default={})
 
 
 def ensure_type(obj):
@@ -135,7 +137,7 @@ def serialize_from_object(class_, obj, **context_kwds):
         for key, value in fields.items()
         if value is not M
     }
-    return get_construct(ensure_type(class_)).build(obj, **context_kwds)
+    return get_construct(class_).build(obj, **context_kwds)
 
 
 def serialize(decl, **obj):
@@ -143,7 +145,7 @@ def serialize(decl, **obj):
 
 
 def reinterpret(class_, byte_string, **context_kwds):
-    container = get_construct(ensure_type(class_)).parse(byte_string, **context_kwds)
+    container = get_construct(class_).parse(byte_string, **context_kwds)
     for key, val in container.items():
         setattr(class_, key, val)
     return class_
@@ -154,7 +156,7 @@ def create_class(
         reserve_args: Sequence[str] = (),
         **custom_reserve_args: str
 ):
-    reserve_args = {name: f'__{name}__' for name in reserve_args}
+    reserve_args = {name: f'__{name.strip("_")}__' for name in reserve_args}
     for name, reserved_arg in custom_reserve_args.items():
         if name in reserve_args:
             raise ValueError(f'double-passed {name!r} in reserved args')
@@ -169,19 +171,19 @@ def create_class(
     return class_
 
 
-def get_fields(class_, aliased_form=False, final=False):
+def get_fields(construct, aliased_form=False, final=False):
     if final:
         aliased_form = True
-    subreg = get_subreg(class_)
+    subreg = get_subreg(construct)
     if subreg:
         data = dict(subreg)
     else:
-        data = class_ if isinstance(class_, dict) else vars(class_)
+        data = construct if isinstance(construct, dict) else vars(construct)
     return {
         (
-            get_alias(key) if key in get_aliased_args(class_) and aliased_form else key
+            get_alias(key) if key in get_aliased_args(construct) and aliased_form else key
         ):
-            value.get(class_) if final else value
+            value.get(construct) if final else value
         for key, value in data.items()
         if key not in IGNORE_ATTRS
     }
