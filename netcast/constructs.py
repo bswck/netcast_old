@@ -83,10 +83,10 @@ def ensure_type(obj):
     return type(obj)
 
 
-def finalize_args(cls, args=None):
+def finalize_args(class_, args=None):
     if args is None:
-        args = get_fields(cls)
-    reserve_args = get_reserve_args(cls)
+        args = get_fields(class_)
+    reserve_args = get_reserve_args(class_)
     aliased_args = {}
     final_args = {}
     for name, attr in reserve_args.items():
@@ -100,7 +100,7 @@ def finalize_args(cls, args=None):
             arg = args.get(attr, M)
             if arg is not M:
                 final_args[name] = arg
-    set_aliased_args(cls, aliased_args)
+    set_aliased_args(class_, aliased_args)
     for name, value in args.items():
         if name in IGNORE_ATTRS:
             continue
@@ -108,22 +108,24 @@ def finalize_args(cls, args=None):
         if name in aliased_args:
             set_name = get_alias(name)
         final_args[set_name] = field = wrap_field(value, name)
-        setattr(cls, name, field)
-        field_subreg = get_subreg(cls)
+        setattr(class_, name, field)
+        field_subreg = get_subreg(class_)
         field_subreg[name] = field
-        set_subreg(cls, field_subreg)
+        set_subreg(class_, field_subreg)
     return final_args
 
 
-def hook(cls):
-    cls.__setup__ and set_construct(cls, get_factory(cls.mro()[1])(**finalize_args(cls)))
+def hook(class_):
+    if not class_.__setup__:
+        return
+    set_construct(class_, get_factory(class_.mro()[1])(**finalize_args(class_)))
 
 
 def create_subclass(class_, args):
-    subcls = type(class_.__name__, (class_,), {'__setup__': False})
-    set_factory(subcls, get_factory(class_))
-    set_construct(subcls, get_factory(class_)(**finalize_args(class_, args=args)))
-    return object.__new__(subcls)  # type: ignore
+    subclass = type(class_.__name__, (class_,), {'__setup__': False})
+    set_factory(subclass, get_factory(class_))
+    set_construct(subclass, get_factory(class_)(**finalize_args(class_, args=args)))
+    return object.__new__(subclass)  # type: ignore
 
 
 def serialize_from_object(class_, obj, **context_kwds):
@@ -159,7 +161,7 @@ def create_class(
         reserve_args[name] = reserved_arg
     class_ = type(
         factory.__name__,
-        (DeclarativeConstruct,),
+        (NetcastConstruct,),
         {'__init_subclass__': hook}
     )
     set_factory(class_, factory)
@@ -193,6 +195,15 @@ def wrap_field(value, name):
 
 def get_alias(name):
     return name + '_alias'
+
+
+def construct_repr(self):
+    class_name = ensure_type(self).__name__
+    fields_format = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
+    repr_string = class_name + f'({fields_format})'
+    if ensure_type(self).mro()[1] == NetcastConstruct:
+        return repr_string.join('<>')
+    return repr_string
 
 
 class FieldDescriptor(cs.Subconstruct):
@@ -241,17 +252,11 @@ class FieldDescriptor(cs.Subconstruct):
     __rtruediv__ = __truediv__
 
 
-class DeclarativeConstructMeta(type):
-    def __repr__(self):
-        class_name = self.__name__
-        fields_format = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        repr_string = class_name + f'({fields_format})'
-        if self.mro()[1] == DeclarativeConstruct:
-            return repr_string.join('<>')
-        return repr_string
+class NetcastConstructMeta(type):
+    __repr__ = construct_repr
 
 
-class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
+class NetcastConstruct(metaclass=NetcastConstructMeta):
     __setup__ = True
     __validate__ = True
 
@@ -276,13 +281,7 @@ class DeclarativeConstruct(metaclass=DeclarativeConstructMeta):
     def __bytes__(self):
         return serialize(self)
 
-    def __repr__(self):
-        class_name = type(self).__name__
-        fields_fmt = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-        repr_string = class_name + f'({fields_fmt})'
-        if type(self).mro()[1] == DeclarativeConstruct:
-            return repr_string.join('<>')
-        return repr_string
+    __repr__ = construct_repr
 
 
 Struct = create_class(cs.Struct)
