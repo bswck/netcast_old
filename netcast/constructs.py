@@ -1,6 +1,6 @@
 import functools
 import operator
-from typing import Type, TypeVar, Sequence, Any
+from typing import Type, TypeVar, Sequence, Any, MutableMapping, Optional, Callable
 
 import construct as cs
 
@@ -28,34 +28,31 @@ class _Missing:
         return 'Missing'
 
 
-M = _Missing()
+Missing = _Missing()
 
 __registry = {
     'constructs': {},
     'factories': {},
     'aliased_args': {},
     'reserve_args': {},
-    'field_subregs': {},
+    'field_subregistries': {},
 }
 
 
 def create_dict_registry(
-        key,
-        global_default: Any = M,
+        key: str,
+        global_default: Any = Missing,
         create_if_missing=True,
         raise_for_missing=False,
-        registry=None
+        registry: Optional[MutableMapping] = None,
 ):
     if registry is None:
         registry = __registry
 
-    prefix = 'get_from_'
-
-    @functools.wraps(prefix + key)
-    def op_get(obj, default=M, quiet_if_missing=False):
-        if default is M and global_default is not M:
+    def op_get(obj, default: Any = Missing, silent: bool = False):
+        if default is Missing and global_default is not Missing:
             default = global_default
-        raise_missing_here = raise_for_missing and not quiet_if_missing
+        raise_missing_here = raise_for_missing and not silent
         value = registry[key].get(id(obj), default)
         if create_if_missing and value is default:
             registry[key][id(obj)] = value
@@ -63,153 +60,33 @@ def create_dict_registry(
             raise ValueError(f'value from {key} registry is missing')
         return value
 
-    prefix = 'set_from_'
+    prefix = 'get_from_'
+    op_get.__name__ = prefix + key
 
-    @functools.wraps(prefix + key)
     def op_set(obj, value):
         registry[key][id(obj)] = value
+
+    prefix = 'set_from_'
+    op_get.__name__ = prefix + key
 
     return op_get, op_set
 
 
-get_factory, set_factory = create_dict_registry('factories', raise_for_missing=True)
-get_construct, set_construct = create_dict_registry('constructs', raise_for_missing=True)
-get_reserve_args, set_reserve_args = create_dict_registry('reserve_args', global_default={})
-get_aliased_args, set_aliased_args = create_dict_registry('aliased_args', global_default={})
-get_subreg, set_subreg = create_dict_registry('field_subregs', global_default={})
+_get_factory, _set_factory = create_dict_registry('factories', raise_for_missing=True)
+_get_construct, _set_construct = create_dict_registry('constructs', raise_for_missing=True)
+_get_reserve_args, _set_reserve_args = create_dict_registry('reserve_args', global_default={})
+_get_aliased_args, _set_aliased_args = create_dict_registry('aliased_args', global_default={})
+_get_subregistry, _set_subregistry = create_dict_registry('field_subregistries', global_default={})
 
 
-def ensure_type(obj):
+def _ensure_type(obj):
     if isinstance(obj, type):
         return obj
     return type(obj)
 
 
-def finalize_args(class_, args=None):
-    if args is None:
-        args = get_fields(class_)
-    reserve_args = get_reserve_args(class_)
-    aliased_args = {}
-    final_args = {}
-    for name, attr in reserve_args.items():
-        if name in args:
-            aliased_arg = get_alias(name)
-            if aliased_arg in args:
-                raise ValueError(f'cannot alias argument {name}: {aliased_arg} taken')
-            aliased_args[aliased_arg] = name
-            final_args[name] = args.pop(attr)
-        else:
-            arg = args.get(attr, M)
-            if arg is not M:
-                final_args[name] = arg
-    set_aliased_args(class_, aliased_args)
-    for name, value in args.items():
-        if name in IGNORE_ATTRS:
-            continue
-        set_name = name
-        if name in aliased_args:
-            set_name = get_alias(name)
-        final_args[set_name] = field = wrap_field(value, name)
-        setattr(class_, name, field)
-        field_subreg = get_subreg(class_)
-        field_subreg[name] = field
-        set_subreg(class_, field_subreg)
-    return final_args
-
-
-def hook(class_):
-    if not class_.__setup__:
-        return
-    set_construct(class_, get_factory(class_.mro()[1])(**finalize_args(class_)))
-
-
-def create_subclass(class_, args):
-    subclass = type(class_.__name__, (class_,), {'__setup__': False})
-    set_factory(subclass, get_factory(class_))
-    set_construct(subclass, get_factory(class_)(**finalize_args(class_, args=args)))
-    return object.__new__(subclass)  # type: ignore
-
-
-def serialize_from_object(class_, obj, **context_kwds):
-    fields = {**get_fields(class_, final=True), **obj}
-    obj = {
-        key: value
-        for key, value in fields.items()
-        if value is not M
-    }
-    return get_construct(class_).build(obj, **context_kwds)
-
-
-def serialize(decl, **obj):
-    return serialize_from_object(decl, obj)
-
-
-def reinterpret(class_, byte_string, **context_kwds):
-    container = get_construct(class_).parse(byte_string, **context_kwds)
-    for key, val in container.items():
-        setattr(class_, key, val)
-    return class_
-
-
-def create_class(
-        factory: Type[C],
-        reserve_args: Sequence[str] = (),
-        **custom_reserve_args: str
-):
-    reserve_args = {name: f'__{name.strip("_")}__' for name in reserve_args}
-    for name, reserved_arg in custom_reserve_args.items():
-        if name in reserve_args:
-            raise ValueError(f'double-passed {name!r} in reserved args')
-        reserve_args[name] = reserved_arg
-    class_ = type(
-        factory.__name__,
-        (NetcastConstruct,),
-        {'__init_subclass__': hook}
-    )
-    set_factory(class_, factory)
-    set_reserve_args(class_, reserve_args)
-    return class_
-
-
-def get_fields(construct, aliased_form=False, final=False):
-    if final:
-        aliased_form = True
-    subreg = get_subreg(construct)
-    if subreg:
-        data = dict(subreg)
-    else:
-        data = construct if isinstance(construct, dict) else vars(construct)
-    return {
-        (
-            get_alias(key) if key in get_aliased_args(construct) and aliased_form else key
-        ):
-            value.get(construct) if final else value
-        for key, value in data.items()
-        if key not in IGNORE_ATTRS
-    }
-
-
-def wrap_field(value, name):
-    if not isinstance(value, FieldDescriptor):
-        value = FieldDescriptor(value, name)
-    return value
-
-
-def get_alias(name):
-    return name + '_alias'
-
-
-def construct_repr(self):
-    class_name = ensure_type(self).__name__
-    fields_format = ', '.join(f'{k}={v!r}' for k, v in get_fields(self, final=True).items())
-    repr_string = class_name + f'({fields_format})'
-    if ensure_type(self).mro()[1] == NetcastConstruct:
-        return repr_string.join('<>')
-    return repr_string
-
-
 class FieldDescriptor(cs.Subconstruct):
-    def __init__(self, subcon, name, default=M, validate=True):
+    def __init__(self, subcon, name, default=Missing, validate=True):
         if not isinstance(subcon, cs.Construct):
             if isinstance(subcon, cs.bytestringtype):
                 subcon = cs.Const(subcon)
@@ -236,10 +113,16 @@ class FieldDescriptor(cs.Subconstruct):
 
     def get(self, instance):
         value = self._get(instance)
-        if value is M:
+        if value is Missing:
             if isinstance(self.subcon, cs.Const):
                 return self.subcon.value
             return self.default
+        return value
+
+    @classmethod
+    def _map_field(cls, value, name):
+        if not isinstance(value, cls):
+            value = cls(value, name)
         return value
 
     def __get__(self, instance, owner):
@@ -254,8 +137,131 @@ class FieldDescriptor(cs.Subconstruct):
     __rtruediv__ = __truediv__
 
 
+def _finalize_for_construct(obj, args=None, descriptor_class=FieldDescriptor):
+    if args is None:
+        args = _get_fields(obj)
+    reserve_args = _get_reserve_args(obj)
+    aliased_args = {}
+    final_args = {}
+    for name, attr in reserve_args.items():
+        if name in args:
+            aliased_arg = _get_alias(name)
+            if aliased_arg in args:
+                raise ValueError(f'cannot alias argument {name}: {aliased_arg} taken')
+            aliased_args[aliased_arg] = name
+            final_args[name] = args.pop(attr)
+        else:
+            arg = args.get(attr, Missing)
+            if arg is not Missing:
+                final_args[name] = arg
+    _set_aliased_args(obj, aliased_args)
+    for name, value in args.items():
+        if name in IGNORE_ATTRS:
+            continue
+        set_name = name
+        if name in aliased_args:
+            set_name = _get_alias(name)
+        final_args[set_name] = field = descriptor_class._map_field(value, name)
+        setattr(obj, name, field)
+        subregistry = _get_subregistry(obj)
+        subregistry[name] = field
+        _set_subregistry(obj, subregistry)
+    return final_args
+
+
+def _preprocess_construct(class_or_construct):
+    pass
+
+
+def _hook(class_):
+    if not class_.__setup__:
+        return
+    _set_construct(class_, _get_factory(class_.mro()[1])(**_finalize_for_construct(class_)))
+
+
+def _create_class(
+        factory: Type[C],
+        reserve_args: Sequence[str] = (),
+        **custom_reserve_args: str
+):
+    reserve_args = {name: f'__{name.strip("_")}__' for name in reserve_args}
+    for name, reserved_arg in custom_reserve_args.items():
+        if name in reserve_args:
+            raise ValueError(f'double-passed {name!r} in reserved args')
+        reserve_args[name] = reserved_arg
+    class_ = type(
+        factory.__name__,
+        (NetcastConstruct,),
+        {'__init_subclass__': _hook}
+    )
+    _set_factory(class_, factory)
+    _set_reserve_args(class_, reserve_args)
+    return class_
+
+
+def _create_subclass(class_, args, metaclass=type):
+    subclass = metaclass(class_.__name__, (class_,), {'__setup__': False})
+    _set_factory(subclass, _get_factory(class_))
+    _set_construct(subclass, _get_factory(class_)(**_finalize_for_construct(class_, args=args)))
+    return object.__new__(subclass)  # type: ignore
+
+
+def _serialize_from_object(class_, obj, **context_kwds):
+    fields = {**_get_fields(class_, final=True), **obj}
+    obj = {
+        key: value
+        for key, value in fields.items()
+        if value is not Missing
+    }
+    return _get_construct(class_).build(obj, **context_kwds)
+
+
+def serialize(construct, **obj):
+    return _serialize_from_object(construct, obj)
+
+
+def reinterpret(class_, byte_string, **context_kwds):
+    container = _get_construct(class_).parse(byte_string, **context_kwds)
+    for key, val in container.items():
+        setattr(class_, key, val)
+    return class_
+
+
+def _get_fields(construct, aliased_form=False, final=False):
+    """"""
+    if final:
+        aliased_form = True
+    subregistry = _get_subregistry(construct)
+    if subregistry:
+        data = dict(subregistry)
+    else:
+        data = construct if isinstance(construct, dict) else vars(construct)
+    return {
+        (
+            _get_alias(key) if key in _get_aliased_args(construct) and aliased_form else key
+        ):
+            value.get(construct) if final else value
+        for key, value in data.items()
+        if key not in IGNORE_ATTRS
+    }
+
+
+def _get_alias(name):
+    suffix = '_alias'
+    return name + suffix
+
+
+def _repr(obj):
+    class_name = _ensure_type(obj).__name__
+    fields = ', '.join(f'{k}={v!r}' for k, v in _get_fields(obj, final=True).items())
+    repr_string = class_name + f'({fields})'
+    if _ensure_type(obj).mro()[1] == NetcastConstruct:
+        return repr_string.join('<>')
+    return repr_string
+
+
 class NetcastConstructMeta(type):
-    __repr__ = construct_repr
+    __repr__ = _repr
 
 
 class NetcastConstruct(metaclass=NetcastConstructMeta):
@@ -263,12 +269,12 @@ class NetcastConstruct(metaclass=NetcastConstructMeta):
     __validate__ = True
 
     def __new__(cls, **kwargs):
-        if get_construct(cls, quiet_if_missing=True) is M:
-            return create_subclass(cls, kwargs)
+        if _get_construct(cls, silent=True) is Missing:
+            return _create_subclass(cls, kwargs)
         elif kwargs:
-            fields = get_fields(cls)
+            fields = _get_fields(cls)
             if not fields:
-                return create_subclass(cls, kwargs)
+                return _create_subclass(cls, kwargs)
             self = object.__new__(cls)
             for key, val in kwargs.items():
                 if key not in fields:
@@ -283,12 +289,12 @@ class NetcastConstruct(metaclass=NetcastConstructMeta):
     def __bytes__(self):
         return serialize(self)
 
-    __repr__ = construct_repr
+    __repr__ = _repr
 
 
-Struct = create_class(cs.Struct)
-Sequence = create_class(cs.Sequence)
-FocusedSeq = create_class(cs.FocusedSeq, reserve_args=['parsebuildfrom'])
-Union = create_class(cs.Union, reserve_args=['parsefrom'])
-Select = create_class(cs.Select)
-LazyStruct = create_class(cs.LazyStruct)
+Struct = _create_class(cs.Struct)
+Sequence = _create_class(cs.Sequence)
+FocusedSeq = _create_class(cs.FocusedSeq, reserve_args=['parsebuildfrom'])
+Union = _create_class(cs.Union, reserve_args=['parsefrom'])
+Select = _create_class(cs.Select)
+LazyStruct = _create_class(cs.LazyStruct)
