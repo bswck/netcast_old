@@ -65,7 +65,7 @@ class _BaseContextFamily:
     _instance_super_registry = {}  # @.@
     """Helper dict for managing :class:`ReceiveHandler` context instance attributes."""
 
-    _context: Any | None
+    _context: Context | None = Context()
     """
     A context class, instantiated during construction and then shared across sub-handlers.
     """
