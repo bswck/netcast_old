@@ -48,9 +48,15 @@ def on_context_update(fn=None, *, class_=None, key=Missing):
             _context_hooks[class_]  # noqa, WIP
 
 
+_read_only_error = ValueError('context in this class is declared read-only')
+
+
 class _ReadOnlyContextWrapper(Context):
     def __setitem__(self, key, value):
-        raise ValueError('context in this class is declared read-only')
+        raise _read_only_error
+
+    def __delitem__(self, key):
+        raise _read_only_error
 
 
 class ReadOnlyLevel(enum.IntFlag):
