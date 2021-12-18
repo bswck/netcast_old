@@ -3,10 +3,10 @@ from typing import Any, ClassVar
 
 from traitlets import Bunch
 
-from netcast.common.context import InstanceContextFamily
+from netcast.common.context import Arrangement
 
 
-class Hook(InstanceContextFamily):
+class Hook(Arrangement):
     """Before send/after receive data handler."""
     source: ClassVar[Any]
     """

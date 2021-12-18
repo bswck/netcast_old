@@ -20,7 +20,7 @@ class Context(Bunch):
         _call_context_hooks(self, key, old_value, new_value)
 
 
-def _init_family(self, parent=None):
+def _init_arrangement(self, parent=None):
     self.parent = parent
 
 
@@ -42,7 +42,7 @@ def on_context_update(fn=None, *, class_=None, key=Missing):
         if class_ is None:
             raise ValueError('context family member class was not provided')
         return functools.partial(on_context_update, key=key)
-    class_context = not isinstance(class_, InstanceContextFamily)
+    class_context = not isinstance(class_, Arrangement)
     if key is Missing:  # generic hook registration
         if class_context:
             _context_hooks[class_]  # noqa, WIP
@@ -71,7 +71,7 @@ class ReadOnlyLevel(enum.IntFlag):
     super_context = 1 << 2
 
 
-class _BaseContextFamily:
+class _BaseArrangement:
     _preloaded_hooks = {}
 
     _class_super_registry = {}  # B-)
@@ -99,11 +99,11 @@ class _BaseContextFamily:
 
     @staticmethod
     def _get_super_context(context: Context):
-        return _BaseContextFamily._class_super_registry.get(id(context), None)
+        return _BaseArrangement._class_super_registry.get(id(context), None)
 
     @staticmethod
     def _set_super_context(context: Context, super_context: Context | None):
-        _BaseContextFamily._class_super_registry[id(context)] = super_context
+        _BaseArrangement._class_super_registry[id(context)] = super_context
 
     @classmethod
     def _create_context(cls, super_context=None):
@@ -118,14 +118,14 @@ class _BaseContextFamily:
         return cls._context
 
 
-class ClassContextFamily(_BaseContextFamily):
+class ClassArrangement(_BaseArrangement):
     """
     A class bound to a context object.
 
     Examples
     --------
 
-    class Game(ClassContextFamily):
+    class Game(ClassArrangement):
         def __init__(self):
             self.timer = TimeManager()
 
@@ -148,15 +148,15 @@ class ClassContextFamily(_BaseContextFamily):
     All of the classes above, Game, Timer and TimerInformation,
     have the attribute (`context` and `super_context`).
 
-    When a ContextFamily is subclassed, the subclass enters a new context.
+    When a Arrangement is subclassed, the subclass enters a new context.
     All its subclasses then may inherit it and then modify it.
 
-    When a ContextFamily subclass' subclass has set `inherit_context` to False,
+    When a Arrangement subclass' subclass has set `inherit_context` to False,
     then a new context is bound to it. The last subclass accesses the top-level context using
     `super_context` and the further subclasses access one context further so on.
 
     Note that it might be especially useful if those classes are singletons,
-    however you may use :class:`InstanceContextFamily` for instance-context families.
+    however you may use :class:`InstanceArrangement` for instance-context families.
     """
 
     def __init_subclass__(
@@ -186,7 +186,7 @@ class ClassContextFamily(_BaseContextFamily):
             context = cls._create_context(super_context)
         cls._context = context
         if reset_init:
-            cls.__init__ = _init_family
+            cls.__init__ = _init_arrangement
 
     @functools.cached_property
     def context(self) -> Context:
@@ -205,9 +205,9 @@ class ClassContextFamily(_BaseContextFamily):
         return super_context
 
 
-class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
+class Arrangement(ClassArrangement, extends_implementation=True):
     # We want docs! >:(
-    __init__ = _init_family
+    __init__ = _init_arrangement
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -225,12 +225,12 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
 
     def _get_context(self):
         """Get the current context."""
-        contexts = super(ClassContextFamily, self)._get_context()
+        contexts = super(ClassArrangement, self)._get_context()
         return contexts[id(self)]
 
     def _get_super_context(self, context: Context):
         """Get the current super-context."""
-        super_contexts = super_context = super(ClassContextFamily, type(self))._get_super_context(context)
+        super_contexts = super_context = super(ClassArrangement, type(self))._get_super_context(context)
         if super_contexts is not None:
             assert getattr(super_contexts, 'instance', False)
             super_context = super_contexts[id(self._instance_super_registry[id(self)])]
