@@ -20,6 +20,10 @@ class Context(Bunch):
         _call_context_hooks(self, key, old_value, new_value)
 
 
+def _init_family(self, parent=None):
+    self.parent = parent
+
+
 def _call_context_hooks(context, key, old_value, new_value):
     all_hooks = _context_hooks.get(id(context), {})
     key_specific_hooks = all_hooks.get(key, [])
@@ -145,6 +149,7 @@ class ClassContextFamily(_BaseContextFamily):
 
     def __init_subclass__(
             cls,
+            parent=None,
             inherit_context=None,
             reset_init=False,
             extends_implementation=False
@@ -154,22 +159,22 @@ class ClassContextFamily(_BaseContextFamily):
         Set :param:`extends_implementation` to True if you want to override this subclass
         for behavioral changes, not for a typical usage.
         """
+        if parent is None:
+            parent = super()
         inherit_args = (cls.inherit_context, inherit_context)
 
         if inherit_args.count(None) == 0:
             raise ValueError('cannot set inherit_context= both on a class and during subclassing')
 
         inherit_context = not any(inherit_args)
-        super_context = super()._get_context()
+        super_context = parent._get_context()
         if inherit_context and super_context is not None:
             context = super_context
         else:
             context = cls._create_context(super_context)
         cls._context = context
         if reset_init:
-            def __init__(_self, *args):
-                print(_self, args)
-            cls.__init__ = __init__
+            cls.__init__ = _init_family
 
     @functools.cached_property
     def context(self) -> Context:
@@ -190,8 +195,7 @@ class ClassContextFamily(_BaseContextFamily):
 
 class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
     # We want docs! >:(
-    def __init__(self, parent=None):
-        self.parent = parent
+    __init__ = _init_family
 
     def __new__(cls, *args, **kwargs):
         if args:
