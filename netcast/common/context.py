@@ -218,10 +218,10 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
 
     def _get_super_context(self, context: Context):
         """Get the current super-context."""
-        super_context = super()._get_super_context(context)
-        if super_context is not None:
-            assert getattr(super_context, 'instance', False)
-            super_context = super_context[id(self._instance_super_registry[id(self)])]
+        super_contexts = super_context = super()._get_super_context(context)
+        if super_contexts is not None:
+            assert getattr(super_contexts, 'instance', False)
+            super_context = super_contexts[id(self._instance_super_registry[id(self)])]
         return super_context
 
 # TODO:
