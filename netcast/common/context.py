@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import enum
 import functools
-from typing import Any
 
 from traitlets import Bunch
-
 
 _context_hooks = {}
 
@@ -44,6 +42,7 @@ def on_context_update(fn=None, *, class_=None, key=Missing):
     if key is Missing:  # generic hook registration
         if class_context:
             _context_hooks[class_] # WIP
+
 
 class _ReadOnlyContextWrapper(Context):
     def __setitem__(self, key, value):
@@ -145,7 +144,12 @@ class ClassContextFamily(_BaseContextFamily):
     however you may use :class:`InstanceContextFamily` for instance-context families.
     """
 
-    def __init_subclass__(cls, inherit_context=None, extends_implementation=False):
+    def __init_subclass__(
+            cls,
+            inherit_context=None,
+            reset_init=False,
+            extends_implementation=False
+    ):
         """
         When a new subclass is created, handle its access to the local context.
         Set :param:`extends_implementation` to True if you want to override this subclass
@@ -163,6 +167,10 @@ class ClassContextFamily(_BaseContextFamily):
         else:
             context = cls._create_context(super_context)
         cls._context = context
+        if reset_init:
+            def __init__(_self):
+                pass
+            cls.__init__ = __init__
 
     @functools.cached_property
     def context(self) -> Context:
@@ -183,8 +191,9 @@ class ClassContextFamily(_BaseContextFamily):
 
 class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
     # We want docs! >:(
-    def __init__(self, *args, **kwargs):
-        """Lint placeholder. Override to create a constructor."""
+    def __init__(self, *args):
+        print(args)
+
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -197,8 +206,7 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
         context = cls._context
         context.instance = True
         super_context = None
-        self = object.__new__(cls)
-        self.__init__(*args, **kwargs)
+        self = object.__new__(cls, *args, **kwargs)  # noqa
         cls._instance_super_registry[id(self)] = bind
         context[id(self)] = cls._create_context(super_context)
         return self
