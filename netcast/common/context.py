@@ -41,7 +41,7 @@ def on_context_update(fn=None, *, class_=None, key=Missing):
     class_context = not isinstance(class_, InstanceContextFamily)
     if key is Missing:  # generic hook registration
         if class_context:
-            _context_hooks[class_] # WIP
+            _context_hooks[class_]  # noqa, WIP
 
 
 class _ReadOnlyContextWrapper(Context):
@@ -168,8 +168,8 @@ class ClassContextFamily(_BaseContextFamily):
             context = cls._create_context(super_context)
         cls._context = context
         if reset_init:
-            def __init__(_self):
-                pass
+            def __init__(_self, *args):
+                print(_self, args)
             cls.__init__ = __init__
 
     @functools.cached_property
@@ -191,23 +191,20 @@ class ClassContextFamily(_BaseContextFamily):
 
 class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
     # We want docs! >:(
-    def __init__(self, *args):
-        print(args)
-
+    def __init__(self, parent=None):
+        self.parent = parent
 
     def __new__(cls, *args, **kwargs):
         if args:
-            bind = args[0]
-            if not cls.pass_bound_instance:
-                args = args[1:]
+            parent, *args = args
         else:
             # We don't even check kwargs, as 'bind' is an untitled positional argument
-            bind = None
+            parent = None
         context = cls._context
         context.instance = True
         super_context = None
-        self = object.__new__(cls, *args, **kwargs)  # noqa
-        cls._instance_super_registry[id(self)] = bind
+        self = object.__new__(cls)
+        cls._instance_super_registry[id(self)] = parent
         context[id(self)] = cls._create_context(super_context)
         return self
 
