@@ -55,6 +55,9 @@ class _ReadOnlyContextWrapper(Context):
     def __setitem__(self, key, value):
         raise _read_only_error
 
+    def update(self, *args, **kwargs):
+        raise _read_only_error
+
     def __delitem__(self, key):
         raise _read_only_error
 
