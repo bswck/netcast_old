@@ -61,6 +61,9 @@ class _ReadOnlyContextWrapper(Context):
     def __delitem__(self, key):
         raise _read_only_error
 
+    def __ior__(self, other):
+        raise _read_only_error
+
 
 class ReadOnlyLevel(enum.IntFlag):
     none = 1 << 0
