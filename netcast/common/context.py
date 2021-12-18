@@ -211,11 +211,10 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
         context[id(self)] = cls._create_context(super_context)
         return self
 
-    @classmethod
-    def _get_context(cls, instance):
+    def _get_context(self):
         """Get the current context."""
-        contexts = super()._get_context()
-        return contexts[id(instance)]
+        contexts = ClassContextFamily._get_context(type(self))
+        return contexts[id(self)]
 
     def _get_super_context(self, context: Context):
         """Get the current super-context."""
