@@ -213,7 +213,7 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
 
     def _get_context(self):
         """Get the current context."""
-        contexts = ClassContextFamily._get_context(type(self))
+        contexts = ClassContextFamily._get_context(cls=type(self))
         return contexts[id(self)]
 
     def _get_super_context(self, context: Context):
