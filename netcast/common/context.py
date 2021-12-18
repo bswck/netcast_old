@@ -213,15 +213,16 @@ class InstanceContextFamily(ClassContextFamily, extends_implementation=True):
 
     def _get_context(self):
         """Get the current context."""
-        contexts = ClassContextFamily._get_context(cls=type(self))
+        contexts = super(ClassContextFamily, self)._get_context()
         return contexts[id(self)]
 
     def _get_super_context(self, context: Context):
         """Get the current super-context."""
         super_context = super()._get_super_context(context)
         if super_context is not None:
-            assert getattr(super_context, 'instance_context', False)
-        return super_context[id(self._instance_super_registry[id(self)])]
+            assert getattr(super_context, 'instance', False)
+            super_context = super_context[id(self._instance_super_registry[id(self)])]
+        return super_context
 
 # TODO:
 # I.  Hooks. An idea no. 1: on_context_update(key)(old_value, new_value).
