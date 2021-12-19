@@ -55,9 +55,7 @@ class MemoryDict(KeyTransformingDict):
     ...
     KeyError: ...
     """
-    def transform_key(self, key):
-        # print('tk', key, id(key))
-        return id(key)
+    transform_key = id
 
 
 class AttributeDict(ModernDict, ItemsAsAttributes):
