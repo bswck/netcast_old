@@ -1,9 +1,10 @@
 from __future__ import annotations
+
+import abc
 from typing import Any, ClassVar
 
-from traitlets import Bunch
-
-from netcast.common.context import Arrangement
+from netcast.arrangement import Arrangement
+from netcast.context import DictContext
 
 
 class Hook(Arrangement):
@@ -11,14 +12,15 @@ class Hook(Arrangement):
     source: ClassVar[Any]
     """
     A source template from the proper conversion module.
-    See also :package:`netcast.conversions`, from where it can be imported.
+    See also :package:`netcast.cast`, from where it can be imported.
     """
 
-    def bunch(self) -> Bunch:
-        """Produce a metadata bunch of the source."""
+    context_class = DictContext
 
 
-class AfterReceive(Hook):
+class ReceiveHook(Hook, metaclass=abc.ABCMeta, toplevel=True):
+    inherit_context = False
+
     def after_receive(self, data, **params):
         """
         Interpret a raw data. It might be a JSON string, XML string or bytes.
@@ -27,7 +29,9 @@ class AfterReceive(Hook):
         raise NotImplementedError
 
 
-class BeforeSend(Hook):
+class SendHook(Hook, metaclass=abc.ABCMeta, toplevel=True):
+    inherit_context = False
+
     def before_send(self, data, **params):
         """
         Prepare the data to send.

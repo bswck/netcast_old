@@ -1,19 +1,19 @@
 import collections
 
-from netcast import conversions
+from netcast import cast
 from traitlets import TraitType
 
 
-class Conversion(TraitType):
+class ConversionType(TraitType):
     """
     A trait type for all interpreters.
-    Shares the information about available conversions.
+    Shares the information about available cast.
     """
 
     _conversion_registry = collections.defaultdict(list)
 
     def __init__(self, conversion_key, *args, **kwargs):
-        conversion_keys = conversions.get_conversion_keys()
+        conversion_keys = cast.get_conversion_keys()
         if conversion_key not in conversion_keys:
             raise ValueError(
                 f'invalid conversion key {conversion_key!r}. '
@@ -23,4 +23,4 @@ class Conversion(TraitType):
         super().__init__(*args, **kwargs)
 
     def instance_init(self, obj):
-        Conversion._conversion_registry[obj.__name__] = obj  # registers the interpreter
+        ConversionType._conversion_registry[obj.__name__] = obj  # registers the interpreter
