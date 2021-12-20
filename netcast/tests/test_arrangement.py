@@ -21,6 +21,14 @@ def a(request):
 
 
 class TestClassArrangement:
+    def test_descent(self, ca):
+        class CA1(ca):
+            pass
+
+        class CA2(CA1):
+            def test(self):
+                assert self.context is CA1.get_context()
+
     def test_inherit_context(self, ca):
         class CA1(ca):
             def test(self):
@@ -30,21 +38,21 @@ class TestClassArrangement:
             inherit_context = False
 
             def test(self):
-                assert self.supercontext is CA1._get_context()
-                assert self.context is CA2._get_context()
+                assert self.supercontext is CA1.get_context()
+                assert self.context is CA2.get_context()
 
         class CA3(ca, descent=CA1):
             inherit_context = None  # default one
 
             def test(self):
-                assert self.context is CA1._get_context()
+                assert self.context is CA1.get_context()
 
         class CA4(ca, descent=CA3):
             inherit_context = False
 
             def test(self):
-                assert self.supercontext is CA3._get_context() is CA1._get_context()
-                assert self.context is CA4._get_context()
+                assert self.supercontext is CA3.get_context() is CA1.get_context()
+                assert self.context is CA4.get_context()
 
         class CA5(ca, descent=CA4):
             def test(self):
@@ -54,8 +62,8 @@ class TestClassArrangement:
             inherit_context = False
 
             def test(self):
-                assert self.supercontext is CA5._get_context()
-                assert self.context is CA6._get_context()
+                assert self.supercontext is CA5.get_context()
+                assert self.context is CA6.get_context()
 
         CA1().test()
         CA2().test()
