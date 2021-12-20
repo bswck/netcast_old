@@ -20,6 +20,18 @@ def a(request):
     yield request.param
 
 
+class _TypeTestMixin:
+    context: Context
+    context_class: ClassVar[Type[Context]]
+
+    def test(self, cls):
+        if cls.context_class is None:
+            expected_context_class = DictContext
+        else:
+            expected_context_class = cls.context_class
+        assert type(self.context) is expected_context_class is self.context_class
+
+
 class TestClassArrangement:
     def test_abstract(self):
         with pytest.warns(UserWarning):
@@ -48,6 +60,16 @@ class TestClassArrangement:
         CA1().test()
         CA2().test()
         CA3().test()
+
+    def test_context_type(self, ca):
+        class CA1(ca, _TypeTestMixin):
+            pass
+
+        class CA2(ca, _TypeTestMixin, descent=CA1):
+            inherit_context = False
+
+        CA1().test(ca)
+        CA2().test(ca)
 
     def test_descent(self, ca):
         class CA1(ca):
@@ -115,23 +137,47 @@ class TestClassArrangement:
         CA5().test()
         CA6().test()
 
-    def test_context_type(self, ca):
-        class TypeTester:
-            context: Context
-            context_class: ClassVar[Type[Context]]
 
-            def test(self):
-                if ca.context_class is None:
-                    expected_context_class = DictContext
-                else:
-                    expected_context_class = ca.context_class
-                assert type(self.context) is expected_context_class is self.context_class
-
-        class CA1(ca, TypeTester):
+class TestArrangement:
+    def test_context_type(self, a):
+        class A1(a, _TypeTestMixin):
             pass
 
-        class CA2(ca, TypeTester, descent=CA1):
+        class A2(a, _TypeTestMixin, descent=A1):
             inherit_context = False
 
-        CA1().test()
-        CA2().test()
+        a1 = A1()
+        a1.test(a)
+        A2(a1).test(a)  # type: ignore
+
+    def test_inherit_context(self, a):
+        class A1(a):
+            def test(self):
+                assert self.supercontext is None
+
+        class A2(a, descent=A1):
+            def test(self):
+                assert self.context is self.descent.context
+
+        class A3(a, descent=A2):
+            inherit_context = False
+
+            def test(self):
+                assert self.supercontext is a1.context
+                assert self.supercontext is self.descent.context
+                assert self.context is not a1.context
+                assert self.context is not self.descent.context
+
+        class A4(a, descent=A3):
+            def test(self):
+                assert self.supercontext is self.descent.supercontext
+                assert self.context is self.descent.context
+
+        a1 = A1()
+        a2 = A2(a1)
+        a3 = A3(a2)
+        a4 = A4(a3)
+        a1.test()
+        a2.test()
+        a3.test()
+        a4.test()
