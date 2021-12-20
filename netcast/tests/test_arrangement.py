@@ -46,10 +46,23 @@ class TestClassArrangement:
                 assert self.supercontext is CA3._get_context() is CA1._get_context()
                 assert self.context is CA4._get_context()
 
+        class CA5(ca, descent=CA4):
+            def test(self):
+                CA4.test(self)
+
+        class CA6(ca, descent=CA5):
+            inherit_context = False
+
+            def test(self):
+                assert self.supercontext is CA5._get_context()
+                assert self.context is CA6._get_context()
+
         CA1().test()
         CA2().test()
         CA3().test()
         CA4().test()
+        CA5().test()
+        CA6().test()
 
     def test_context_type(self, ca):
         class TypeTester:
