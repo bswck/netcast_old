@@ -49,16 +49,22 @@ class TestClassArrangement:
 
         class CA2(CA1):
             def test(self):
-                assert self.descent_type is None
+                assert self.descent_type is None  # how could I know?
                 assert self.context is CA1.get_context()
 
-        class CA3(ca, descent=CA1):
+        class CA3(CA1, descent=CA1):  # this one's interesting.
+            def test(self):
+                assert self.descent_type is CA1
+                assert self.context is CA1.get_context()
+
+        class CA4(ca, descent=CA1):
             def test(self):
                 assert self.descent_type is CA1
                 assert self.context is CA2.get_context()
 
         CA2().test()
         CA3().test()
+        CA4().test()
 
     def test_inherit_context(self, ca):
         class CA1(ca):
