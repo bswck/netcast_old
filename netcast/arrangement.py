@@ -34,7 +34,7 @@ class _BaseArrangement:
 
     @classmethod
     def _get_supercontext(cls):
-        return _BaseArrangement._super_registry.get(cls._get_context())
+        return _BaseArrangement._super_registry.get(cls.get_context())
 
     @staticmethod
     def _set_supercontext(context: Context, supercontext: Context | None):
@@ -50,7 +50,7 @@ class _BaseArrangement:
         return context
 
     @classmethod
-    def _get_context(cls, *args, **kwargs):
+    def get_context(cls, *args, **kwargs):
         """Get the current context."""
         return getattr(cls, '_cls_context', None)
 
@@ -114,7 +114,7 @@ class ClassArrangement(_BaseArrangement):
         else:
             cls._known_descent_type = descent
 
-        context = descent._get_context()
+        context = descent.get_context()
         null_context = context is None
 
         if null_context:
@@ -133,7 +133,7 @@ class ClassArrangement(_BaseArrangement):
     @property
     def context(self) -> Context | Any:
         """Get the current context. Note: this is the proper API for modifying it."""
-        return self._get_context()
+        return self.get_context()
 
     @property
     def supercontext(self) -> Context | Any | None:
@@ -183,7 +183,7 @@ class Arrangement(ClassArrangement, netcast=True):
             if not isinstance(descent, fixed_descent_type):  # soft-check descent type
                 raise TypeError('passed descent\'s type and the fixed descent type are not alike')
 
-        contexts = cls._get_context()
+        contexts = cls.get_context()
         self = object.__new__(cls)
 
         if inherit_context and descent is not None:
@@ -195,9 +195,9 @@ class Arrangement(ClassArrangement, netcast=True):
         return self
 
     @classmethod
-    def _get_context(cls, self=None):
+    def get_context(cls, self=None):
         """Get the current context."""
-        contexts = super()._get_context()
+        contexts = super().get_context()
         if self is None:
             return contexts
         return contexts[self]
@@ -207,12 +207,12 @@ class Arrangement(ClassArrangement, netcast=True):
         """Get the current supercontext."""
         if self is None:
             return super()._get_supercontext()
-        return _BaseArrangement._super_registry.get(cls._get_context(self))
+        return _BaseArrangement._super_registry.get(cls.get_context(self))
 
     @property
     def context(self) -> Context | Any:
         """Get the current context. Note: this is the proper API for modifying it."""
-        return self._get_context(self)
+        return self.get_context(self)
 
     @property
     def supercontext(self) -> Context | Any | None:
