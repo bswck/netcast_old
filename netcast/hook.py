@@ -18,7 +18,7 @@ class Hook(Arrangement):
     context_class = DictContext
 
 
-class ReceiveHook(Hook, metaclass=abc.ABCMeta, toplevel=True):
+class ReceiveHook(Hook, metaclass=abc.ABCMeta, abstract=True):
     inherit_context = False
 
     def after_receive(self, data, **params):
@@ -29,7 +29,7 @@ class ReceiveHook(Hook, metaclass=abc.ABCMeta, toplevel=True):
         raise NotImplementedError
 
 
-class SendHook(Hook, metaclass=abc.ABCMeta, toplevel=True):
+class SendHook(Hook, metaclass=abc.ABCMeta, abstract=True):
     inherit_context = False
 
     def before_send(self, data, **params):

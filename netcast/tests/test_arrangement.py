@@ -3,7 +3,7 @@ from typing import ClassVar, Type
 import pytest
 
 from netcast.arrangement import ClassArrangement, Arrangement
-from netcast.context import Context, DictContext
+from netcast.context import Context, DictContext, ListContext
 
 class_arrangement_subclasses = [ClassArrangement, *ClassArrangement.__subclasses__()]
 class_arrangement_subclasses.remove(Arrangement)
@@ -21,6 +21,28 @@ def a(request):
 
 
 class TestClassArrangement:
+    def test_toplevel(self):
+        class TopLevel(ClassArrangement, abstract=True):
+            context_class = ListContext
+
+            def test(self):
+                assert self.context is None
+
+        class CA1(ClassArrangement, descent=TopLevel):  
+            # using descent= here is pointless; 
+            # just testing if all things behave fine
+            def test(self):
+                assert isinstance(self.context, dict)  # we don't want list here
+
+        class CA2(TopLevel):
+            context_class = ListContext
+
+            def test(self):
+                assert isinstance(self.context, list)  # we want list here
+
+        CA1().test()
+        CA2().test()
+
     def test_descent(self, ca):
         class CA1(ca):
             pass

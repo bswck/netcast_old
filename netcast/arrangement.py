@@ -94,7 +94,7 @@ class ClassArrangement(_BaseArrangement):
             descent=None,
             clear_init=False,
             context_class=None,
-            toplevel=False,
+            abstract=False,
             netcast=False
     ):
         """When a new subclass is created, handle its access to the local context."""
@@ -105,7 +105,7 @@ class ClassArrangement(_BaseArrangement):
         context_class = cls._get_context_class(context_class)
         assert issubclass(context_class, Context)
 
-        if toplevel:
+        if abstract:
             cls.inherit_context = None
             return
 
@@ -152,7 +152,7 @@ class Arrangement(ClassArrangement, netcast=True):
             descent=None,
             clear_init=False,
             context_class=None,
-            toplevel=False,
+            abstract=False,
             netcast=False
     ):
         if netcast:
@@ -163,7 +163,7 @@ class Arrangement(ClassArrangement, netcast=True):
         cls.inherit_context = True
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, toplevel=toplevel, netcast=netcast
+            context_class=MemoryDictContext, abstract=abstract, netcast=netcast
         )
         cls.context_class = context_class
         cls.inherit_context = True
@@ -230,7 +230,7 @@ def _arrangement(name, context_class, class_arrangement=False, doc=None):
     else:
         super_class = Arrangement
 
-    class _BoilerplateArrangement(super_class, context_class=context_class, toplevel=True):
+    class _BoilerplateArrangement(super_class, context_class=context_class, abstract=True):
         __doc__ = doc
 
     _BoilerplateArrangement.__name__ = name
