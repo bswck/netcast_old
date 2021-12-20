@@ -3,7 +3,7 @@ from typing import ClassVar, Type
 import pytest
 
 from netcast.arrangement import ClassArrangement, Arrangement
-from netcast.context import Context
+from netcast.context import Context, DictContext
 
 class_arrangement_subclasses = [ClassArrangement, *ClassArrangement.__subclasses__()]
 class_arrangement_subclasses.remove(Arrangement)
@@ -27,7 +27,16 @@ class TestClassArrangement:
 
         class CA2(CA1):
             def test(self):
+                assert self.descent_type is None
                 assert self.context is CA1.get_context()
+
+        class CA3(ca, descent=CA1):
+            def test(self):
+                assert self.descent_type is CA1
+                assert self.context is CA2.get_context()
+
+        CA2().test()
+        CA3().test()
 
     def test_inherit_context(self, ca):
         class CA1(ca):
@@ -78,7 +87,11 @@ class TestClassArrangement:
             context_class: ClassVar[Type[Context]]
 
             def test(self):
-                assert type(self.context) is type(self).context_class
+                if ca.context_class is None:
+                    expected_context_class = DictContext
+                else:
+                    expected_context_class = ca.context_class
+                assert type(self.context) is expected_context_class is self.context_class
 
         class CA1(ca, TypeTester):
             pass

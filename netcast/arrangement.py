@@ -70,7 +70,7 @@ class ClassArrangement(_BaseArrangement):
     however you may use :class:`Arrangement` for instance-context arrangements.
     Instances that participate in an instance arrangement must be given an descent they work with.
     """
-    descent: "ClassArrangement"
+    descent_type: Type[ClassArrangement] | None
 
     @classmethod
     def _get_inherit_context(cls):
@@ -111,8 +111,9 @@ class ClassArrangement(_BaseArrangement):
 
         if descent is None:
             descent = super(ClassArrangement, cls)
+            cls.descent_type = None
         else:
-            cls._known_descent_type = descent
+            cls.descent_type = descent
 
         context = descent.get_context()
         null_context = context is None
@@ -143,7 +144,7 @@ class ClassArrangement(_BaseArrangement):
 
 class Arrangement(ClassArrangement, netcast=True):
     __init__ = _init_arrangement
-    descent: "Arrangement"
+    descent: Arrangement | None
     _instance_inherit_context = True
 
     def __init_subclass__(
@@ -156,7 +157,6 @@ class Arrangement(ClassArrangement, netcast=True):
     ):
         if netcast:
             return
-
         context_class = cls._get_context_class(context_class)
         inherit_context = cls._get_inherit_context()
         cls.context_class = None
@@ -178,14 +178,14 @@ class Arrangement(ClassArrangement, netcast=True):
             descent = None
         inherit_context = cls._instance_inherit_context
 
-        fixed_descent_type = getattr(cls, '_fixed_descent_type', None)
+        fixed_descent_type = getattr(cls, 'descent_type', None)
         if fixed_descent_type is not None:
             if not isinstance(descent, fixed_descent_type):  # soft-check descent type
                 raise TypeError('passed descent\'s type and the fixed descent type are not alike')
 
         contexts = cls.get_context()
         self = object.__new__(cls)
-
+        self.descent = descent
         if inherit_context and descent is not None:
             contexts[self] = contexts[descent]
         elif descent is not None:
