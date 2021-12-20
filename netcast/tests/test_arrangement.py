@@ -21,20 +21,20 @@ def a(request):
 
 
 class TestClassArrangement:
-    def test_toplevel(self):
-        class TopLevel(ClassArrangement, abstract=True):
+    def test_abstract(self):
+        class Abstract(ClassArrangement, abstract=True):
             context_class = ListContext
 
             def test(self):
                 assert self.context is None
 
-        class CA1(ClassArrangement, descent=TopLevel):  
+        class CA1(ClassArrangement, descent=Abstract):
             # using descent= here is pointless; 
             # just testing if all things behave fine
             def test(self):
                 assert isinstance(self.context, dict)  # we don't want list here
 
-        class CA2(TopLevel):
+        class CA2(Abstract):
             context_class = ListContext
 
             def test(self):
