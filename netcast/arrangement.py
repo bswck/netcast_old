@@ -70,6 +70,7 @@ class ClassArrangement(_BaseArrangement):
     however you may use :class:`Arrangement` for instance-context arrangements.
     Instances that participate in an instance arrangement must be given an descent they work with.
     """
+    descent: "ClassArrangement"
 
     @classmethod
     def _get_inherit_context(cls):
@@ -142,6 +143,8 @@ class ClassArrangement(_BaseArrangement):
 
 class Arrangement(ClassArrangement, netcast=True):
     __init__ = _init_arrangement
+    descent: "Arrangement"
+    _instance_inherit_context = True
 
     def __init_subclass__(
             cls, *,
@@ -163,16 +166,17 @@ class Arrangement(ClassArrangement, netcast=True):
             context_class=MemoryDictContext, toplevel=toplevel, netcast=netcast
         )
         cls.context_class = context_class
+        cls.inherit_context = True
         if netcast:
             return
-        cls.inherit_context = inherit_context
+        cls._instance_inherit_context = inherit_context
 
     def __new__(cls, *args, **kwargs):
         if args:
             descent, *args = args
         else:
             descent = None
-        inherit_context = cls.inherit_context
+        inherit_context = cls._instance_inherit_context
 
         fixed_descent_type = getattr(cls, '_fixed_descent_type', None)
         if fixed_descent_type is not None:
@@ -215,6 +219,10 @@ class Arrangement(ClassArrangement, netcast=True):
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext(self)
 
+    @property
+    def inherits_context(self):
+        return self._instance_inherit_context
+
 
 def _arrangement(name, context_class, class_arrangement=False, doc=None):
     if class_arrangement:
@@ -223,9 +231,9 @@ def _arrangement(name, context_class, class_arrangement=False, doc=None):
         super_class = Arrangement
 
     class _BoilerplateArrangement(super_class, context_class=context_class, toplevel=True):
-        __name__ = name
         __doc__ = doc
 
+    _BoilerplateArrangement.__name__ = name
     return _BoilerplateArrangement
 
 
