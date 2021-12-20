@@ -36,8 +36,6 @@ class TestClassArrangement:
                 assert isinstance(self.context, dict)  # we don't want list here
 
         class CA2(Abstract):
-            # using descent= here is pointless;
-            # just testing if all things behave fine
             def test(self):
                 CA1.test(self)  # type: ignore  # we don't want list here
 
