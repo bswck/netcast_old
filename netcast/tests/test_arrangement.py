@@ -10,18 +10,14 @@ class_arrangement_subclasses.remove(Arrangement)
 arrangement_subclasses = [Arrangement, *Arrangement.__subclasses__()]
 
 
-def _arrangement_fixture(request):
-    yield request.param
-
-
 @pytest.fixture(params=class_arrangement_subclasses)
 def ca(request):
-    yield from _arrangement_fixture(request)
+    yield request.param
 
 
 @pytest.fixture(params=arrangement_subclasses)
 def a(request):
-    yield from _arrangement_fixture(request)
+    yield request.param
 
 
 class TestClassArrangement:
