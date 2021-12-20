@@ -52,17 +52,17 @@ class TestClassArrangement:
         CA4().test()
 
     def test_context_type(self, ca):
-        class Checker:
+        class TypeTester:
             context: Context
             context_class: ClassVar[Type[Context]]
 
             def test(self):
                 assert type(self.context) is type(self).context_class
 
-        class CA1(ca, Checker):
+        class CA1(ca, TypeTester):
             pass
 
-        class CA2(ca, Checker, descent=CA1):
+        class CA2(ca, TypeTester, descent=CA1):
             inherit_context = False
 
         CA1().test()
