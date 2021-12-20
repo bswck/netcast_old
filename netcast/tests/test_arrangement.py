@@ -22,11 +22,12 @@ def a(request):
 
 class TestClassArrangement:
     def test_abstract(self):
-        class Abstract(ClassArrangement, abstract=True):
-            context_class = ListContext
+        with pytest.warns(UserWarning):
+            class Abstract(ClassArrangement, abstract=True):
+                context_class = ListContext
 
-            def test(self):
-                assert self.context is None
+                def test(self):
+                    assert self.context is None
 
         class CA1(ClassArrangement, descent=Abstract):
             # using descent= here is pointless; 
@@ -35,6 +36,12 @@ class TestClassArrangement:
                 assert isinstance(self.context, dict)  # we don't want list here
 
         class CA2(Abstract):
+            # using descent= here is pointless;
+            # just testing if all things behave fine
+            def test(self):
+                CA1.test(self)  # type: ignore  # we don't want list here
+
+        class CA3(Abstract):
             context_class = ListContext
 
             def test(self):
@@ -42,6 +49,7 @@ class TestClassArrangement:
 
         CA1().test()
         CA2().test()
+        CA3().test()
 
     def test_descent(self, ca):
         class CA1(ca):

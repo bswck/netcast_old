@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any, ClassVar, Type
 
 from netcast.context import (
@@ -107,6 +108,9 @@ class ClassArrangement(_BaseArrangement):
 
         if abstract:
             cls.inherit_context = None
+            if cls.context_class is not None:
+                warnings.warn('context_class= was set on an abstract arrangement')
+            cls.context_class = None
             return
 
         if descent is None:
