@@ -1,32 +1,35 @@
-from typing import ClassVar, Type
+import warnings
+from typing import ClassVar
 
 import pytest
 
+from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
 from netcast.arrangement import ClassArrangement, Arrangement
-from netcast.context import Context, DictContext, ListContext
+from netcast.context import C, CT
 
-class_arrangement_subclasses = [ClassArrangement, *ClassArrangement.__subclasses__()]
-class_arrangement_subclasses.remove(Arrangement)
-arrangement_subclasses = [Arrangement, *Arrangement.__subclasses__()]
+ca_params = {ClassArrangement, *ClassArrangement.__subclasses__()} - {Arrangement}
 
 
-@pytest.fixture(params=class_arrangement_subclasses)
-def ca(request):
+@pytest.fixture(params=ca_params)
+def ca(request) -> CAT:
     yield request.param
 
 
-@pytest.fixture(params=arrangement_subclasses)
-def a(request):
+a_params = {Arrangement, *Arrangement.__subclasses__()}
+
+
+@pytest.fixture(params=a_params)
+def a(request) -> AT:
     yield request.param
 
 
-class _TypeTestMixin:
-    context: Context
-    context_class: ClassVar[Type[Context]]
+class _TestContextType:
+    context: C
+    context_class: ClassVar[CT]
 
-    def test(self, cls):
+    def test(self, cls: CAT):
         if cls.context_class is None:
-            expected_context_class = DictContext
+            expected_context_class = DEFAULT_CONTEXT_CLASS
         else:
             expected_context_class = cls.context_class
         assert type(self.context) is expected_context_class is self.context_class
@@ -34,44 +37,47 @@ class _TypeTestMixin:
 
 class TestClassArrangement:
     def test_abstract(self):
-        with pytest.warns(UserWarning):
-            class Abstract(ClassArrangement, abstract=True):
-                context_class = ListContext
+        from netcast.context import ListContext
 
-                def test(self):
-                    assert self.context is None
-
-        class CA1(ClassArrangement, descent=Abstract):
-            # using descent= here is pointless; 
-            # just testing if all things behave fine
-            def test(self):
-                assert isinstance(self.context, dict)  # we don't want list here
-
-        class CA2(Abstract):
-            def test(self):
-                CA1.test(self)  # type: ignore  # we don't want list here
-
-        class CA3(Abstract):
+        class Abstract(ClassArrangement, abstract=True):
             context_class = ListContext
 
             def test(self):
-                assert isinstance(self.context, list)  # we want list here
+                assert self.context is None
+
+        class CA1(ClassArrangement, descent=Abstract):
+            def test(self):
+                assert isinstance(self.context, Abstract.context_class)  # we want a list here
+
+        class CA2(Abstract):
+            def test(self):
+                assert isinstance(self.context, Abstract.context_class)  # we want a list here
+
+        from netcast.context import QueueContext as SomeOtherContext
+
+        # noinspection PyUnusedLocal
+        class Safe(Abstract):
+            context_class = SomeOtherContext
+
+        with pytest.raises(TypeError):
+            # noinspection PyUnusedLocal
+            class Unsafe(ClassArrangement, descent=Abstract):
+                context_class = SomeOtherContext
 
         CA1().test()
         CA2().test()
-        CA3().test()
 
-    def test_context_type(self, ca):
-        class CA1(ca, _TypeTestMixin):
+    def test_context_type(self, ca: CAT):
+        class CA1(ca, _TestContextType):
             pass
 
-        class CA2(ca, _TypeTestMixin, descent=CA1):
+        class CA2(ca, _TestContextType, descent=CA1):
             inherit_context = False
 
         CA1().test(ca)
         CA2().test(ca)
 
-    def test_descent(self, ca):
+    def test_descent(self, ca: CAT):
         class CA1(ca):
             pass
 
@@ -94,7 +100,7 @@ class TestClassArrangement:
         CA3().test()
         CA4().test()
 
-    def test_inherit_context(self, ca):
+    def test_inherit_context(self, ca: CAT):
         class CA1(ca):
             def test(self):
                 assert self.supercontext is None
@@ -121,7 +127,7 @@ class TestClassArrangement:
 
         class CA5(ca, descent=CA4):
             def test(self):
-                CA4.test(self)
+                CA4.test(self)  # type: ignore
 
         class CA6(ca, descent=CA5):
             inherit_context = False
@@ -137,27 +143,109 @@ class TestClassArrangement:
         CA5().test()
         CA6().test()
 
+    def test_class_dict_arrangement(self):
+        from netcast.arrangement import ClassDictArrangement
 
-class TestArrangement:
-    def test_context_type(self, a):
-        class A1(a, _TypeTestMixin):
+        class CA1(ClassDictArrangement):
+            @classmethod
+            def context_wrapper(cls, context):
+                for key, default in {'pings': 0, 'pongs': 0}.items():
+                    context.setdefault(key, default)
+                yield context
+
+            def ping(self):
+                self.context.setdefault('pings', 0)
+                self.context.pings += 1
+
+        class CA2(CA1):
+            def pong(self):
+                self.context.setdefault('pongs', 0)
+                self.context.pongs += 1
+
+        ca1 = CA1()
+        ca1.ping()
+        ca2 = CA2()
+        ca2.pong()
+
+        assert CA1.get_context() is CA2.get_context()
+        assert ca1.context is ca2.context
+        assert ca1.context == {'pings': 1, 'pongs': 1}
+
+        ca1.ping()
+        ca2.pong()
+
+        assert ca1.context == {'pings': 2, 'pongs': 2}
+
+        ca2.ping()
+
+        assert ca1.context == {'pings': 3, 'pongs': 2}
+
+    def test_class_list_arrangement(self):
+        from netcast.arrangement import ClassListArrangement
+
+        class CA(ClassListArrangement, _TestContextType):
             pass
 
-        class A2(a, _TypeTestMixin, descent=A1):
+        CA().test(ClassListArrangement)
+
+        class CA1(ClassListArrangement):
+            def one(self):
+                self.context.append(1)
+
+        class CA2(CA1):
+            def two(self):
+                self.context.append(2)
+
+        ca1 = CA1()
+        ca1.one()
+        ca2 = CA2()
+        ca2.two()
+
+    def test_class_deque_arrangement(self):
+        pass
+
+    def test_class_queue_arrangement(self):
+        pass
+
+    def test_class_lifo_queue_arrangement(self):
+        pass
+
+    def test_class_priority_queue_arrangement(self):
+        pass
+
+    def test_class_asyncio_queue_arrangement(self):
+        pass
+
+    def test_class_asyncio_lifo_queue_arrangement(self):
+        pass
+
+    def test_class_asyncio_priority_queue_arrangement(self):
+        pass
+
+
+class TestArrangement:
+    def test_context_type(self, a: AT):
+        class A1(a, _TestContextType):
+            pass
+
+        class A2(a, _TestContextType, descent=A1):
             inherit_context = False
 
         a1 = A1()
         a1.test(a)
-        A2(a1).test(a)  # type: ignore
+        # noinspection PyArgumentList
+        A2(a1).test(a)
 
-    def test_inherit_context(self, a):
+    def test_inherit_context(self, a: AT):
         class A1(a):
             def test(self):
                 assert self.supercontext is None
+                assert self.inherits_context
 
         class A2(a, descent=A1):
             def test(self):
                 assert self.context is self.descent.context
+                assert self.inherits_context
 
         class A3(a, descent=A2):
             inherit_context = False
@@ -167,11 +255,13 @@ class TestArrangement:
                 assert self.supercontext is self.descent.context
                 assert self.context is not a1.context
                 assert self.context is not self.descent.context
+                assert not self.inherits_context
 
         class A4(a, descent=A3):
             def test(self):
                 assert self.supercontext is self.descent.supercontext
                 assert self.context is self.descent.context
+                assert self.inherits_context
 
         a1 = A1()
         a2 = A2(a1)
@@ -181,3 +271,30 @@ class TestArrangement:
         a2.test()
         a3.test()
         a4.test()
+
+    def test_dict_arrangement(self):
+        pass
+
+    def test_list_arrangement(self):
+        pass
+
+    def test_deque_arrangement(self):
+        pass
+
+    def test_queue_arrangement(self):
+        pass
+
+    def test_lifo_queue_arrangement(self):
+        pass
+
+    def test_priority_queue_arrangement(self):
+        pass
+
+    def test_asyncio_queue_arrangement(self):
+        pass
+
+    def test_asyncio_lifo_queue_arrangement(self):
+        pass
+
+    def test_asyncio_priority_queue_arrangement(self):
+        pass

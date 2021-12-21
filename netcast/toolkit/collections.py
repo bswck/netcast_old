@@ -1,4 +1,7 @@
+from __future__ import annotations
 from collections import UserList
+from collections.abc import MutableSet
+
 from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
 
 
@@ -14,7 +17,7 @@ class ModernDict(dict):
 
 
 class KeyTransformingDict(_KeyTransformingDict):
-    def update(self, E=None, **F):
+    def update(self, e=None, **f):
         """
         D.update([E, ]**F) -> None.  Update D from dict/iterable E and F.
         If E is present and has a .keys() method, then does:  for k in E: D[k] = E[k]
@@ -22,17 +25,18 @@ class KeyTransformingDict(_KeyTransformingDict):
         In either case, this is followed by: for k in F:  D[k] = F[k]
         """  # copied from builtins
         # Somebody forgot that update() doesn't call the public __setitem__() method…
-        # …or it's a pesky bug. Idk, according to the docs that magic method should be called then.
+        # …or it's a pesky bug. IDK, according to the docs that magic method should be called then.
         # So, to make things work, I just turned the docs into the code below.
-        if E is not None:
-            if callable(getattr(E, 'keys', None)):
-                for k in E:
-                    self[k] = E[k]
+        d = self
+        if e and e is not None:
+            if callable(getattr(e, 'keys', None)):
+                for k in e:
+                    d[k] = e[k]
             else:
-                for k, v in E:
-                    self[k] = v
-        for k in F:
-            self[k] = F[k]
+                for k, v in e:
+                    d[k] = v
+        for k in f:
+            d[k] = f[k]
 
 
 class MemoryDict(KeyTransformingDict):
@@ -42,15 +46,15 @@ class MemoryDict(KeyTransformingDict):
 
     Examples
     --------
-    >>> mem_dict = MemoryDict()
+    >>> memory_dict = MemoryDict()
     >>> a = []
     >>> b = []
     >>> a == b
     True
-    >>> mem_dict[a] = 0
-    >>> mem_dict[a]
+    >>> memory_dict[a] = 0
+    >>> memory_dict[a]
     0
-    >>> mem_dict[b]
+    >>> memory_dict[b]
     Traceback (most recent call last):
     ...
     KeyError: ...
@@ -147,6 +151,34 @@ class ItemTransformingList(UserList):
         return super().extend(other)
 
 
+class ItemTransformingSet(MutableSet):
+    """
+    A set that transforms each item before accepting it.
+    No back transformation.
+    """
+
+    def __len__(self) -> int:
+        return len(set(self))
+
+    def __iter__(self):
+        yield from set(self)
+
+    def __contains__(self, item):
+        return self.transform_item(item) in set(self)
+
+    @staticmethod
+    def transform_item(item):
+        return item
+
+    def add(self: set | "ItemTransformingSet", value):
+        value = self.transform_item(value)
+        set.add(self, value)
+
+    def discard(self: set | "ItemTransformingSet", value):
+        value = self.transform_item(value)
+        set.discard(self, value)
+
+
 class MemoryList(ItemTransformingList):
     """A list for storing Python object ids."""
     transform_item = id
@@ -155,3 +187,8 @@ class MemoryList(ItemTransformingList):
         if isinstance(items, type(self)):
             return items
         return super().transform_items(items)
+
+
+class MemorySet(ItemTransformingSet):
+    """A list for storing Python object ids."""
+    transform_item = id

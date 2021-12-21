@@ -1,18 +1,29 @@
 from __future__ import annotations
 
-import warnings
+import functools
+import operator
 from typing import Any, ClassVar, Type
 
 from netcast.context import (
     Context, DictContext, ListContext, DequeContext, QueueContext,
     LifoQueueContext, PriorityQueueContext, AsyncioQueueContext,
-    AsyncioLifoQueueContext, AsyncioPriorityQueueContext, MemoryDictContext
+    AsyncioLifoQueueContext, AsyncioPriorityQueueContext, MemoryDictContext, ContextHook
 )
 from netcast.toolkit.collections import MemoryDict
 
 
+CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
+
+
 def _init_arrangement(self, descent=None):
     self.descent = descent
+
+
+def _is_classmethod(cls, method):
+    return getattr(method, '__self__', None) is cls
+
+
+DEFAULT_CONTEXT_CLASS = DictContext
 
 
 class _BaseArrangement:
@@ -22,7 +33,7 @@ class _BaseArrangement:
     context_class: ClassVar[Type[Context] | None] = None
     """Context class. Must derive from the abstract class :class:`Context`."""
 
-    _cls_context: Context | Any | None
+    _context: Context | Any | None
     """A :class:`Context` object shared across members of a class arrangement."""
 
     inherit_context: bool | None = None
@@ -53,7 +64,7 @@ class _BaseArrangement:
     @classmethod
     def get_context(cls, *args, **kwargs):
         """Get the current context."""
-        return getattr(cls, '_cls_context', None)
+        return getattr(cls, '_context', None)
 
 
 class ClassArrangement(_BaseArrangement):
@@ -72,6 +83,11 @@ class ClassArrangement(_BaseArrangement):
     Instances that participate in an instance arrangement must be given an descent they work with.
     """
     descent_type: Type[ClassArrangement] | None
+    _default_context_class = True
+
+    @classmethod
+    def context_wrapper(cls, context):
+        yield context
 
     @classmethod
     def _get_inherit_context(cls):
@@ -80,13 +96,32 @@ class ClassArrangement(_BaseArrangement):
         return cls.inherit_context
 
     @classmethod
-    def _get_context_class(cls, context_class=None):
-        if (context_class, cls.context_class) == (None, None):
-            context_class = DictContext
-        elif None not in (context_class, cls.context_class):
+    def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
+        args = (context_class, cls.context_class)
+        if None not in args and operator.is_not(*args):
             raise ValueError('context_class= set both when subclassing and in a subclass')
-        else:
-            context_class, = filter(None, (context_class, cls.context_class))
+        descent_context_class = getattr(descent, 'context_class', context_class)
+        if any(args):
+            context_class, = filter(None, args)
+        if context_class is None and descent_context_class is None:
+            context_class = DEFAULT_CONTEXT_CLASS
+        _original_context_class: type | None = context_class
+        if context_class is None:
+            context_class = descent_context_class
+            cls._default_context_class = False
+        if (
+            descent is not None
+            and inherit_context is not None
+            and inherit_context
+            and None not in (_original_context_class, descent_context_class)
+        ):
+            _original_context_class: type
+            descent_context_class: type
+            if not issubclass(_original_context_class, descent_context_class):
+                raise TypeError(
+                    'context_class is different for descent and this class '
+                    '(inherit_context = False may fix this error)'
+                )
         cls.context_class = context_class
         return context_class
 
@@ -96,21 +131,12 @@ class ClassArrangement(_BaseArrangement):
             clear_init=False,
             context_class=None,
             abstract=False,
-            netcast=False
+            netcast=False,
+            _use_wrapper=True,
+            _type_check=True
     ):
         """When a new subclass is created, handle its access to the local context."""
         if netcast:
-            return
-
-        inherit_context = cls._get_inherit_context()
-        context_class = cls._get_context_class(context_class)
-        assert issubclass(context_class, Context)
-
-        if abstract:
-            cls.inherit_context = None
-            if cls.context_class is not None:
-                warnings.warn('context_class= was set on an abstract arrangement')
-            cls.context_class = None
             return
 
         if descent is None:
@@ -119,6 +145,21 @@ class ClassArrangement(_BaseArrangement):
         else:
             cls.descent_type = descent
 
+        inherit_context = cls._get_inherit_context()
+        if _type_check:
+            context_class = cls._get_context_class(
+                context_class,
+                inherit_context and not abstract,
+                descent
+            )
+        else:
+            context_class = cls._get_context_class(context_class)
+        assert issubclass(context_class, Context)
+
+        if abstract:
+            cls.inherit_context = None
+            return
+
         context = descent.get_context()
         null_context = context is None
 
@@ -126,11 +167,18 @@ class ClassArrangement(_BaseArrangement):
             context = cls._create_context()
 
         if inherit_context or null_context:
-            cls._cls_context = context
+            cls._context = context
         else:
-            cls._cls_context = cls._create_context(context)
+            cls._context = cls._create_context(context)
 
         cls.inherit_context = None
+
+        if _use_wrapper and not ContextHook.is_prepared(context):
+            context = cls.get_context()
+            context_wrapper = cls.context_wrapper
+            if not _is_classmethod(cls, cls.context_wrapper):
+                context_wrapper = functools.partial(context_wrapper, cls)
+            cls._context = next(context_wrapper(context), context)
 
         if clear_init:
             cls.__init__ = _init_arrangement
@@ -147,9 +195,11 @@ class ClassArrangement(_BaseArrangement):
 
 
 class Arrangement(ClassArrangement, netcast=True):
-    __init__ = _init_arrangement
     descent: Arrangement | None
-    _instance_inherit_context = True
+    _inherits_context = True
+
+    def __init__(self, descent=None):
+        _init_arrangement(self, descent)
 
     def __init_subclass__(
             cls, *,
@@ -157,7 +207,8 @@ class Arrangement(ClassArrangement, netcast=True):
             clear_init=False,
             context_class=None,
             abstract=False,
-            netcast=False
+            netcast=False,
+            **kwargs
     ):
         if netcast:
             return
@@ -167,20 +218,20 @@ class Arrangement(ClassArrangement, netcast=True):
         cls.inherit_context = True
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, abstract=abstract, netcast=netcast
+            context_class=MemoryDictContext, abstract=abstract, netcast=netcast,
+            _use_wrapper=False, _type_check=False
         )
         cls.context_class = context_class
-        cls.inherit_context = True
         if netcast:
             return
-        cls._instance_inherit_context = inherit_context
+        cls._inherits_context = inherit_context
 
     def __new__(cls, *args, **kwargs):
         if args:
             descent, *args = args
         else:
             descent = None
-        inherit_context = cls._instance_inherit_context
+        inherit_context = cls._inherits_context
 
         fixed_descent_type = getattr(cls, 'descent_type', None)
         if fixed_descent_type is not None:
@@ -196,7 +247,19 @@ class Arrangement(ClassArrangement, netcast=True):
             contexts[self] = cls._create_context(contexts[descent])
         else:
             contexts[self] = cls._create_context()
+        context = contexts[self]
+        if not ContextHook.is_prepared(context):
+            context_wrapper = cls.context_wrapper
+            if _is_classmethod(cls, context_wrapper):
+                context_wrapper = functools.partial(context_wrapper)
+            else:
+                context_wrapper = functools.partial(context_wrapper, self)
+            contexts[self] = next(context_wrapper(context), context)
+            ContextHook.on_prepare(context)
         return self
+
+    def context_wrapper(self, context):
+        yield context
 
     @classmethod
     def get_context(cls, self=None):
@@ -224,43 +287,45 @@ class Arrangement(ClassArrangement, netcast=True):
         return self._get_supercontext(self)
 
     @property
-    def inherits_context(self):
-        return self._instance_inherit_context
+    def inherits_context(self) -> bool:
+        return self._inherits_context
 
 
-def _arrangement(name, context_class, class_arrangement=False, doc=None):
+def _ac(name, context_class, class_arrangement=False, doc=None):
     if class_arrangement:
         super_class = ClassArrangement
     else:
         super_class = Arrangement
 
     class _BoilerplateArrangement(super_class, context_class=context_class, abstract=True):
-        __doc__ = doc
+        pass
 
     _BoilerplateArrangement.__name__ = name
+    if doc:
+        _BoilerplateArrangement.__doc__ = doc
     return _BoilerplateArrangement
 
 
-ClassDictArrangement = _arrangement('ClassDictArrangement', DictContext, True)
-ClassListArrangement = _arrangement('ClassListArrangement', ListContext, True)
-ClassDequeArrangement = _arrangement('ClassDequeArrangement', DequeContext, True)
+ClassDictArrangement = _ac('ClassDictArrangement', DictContext, True)
+ClassListArrangement = _ac('ClassListArrangement', ListContext, True)
+ClassDequeArrangement = _ac('ClassDequeArrangement', DequeContext, True)
 
-ClassQueueArrangement = _arrangement('ClassQueueArrangement', QueueContext, True)
-ClassLifoQueueArrangement = _arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
-ClassPriorityQueueArrangement = _arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
+ClassQueueArrangement = _ac('ClassQueueArrangement', QueueContext, True)
+ClassLifoQueueArrangement = _ac('ClassLifoQueueArrangement', LifoQueueContext, True)
+ClassPriorityQueueArrangement = _ac('ClassPriorityQueueArrangement', PriorityQueueContext, True)
 
-ClassAsyncioQueueArrangement = _arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
-ClassAsyncioLifoQueueArrangement = _arrangement('ClassAsyncioQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
-ClassAsyncioPriorityQueueArrangement = _arrangement('ClassPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
+ClassAsyncioQueueArrangement = _ac('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)
+ClassAsyncioLifoQueueArrangement = _ac('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
+ClassAsyncioPriorityQueueArrangement = _ac('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
 
-DictArrangement = _arrangement('DictArrangement', DictContext)
-ListArrangement = _arrangement('ListArrangement', ListContext)
-DequeArrangement = _arrangement('DequeArrangement', DequeContext)
+DictArrangement = _ac('DictArrangement', DictContext)
+ListArrangement = _ac('ListArrangement', ListContext)
+DequeArrangement = _ac('DequeArrangement', DequeContext)
 
-QueueArrangement = _arrangement('QueueArrangement', QueueContext)
-LifoQueueArrangement = _arrangement('LifoQueueArrangement', LifoQueueContext)
-PriorityQueueArrangement = _arrangement('PriorityQueueArrangement', PriorityQueueContext)
+QueueArrangement = _ac('QueueArrangement', QueueContext)
+LifoQueueArrangement = _ac('LifoQueueArrangement', LifoQueueContext)
+PriorityQueueArrangement = _ac('PriorityQueueArrangement', PriorityQueueContext)
 
-AsyncioQueueArrangement = _arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
-AsyncioLifoQueueArrangement = _arrangement('AsyncioQueueArrangement', AsyncioLifoQueueContext)
-AsyncioPriorityQueueArrangement = _arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
+AsyncioQueueArrangement = _ac('AsyncioQueueArrangement', AsyncioQueueContext)
+AsyncioLifoQueueArrangement = _ac('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)
+AsyncioPriorityQueueArrangement = _ac('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
