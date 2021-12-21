@@ -7,14 +7,14 @@ import contextlib
 import queue
 from typing import Type, ForwardRef
 
-from netcast.toolkit.collections import AttributeDict, MemoryDict, MemorySet
+from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
 CT, C = Type["Context"], ForwardRef("Context")
 
 
 class ContextHook:
     MISSING = object()
-    prepared_contexts = MemorySet()
+    prepared_contexts = MemoryList()
 
     @classmethod
     def on_modify(cls, context, put=MISSING, remove=MISSING):
