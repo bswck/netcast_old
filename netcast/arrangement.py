@@ -241,6 +241,8 @@ class Arrangement(ClassArrangement, netcast=True):
         contexts = cls.get_context()
         self = object.__new__(cls)
         self.descent = descent
+        if contexts is None:
+            raise TypeError('abstract class')
         if inherit_context and descent is not None:
             contexts[self] = contexts[descent]
         elif descent is not None:
@@ -297,7 +299,16 @@ def _ac(name, context_class, class_arrangement=False, doc=None):
     else:
         super_class = Arrangement
 
-    class _BoilerplateArrangement(super_class, context_class=context_class, abstract=True):
+    class _Meta(type):
+        def __repr__(self):
+            return _BoilerplateArrangement.__module__ + '.' + name
+
+    class _BoilerplateArrangement(
+        super_class,
+        context_class=context_class,
+        abstract=True,
+        metaclass=_Meta
+    ):
         pass
 
     _BoilerplateArrangement.__name__ = name

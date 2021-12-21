@@ -200,6 +200,13 @@ class TestClassArrangement:
         ca2 = CA2()
         ca2.two()
 
+        assert ca2.context == [1, 2]
+
+        ca2.one()
+
+        assert ca2.context.pop() == 1
+        assert ca2.context == [1, 2]
+
     def test_class_deque_arrangement(self):
         pass
 

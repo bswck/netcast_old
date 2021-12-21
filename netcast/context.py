@@ -57,7 +57,7 @@ class ListContext(list, Context):
     def pop(self, i=-1):
         with contextlib.suppress(IndexError):
             ContextHook.on_modify(self, remove=self[i])
-        return super().remove(i)
+        return super().pop(i)
 
     def remove(self, item):
         ContextHook.on_modify(self, remove=item)
