@@ -151,20 +151,11 @@ class ItemTransformingList(UserList):
         return super().extend(other)
 
 
-class ItemTransformingSet(MutableSet):
+class ItemTransformingSet(set):
     """
     A set that transforms each item before accepting it.
     No back transformation.
     """
-
-    def __len__(self) -> int:
-        return len(set(self))
-
-    def __iter__(self):
-        yield from set(self)
-
-    def __contains__(self, item):
-        return self.transform_item(item) in set(self)
 
     @staticmethod
     def transform_item(item):

@@ -5,17 +5,16 @@ import asyncio
 import collections.abc
 import contextlib
 import queue
-import warnings
 from typing import Type, ForwardRef
 
-from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
+from netcast.toolkit.collections import AttributeDict, MemoryDict, MemorySet
 
 CT, C = Type["Context"], ForwardRef("Context")
 
 
 class ContextHook:
     MISSING = object()
-    prepared_contexts = MemoryList()
+    prepared_contexts = MemorySet()
 
     @classmethod
     def on_modify(cls, context, put=MISSING, remove=MISSING):

@@ -252,7 +252,7 @@ class Arrangement(ClassArrangement, netcast=True):
         context = contexts[self]
         if not ContextHook.is_prepared(context):
             context_wrapper = cls.context_wrapper
-            if _is_classmethod(cls, context_wrapper):
+            if _is_classmethod(cls, context_wrapper) or isinstance(context_wrapper, staticmethod):
                 context_wrapper = functools.partial(context_wrapper)
             else:
                 context_wrapper = functools.partial(context_wrapper, self)
