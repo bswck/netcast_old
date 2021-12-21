@@ -80,7 +80,7 @@ class ClassArrangement(_BaseArrangement):
 
     Note that it might be especially useful if those classes are singletons,
     however you may use :class:`Arrangement` for instance-context arrangements.
-    Instances that participate in an instance arrangement must be given an descent they work with.
+    Instances that participate in an instance arrangement must be given their descent.
     """
     descent_type: Type[ClassArrangement] | None
     _default_context_class = True
