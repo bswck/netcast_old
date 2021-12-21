@@ -340,3 +340,24 @@ PriorityQueueArrangement = _ac('PriorityQueueArrangement', PriorityQueueContext)
 AsyncioQueueArrangement = _ac('AsyncioQueueArrangement', AsyncioQueueContext)
 AsyncioLifoQueueArrangement = _ac('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)
 AsyncioPriorityQueueArrangement = _ac('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
+
+# shortcuts
+CArrangement = ClassArrangement
+CDArrangement = ClassDictArrangement
+CLArrangement = ClassListArrangement
+CDQArrangement = ClassDequeArrangement
+CQArrangement = ClassQueueArrangement
+CLQArrangement = ClassLifoQueueArrangement
+CPQArrangement = ClassPriorityQueueArrangement
+CAQArrangement = ClassAsyncioQueueArrangement
+CALQArrangement = ClassAsyncioLifoQueueArrangement
+CAPQArrangement = ClassAsyncioPriorityQueueArrangement
+DArrangement = DictArrangement
+LArrangement = ListArrangement
+DQArrangement = DequeArrangement
+QArrangement = QueueArrangement
+LQArrangement = LifoQueueArrangement
+PQArrangement = PriorityQueueArrangement
+AQArrangement = AsyncioQueueArrangement
+ALQArrangement = AsyncioLifoQueueContext
+APQArrangement = AsyncioPriorityQueueContext

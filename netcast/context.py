@@ -169,3 +169,15 @@ LifoQueueContext = _qc(queue.LifoQueue, 'LifoQueueContext')
 AsyncioQueueContext = _qc(asyncio.Queue)
 AsyncioPriorityQueueContext = _qc(asyncio.PriorityQueue)
 AsyncioLifoQueueContext = _qc(asyncio.LifoQueue)
+
+# shortcuts
+DContext = DictContext
+MDContext = MemoryDictContext
+LContext = ListContext
+DQContext = DequeContext
+QContext = QueueContext
+PQContext = PriorityQueueContext
+LQContext = LifoQueueContext
+AQContext = AsyncioQueueContext
+APQContext = AsyncioQueueContext
+ALQContext = AsyncioQueueContext
