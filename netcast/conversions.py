@@ -20,6 +20,9 @@ class Replacement:
     to_value: _BaseVar
     key: KT = operator.eq
 
+    def __iter__(self):
+        return dataclasses.fields(self)
+
     def __new__(cls, *args, **kwargs):
         if args:
             maybe_replacement = args[0]
@@ -35,7 +38,7 @@ class Replacement:
                 | Replacement
             )
     ):
-        return tuple(map(lambda r: (cls, lambda _: r)[isinstance(r, cls)](*r), replacements))
+        return tuple(map(lambda r: (cls, lambda *_: r)[isinstance(r, cls)](*r), replacements))
 
 
 class _BaseVar:
