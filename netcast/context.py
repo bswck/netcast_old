@@ -55,7 +55,7 @@ def _hooked_method(method, hook, cls=None):
     return _method_wrapper
 
 
-def _wrap_cls(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
+def _wrap_bases(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError('at least 1 base class is required')
@@ -94,16 +94,16 @@ _deque_modifiers = _list_modifiers + ('appendleft', 'extendleft', 'popleft')
 _dict_modifiers = ('__setitem__',)
 _queue_modifiers = ('_put', '_get')
 
-ListContext = _wrap_cls(list, _list_modifiers)
-DequeContext = _wrap_cls(collections.deque, _deque_modifiers)
-DictContext = _wrap_cls(AttributeDict, _dict_modifiers)
-MemoryDictContext = _wrap_cls(MemoryDict, _dict_modifiers)
-QueueContext = _wrap_cls(queue.Queue, _queue_modifiers)
-PriorityQueueContext = _wrap_cls(queue.PriorityQueue, _queue_modifiers)
-LifoQueueContext = _wrap_cls(queue.LifoQueue, _queue_modifiers)
-AsyncioQueueContext = _wrap_cls(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
-AsyncioPriorityQueueContext = _wrap_cls(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = _wrap_cls(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
+ListContext = _wrap_bases(list, _list_modifiers)
+DequeContext = _wrap_bases(collections.deque, _deque_modifiers)
+DictContext = _wrap_bases(AttributeDict, _dict_modifiers)
+MemoryDictContext = _wrap_bases(MemoryDict, _dict_modifiers)
+QueueContext = _wrap_bases(queue.Queue, _queue_modifiers)
+PriorityQueueContext = _wrap_bases(queue.PriorityQueue, _queue_modifiers)
+LifoQueueContext = _wrap_bases(queue.LifoQueue, _queue_modifiers)
+AsyncioQueueContext = _wrap_bases(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
+AsyncioPriorityQueueContext = _wrap_bases(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = _wrap_bases(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
 
 # shortcuts
 LContext = ListContext
