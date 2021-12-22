@@ -7,10 +7,10 @@ from typing import Any, ClassVar, Type
 from netcast.context import (
     Context, DictContext, ListContext, DequeContext, QueueContext,
     LifoQueueContext, PriorityQueueContext, AsyncioQueueContext,
-    AsyncioLifoQueueContext, AsyncioPriorityQueueContext, MemoryDictContext, ContextHook
+    AsyncioLifoQueueContext, AsyncioPriorityQueueContext, MemoryDictContext, ContextHook,
+    ByteArrayContext
 )
-from netcast.toolkit.collections import MemoryDict
-
+from netcast.toolkit.collections import MemoryDict, Params
 
 CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
 
@@ -43,6 +43,7 @@ class _BaseArrangement:
 
     Defaults to True.
     """
+    context_params = Params()
 
     @classmethod
     def _get_supercontext(cls):
@@ -53,11 +54,17 @@ class _BaseArrangement:
         _BaseArrangement._super_registry[context] = supercontext
 
     @classmethod
-    def _create_context(cls, supercontext=None, context_class=None) -> Any:
+    def _create_context(cls, supercontext=None, context_class=None, self=None) -> Any:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
-        context = context_class()
+        args, kwargs = cls.context_params
+        cls_or_self = cls if self is None else self
+        if callable(args):
+            args = args(cls_or_self)
+        if callable(kwargs):
+            kwargs = kwargs(cls_or_self)
+        context = context_class(*args, **kwargs)
         cls._set_supercontext(context, supercontext)
         return context
 
@@ -110,10 +117,10 @@ class ClassArrangement(_BaseArrangement):
             context_class = descent_context_class
             cls._default_context_class = False
         if (
-            descent is not None
-            and inherit_context is not None
-            and inherit_context
-            and None not in (_original_context_class, descent_context_class)
+                descent is not None
+                and inherit_context is not None
+                and inherit_context
+                and None not in (_original_context_class, descent_context_class)
         ):
             _original_context_class: type
             descent_context_class: type
@@ -246,9 +253,9 @@ class Arrangement(ClassArrangement, netcast=True):
         if inherit_context and descent is not None:
             contexts[self] = contexts[descent]
         elif descent is not None:
-            contexts[self] = cls._create_context(contexts[descent])
+            contexts[self] = cls._create_context(contexts[descent], self=self)
         else:
-            contexts[self] = cls._create_context()
+            contexts[self] = cls._create_context(self=self)
         context = contexts[self]
         if not ContextHook.is_prepared(context):
             context_wrapper = cls.context_wrapper
@@ -319,26 +326,36 @@ def _wrap_arrangement(name, context_class, class_arrangement=False, doc=None):
 
 ClassDictArrangement = _wrap_arrangement('ClassDictArrangement', DictContext, True)
 ClassListArrangement = _wrap_arrangement('ClassListArrangement', ListContext, True)
+ClassByteArrayArrangement = _wrap_arrangement('ClassByteArrayArrangement', ByteArrayContext, True)
 ClassDequeArrangement = _wrap_arrangement('ClassDequeArrangement', DequeContext, True)
 ClassQueueArrangement = _wrap_arrangement('ClassQueueArrangement', QueueContext, True)
 ClassLifoQueueArrangement = _wrap_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
-ClassPriorityQueueArrangement = _wrap_arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
-ClassAsyncioQueueArrangement = _wrap_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
-ClassAsyncioLifoQueueArrangement = _wrap_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
-ClassAsyncioPriorityQueueArrangement = _wrap_arrangement('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
+ClassPriorityQueueArrangement = _wrap_arrangement('ClassPriorityQueueArrangement',
+                                                  PriorityQueueContext, True)  # noqa: E501
+ClassAsyncioQueueArrangement = _wrap_arrangement('ClassAsyncioQueueArrangement',
+                                                 AsyncioQueueContext, True)  # noqa: E501
+ClassAsyncioLifoQueueArrangement = _wrap_arrangement('ClassAsyncioLifoQueueArrangement',
+                                                     AsyncioLifoQueueContext, True)  # noqa: E501
+ClassAsyncioPriorityQueueArrangement = _wrap_arrangement('ClassAsyncioPriorityQueueArrangement',
+                                                         AsyncioPriorityQueueContext,
+                                                         True)  # noqa: E501
 DictArrangement = _wrap_arrangement('DictArrangement', DictContext)
 ListArrangement = _wrap_arrangement('ListArrangement', ListContext)
+ByteArrayArrangement = _wrap_arrangement('ListArrangement', ByteArrayContext)
 DequeArrangement = _wrap_arrangement('DequeArrangement', DequeContext)
 QueueArrangement = _wrap_arrangement('QueueArrangement', QueueContext)
 LifoQueueArrangement = _wrap_arrangement('LifoQueueArrangement', LifoQueueContext)
 PriorityQueueArrangement = _wrap_arrangement('PriorityQueueArrangement', PriorityQueueContext)
 AsyncioQueueArrangement = _wrap_arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
-AsyncioLifoQueueArrangement = _wrap_arrangement('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)  # noqa: E501
-AsyncioPriorityQueueArrangement = _wrap_arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
+AsyncioLifoQueueArrangement = _wrap_arrangement('AsyncioLifoQueueArrangement',
+                                                AsyncioLifoQueueContext)  # noqa: E501
+AsyncioPriorityQueueArrangement = _wrap_arrangement('AsyncioPriorityQueueArrangement',
+                                                    AsyncioPriorityQueueContext)  # noqa: E501
 
 # shortcuts
 CArrangement = ClassArrangement
 CDArrangement = ClassDictArrangement
+CBAArrangement = CByteArrangement = ClassByteArrayArrangement
 CLArrangement = ClassListArrangement
 CDQArrangement = ClassDequeArrangement
 CQArrangement = ClassQueueArrangement
@@ -349,6 +366,7 @@ CALQArrangement = ClassAsyncioLifoQueueArrangement
 CAPQArrangement = ClassAsyncioPriorityQueueArrangement
 DArrangement = DictArrangement
 LArrangement = ListArrangement
+BAArrangement = ByteArrangement = ByteArrayArrangement
 DQArrangement = DequeArrangement
 QArrangement = QueueArrangement
 LQArrangement = LifoQueueArrangement

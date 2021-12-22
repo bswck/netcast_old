@@ -4,6 +4,7 @@ import abc
 import asyncio
 import collections.abc
 import functools
+import io
 import queue
 from typing import Type, ForwardRef, Sequence
 
@@ -54,7 +55,7 @@ def _hooked_method(method, hook, cls=None):
     return _method_wrapper
 
 
-def _wrap_bases(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
+def _wrap_to_ctx(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError('at least 1 base class is required')
@@ -88,26 +89,34 @@ def _wrap_bases(bases, hooked_methods=(), name=None, doc=None, init_subclass=Non
     return type(name, bases, env, **init_subclass)
 
 
-_list_modifiers = ('append', 'extend', 'insert', 'pop', 'remove', '__setitem__', '__delitem__')
+_list_modifiers = (
+    'append', 'extend', 'insert', 'pop', 'remove', 'reverse', '__setitem__', '__delitem__'
+)
 _deque_modifiers = _list_modifiers + ('appendleft', 'extendleft', 'popleft')
 _dict_modifiers = ('__setitem__',)
 _queue_modifiers = ('_put', '_get')
+_io_modifiers = ('write', 'read', 'seek', 'close')
 
-ListContext = _wrap_bases(list, _list_modifiers)
-DequeContext = _wrap_bases(collections.deque, _deque_modifiers)
-DictContext = _wrap_bases(AttributeDict, _dict_modifiers)
-MemoryDictContext = _wrap_bases(MemoryDict, _dict_modifiers)
-QueueContext = _wrap_bases(queue.Queue, _queue_modifiers)
-PriorityQueueContext = _wrap_bases(queue.PriorityQueue, _queue_modifiers)
-LifoQueueContext = _wrap_bases(queue.LifoQueue, _queue_modifiers)
-AsyncioQueueContext = _wrap_bases(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
-AsyncioPriorityQueueContext = _wrap_bases(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = _wrap_bases(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
+ListContext = _wrap_to_ctx(list, _list_modifiers)
+DequeContext = _wrap_to_ctx(collections.deque, _deque_modifiers)
+DictContext = _wrap_to_ctx(AttributeDict, _dict_modifiers)
+ByteArrayContext = _wrap_to_ctx(bytearray, _list_modifiers)
+MemoryDictContext = _wrap_to_ctx(MemoryDict, _dict_modifiers)
+QueueContext = _wrap_to_ctx(queue.Queue, _queue_modifiers)
+PriorityQueueContext = _wrap_to_ctx(queue.PriorityQueue, _queue_modifiers)
+LifoQueueContext = _wrap_to_ctx(queue.LifoQueue, _queue_modifiers)
+AsyncioQueueContext = _wrap_to_ctx(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
+AsyncioPriorityQueueContext = _wrap_to_ctx(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = _wrap_to_ctx(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
+FileIOContext = _wrap_to_ctx(io.FileIO, _io_modifiers)
+BytesIOContext = _wrap_to_ctx(io.BytesIO, _io_modifiers)
+StringIOContext = _wrap_to_ctx(io.StringIO, _io_modifiers)
 
 # shortcuts
 LContext = ListContext
 DQContext = DequeContext
 DContext = DictContext
+BContext = BAContext = ByteContext = ByteArrayContext
 MDContext = MemoryDictContext
 QContext = QueueContext
 PQContext = PriorityQueueContext
@@ -115,3 +124,6 @@ LQContext = LifoQueueContext
 AQContext = AsyncioQueueContext
 APQContext = AsyncioPriorityQueueContext
 ALQContext = AsyncioLifoQueueContext
+FIOContext = FileIOContext
+BIOContext = BytesIOContext
+SIOContext = StringIOContext

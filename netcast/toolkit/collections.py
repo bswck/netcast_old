@@ -1,6 +1,7 @@
 from __future__ import annotations
-from collections import UserList
-from collections.abc import MutableSet
+
+import collections
+from typing import NamedTuple, Callable
 
 from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
 
@@ -74,7 +75,7 @@ class AttributeDict(ModernDict, ItemsAsAttributes):
         return list(self.keys())
 
 
-class ItemTransformingList(UserList):
+class ItemTransformingList(collections.UserList):
     """
     A list that transforms each item before accepting it.
     No back transformation.
@@ -183,3 +184,8 @@ class MemoryList(ItemTransformingList):
 class MemorySet(ItemTransformingSet):
     """A list for storing Python object ids."""
     transform_item = id
+
+
+class Params(NamedTuple):
+    args: tuple | Callable = ()
+    kwargs: dict | Callable = {}
