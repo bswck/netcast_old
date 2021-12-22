@@ -293,7 +293,7 @@ class Arrangement(ClassArrangement, netcast=True):
         return self._inherits_context
 
 
-def _ac(name, context_class, class_arrangement=False, doc=None):
+def _wrap_arrangement(name, context_class, class_arrangement=False, doc=None):
     if class_arrangement:
         super_class = ClassArrangement
     else:
@@ -317,29 +317,24 @@ def _ac(name, context_class, class_arrangement=False, doc=None):
     return _BoilerplateArrangement
 
 
-ClassDictArrangement = _ac('ClassDictArrangement', DictContext, True)
-ClassListArrangement = _ac('ClassListArrangement', ListContext, True)
-ClassDequeArrangement = _ac('ClassDequeArrangement', DequeContext, True)
-
-ClassQueueArrangement = _ac('ClassQueueArrangement', QueueContext, True)
-ClassLifoQueueArrangement = _ac('ClassLifoQueueArrangement', LifoQueueContext, True)
-ClassPriorityQueueArrangement = _ac('ClassPriorityQueueArrangement', PriorityQueueContext, True)
-
-ClassAsyncioQueueArrangement = _ac('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)
-ClassAsyncioLifoQueueArrangement = _ac('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
-ClassAsyncioPriorityQueueArrangement = _ac('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
-
-DictArrangement = _ac('DictArrangement', DictContext)
-ListArrangement = _ac('ListArrangement', ListContext)
-DequeArrangement = _ac('DequeArrangement', DequeContext)
-
-QueueArrangement = _ac('QueueArrangement', QueueContext)
-LifoQueueArrangement = _ac('LifoQueueArrangement', LifoQueueContext)
-PriorityQueueArrangement = _ac('PriorityQueueArrangement', PriorityQueueContext)
-
-AsyncioQueueArrangement = _ac('AsyncioQueueArrangement', AsyncioQueueContext)
-AsyncioLifoQueueArrangement = _ac('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)
-AsyncioPriorityQueueArrangement = _ac('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
+ClassDictArrangement = _wrap_arrangement('ClassDictArrangement', DictContext, True)
+ClassListArrangement = _wrap_arrangement('ClassListArrangement', ListContext, True)
+ClassDequeArrangement = _wrap_arrangement('ClassDequeArrangement', DequeContext, True)
+ClassQueueArrangement = _wrap_arrangement('ClassQueueArrangement', QueueContext, True)
+ClassLifoQueueArrangement = _wrap_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
+ClassPriorityQueueArrangement = _wrap_arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
+ClassAsyncioQueueArrangement = _wrap_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
+ClassAsyncioLifoQueueArrangement = _wrap_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
+ClassAsyncioPriorityQueueArrangement = _wrap_arrangement('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
+DictArrangement = _wrap_arrangement('DictArrangement', DictContext)
+ListArrangement = _wrap_arrangement('ListArrangement', ListContext)
+DequeArrangement = _wrap_arrangement('DequeArrangement', DequeContext)
+QueueArrangement = _wrap_arrangement('QueueArrangement', QueueContext)
+LifoQueueArrangement = _wrap_arrangement('LifoQueueArrangement', LifoQueueContext)
+PriorityQueueArrangement = _wrap_arrangement('PriorityQueueArrangement', PriorityQueueContext)
+AsyncioQueueArrangement = _wrap_arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
+AsyncioLifoQueueArrangement = _wrap_arrangement('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)  # noqa: E501
+AsyncioPriorityQueueArrangement = _wrap_arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
 
 # shortcuts
 CArrangement = ClassArrangement
