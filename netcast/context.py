@@ -106,13 +106,13 @@ AsyncioPriorityQueueContext = _wrap_cls(asyncio.PriorityQueue, _queue_modifiers,
 AsyncioLifoQueueContext = _wrap_cls(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
 
 # shortcuts
-DContext = DictContext
-MDContext = MemoryDictContext
 LContext = ListContext
 DQContext = DequeContext
+DContext = DictContext
+MDContext = MemoryDictContext
 QContext = QueueContext
 PQContext = PriorityQueueContext
 LQContext = LifoQueueContext
 AQContext = AsyncioQueueContext
-APQContext = AsyncioQueueContext
-ALQContext = AsyncioQueueContext
+APQContext = AsyncioPriorityQueueContext
+ALQContext = AsyncioLifoQueueContext
