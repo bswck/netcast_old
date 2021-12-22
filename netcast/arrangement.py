@@ -5,10 +5,20 @@ import operator
 from typing import Any, ClassVar, Type
 
 from netcast.context import (
-    Context, DictContext, ListContext, DequeContext, QueueContext,
-    LifoQueueContext, PriorityQueueContext, AsyncioQueueContext,
-    AsyncioLifoQueueContext, AsyncioPriorityQueueContext, MemoryDictContext, ContextHook,
-    ByteArrayContext
+    ListContext,
+    DequeContext,
+    DictContext,
+    ByteArrayContext,
+    MemoryDictContext,
+    QueueContext,
+    PriorityQueueContext,
+    LifoQueueContext,
+    AsyncioQueueContext,
+    AsyncioPriorityQueueContext,
+    AsyncioLifoQueueContext,
+    FileIOContext,
+    BytesIOContext,
+    StringIOContext,
 )
 from netcast.toolkit.collections import MemoryDict, Params
 
@@ -351,6 +361,9 @@ AsyncioLifoQueueArrangement = _wrap_arrangement('AsyncioLifoQueueArrangement',
                                                 AsyncioLifoQueueContext)  # noqa: E501
 AsyncioPriorityQueueArrangement = _wrap_arrangement('AsyncioPriorityQueueArrangement',
                                                     AsyncioPriorityQueueContext)  # noqa: E501
+FileIOArrangement =
+BytesIOArrangement =
+StringIOArrangement =
 
 # shortcuts
 CArrangement = ClassArrangement
