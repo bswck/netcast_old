@@ -3,9 +3,9 @@ from __future__ import annotations
 import abc
 import asyncio
 import collections.abc
-import contextlib
+import functools
 import queue
-from typing import Type, ForwardRef
+from typing import Type, ForwardRef, Sequence
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -17,7 +17,7 @@ class ContextHook:
     prepared_contexts = MemoryList()
 
     @classmethod
-    def on_modify(cls, context, put=MISSING, remove=MISSING):
+    def on_modify(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified, this method is called."""
 
     @classmethod
@@ -38,137 +38,72 @@ class Context(metaclass=abc.ABCMeta):
     """
 
 
-class ListContext(list, Context):
-    """A list context of associated classes or instances."""
+def _hooked_method(method, hook, cls=None):
+    if method is None:
+        raise TypeError(
+            f'method {method!r} '
+            f'{"of " + repr(cls) + " " if cls is not None else ""}'
+            f'does not exist'
+        )
 
-    def append(self, item):
-        ContextHook.on_modify(self, put=item)
-        return super().append(item)
+    @functools.wraps(method)
+    def _method_wrapper(self, *args, **kwargs):
+        bound_method = getattr(self, method.__name__)
+        hook(self, bound_method, *args, **kwargs)
+        return method(self, *args, **kwargs)
 
-    def extend(self, other):
-        ContextHook.on_modify(self, remove=other)
-        return super().extend(other)
-
-    def insert(self, i, item):
-        ContextHook.on_modify(self, put=item)
-        return super().insert(i, item)
-
-    def pop(self, i=-1):
-        with contextlib.suppress(IndexError):
-            ContextHook.on_modify(self, remove=self[i])
-        return super().pop(i)
-
-    def remove(self, item):
-        ContextHook.on_modify(self, remove=item)
-        return super().remove(item)
-
-    def __setitem__(self, i, item):
-        ContextHook.on_modify(self, put=item)
-        return super().__setitem__(i, item)
-
-    def __delitem__(self, i):
-        with contextlib.suppress(IndexError):
-            ContextHook.on_modify(self, remove=self[i])
-        return super().__delitem__(i)
+    return _method_wrapper
 
 
-class DequeContext(collections.deque, Context):
-    def append(self, item):
-        ContextHook.on_modify(self, put=item)
-        return super().append(item)
-
-    def extend(self, other):
-        ContextHook.on_modify(self, remove=other)
-        return super().extend(other)
-
-    def insert(self, i, item):
-        ContextHook.on_modify(self, put=item)
-        return super().insert(i, item)
-
-    def pop(self, i=-1):
-        with contextlib.suppress(IndexError):
-            ContextHook.on_modify(self, remove=self[i])
-        return super().remove(i)
-
-    def remove(self, item):
-        ContextHook.on_modify(self, remove=item)
-        return super().remove(item)
-
-    def __setitem__(self, i, item):
-        ContextHook.on_modify(self, put=item)
-        return super().__setitem__(i, item)
-
-    def __delitem__(self, i):
-        with contextlib.suppress(IndexError):
-            ContextHook.on_modify(self, remove=self[i])
-        return super().__delitem__(i)
-
-    def appendleft(self, item):
-        ContextHook.on_modify(self, put=item)
-        return super().appendleft(item)
-
-    def extendleft(self, other):
-        ContextHook.on_modify(self, remove=other)
-        return super().extendleft(other)
-
-    def popleft(self):
-        with contextlib.suppress(IndexError):
-            ContextHook.on_modify(self, remove=self[0])
-        return super().popleft()
+def _wrap_cls(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
+    if isinstance(bases, Sequence):
+        if not bases:
+            raise ValueError('at least 1 base class is required')
+        cls = bases[0]
+        if len(bases) == 1:
+            bases += (Context,)
+    else:
+        cls = bases
+        bases = (cls, Context)
+    env = {**({'__doc__': doc} if doc else {})}
+    for method in hooked_methods:
+        method = (
+            getattr(cls, method, None)
+            if isinstance(method, str)
+            else method
+        )
+        env[method.__name__] = _hooked_method(method, hook=ContextHook.on_modify, cls=cls)
+    if name is None:
+        cls_name = cls.__name__
+        suffix = 'Context'
+        if cls_name:
+            f = cls_name[0].upper()
+            if len(cls_name) > 1:
+                name = f + cls_name[1:] + suffix
+            else:
+                name = f + suffix
+        else:
+            raise ValueError('class name was not provided')
+    if init_subclass is None:
+        init_subclass = {}
+    return type(name, bases, env, **init_subclass)
 
 
-class DictContext(AttributeDict, Context):
-    """A key-value (with key=attribute access) context of associated classes or instances."""
+_list_modifiers = ('append', 'extend', 'insert', 'pop', 'remove', '__setitem__', '__delitem__')
+_deque_modifiers = _list_modifiers + ('appendleft', 'extendleft', 'popleft')
+_dict_modifiers = ('__setitem__',)
+_queue_modifiers = ('_put', '_get')
 
-    def __setitem__(self, key, item):
-        old = self.get(key, ContextHook.MISSING)
-        ContextHook.on_modify(self, put=(key, item, old))
-        return super().__setitem__(key, item)
-
-
-class MemoryDictContext(MemoryDict, Context):
-    def __setitem__(self, key, item):
-        # XXX transforming the key 3 times?
-        old = self.get(self.transform_key(key), ContextHook.MISSING)
-        super().__setitem__(key, item)
-        ContextHook.on_modify(self, put=(self.transform_key(key), item, old))
-
-
-def _put(put):
-    def __put(self, item):
-        ContextHook.on_modify(self, put=item)
-        return put(self, item)
-    return __put
-
-
-def _get(get):
-    def __get(self):
-        item = get(self)
-        ContextHook.on_modify(self, remove=item)
-        return item
-    return __get
-
-
-def _qc(qc, name=None, doc=None):
-    subqc = type(
-        name or (qc.__module__.split('.')[0].capitalize() + qc.__name__ + 'Context'),
-        (qc, Context),
-        {
-            '_put': _put(qc._put),
-            '_get': _get(qc._get),
-            **({} if doc is None else {'__doc__': doc}),
-        }
-    )
-    return subqc
-
-
-QueueContext = _qc(queue.Queue, 'QueueContext')
-PriorityQueueContext = _qc(queue.PriorityQueue, 'PriorityQueueContext')
-LifoQueueContext = _qc(queue.LifoQueue, 'LifoQueueContext')
-
-AsyncioQueueContext = _qc(asyncio.Queue)
-AsyncioPriorityQueueContext = _qc(asyncio.PriorityQueue)
-AsyncioLifoQueueContext = _qc(asyncio.LifoQueue)
+ListContext = _wrap_cls(list, _list_modifiers)
+DequeContext = _wrap_cls(collections.deque, _deque_modifiers)
+DictContext = _wrap_cls(AttributeDict, _dict_modifiers)
+MemoryDictContext = _wrap_cls(MemoryDict, _dict_modifiers)
+QueueContext = _wrap_cls(queue.Queue, _queue_modifiers)
+PriorityQueueContext = _wrap_cls(queue.PriorityQueue, _queue_modifiers)
+LifoQueueContext = _wrap_cls(queue.LifoQueue, _queue_modifiers)
+AsyncioQueueContext = _wrap_cls(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
+AsyncioPriorityQueueContext = _wrap_cls(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = _wrap_cls(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
 
 # shortcuts
 DContext = DictContext
