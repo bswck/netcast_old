@@ -38,7 +38,9 @@ class Replacement:
                 | Replacement
             )
     ):
-        return tuple(map(lambda r: (cls, lambda *_: r)[isinstance(r, cls)](*r), replacements))
+        return tuple(
+            map(lambda r: (lambda: cls(*r), lambda: r)[isinstance(r, cls)](), replacements)
+        )
 
 
 class _BaseVar:
