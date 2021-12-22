@@ -13,7 +13,6 @@ CT, C = Type["Context"], ForwardRef("Context")
 
 
 class ContextHook:
-    MISSING = object()
     prepared_contexts = MemoryList()
 
     @classmethod
