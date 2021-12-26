@@ -54,10 +54,6 @@ class TestClassArrangement:
 
         from netcast.context import QueueContext as SomeOtherContext
 
-        # noinspection PyUnusedLocal
-        class Safe(Abstract):
-            context_class = SomeOtherContext
-
         with pytest.raises(TypeError):
             # noinspection PyUnusedLocal
             class Unsafe(ClassArrangement, descent=Abstract):
@@ -82,12 +78,12 @@ class TestClassArrangement:
 
         class CA2(CA1):
             def test(self):
-                assert self.descent_type is None  # how could I know?
+                assert self.descent_type is CA1
                 assert self.context is CA1.get_context()
 
-        class CA3(CA1, descent=CA1):  # this one's interesting.
+        class CA3(CA1, descent=CA2):  # this one's interesting.
             def test(self):
-                assert self.descent_type is CA1
+                assert self.descent_type is CA2
                 assert self.context is CA1.get_context()
 
         class CA4(ca, descent=CA1):
@@ -153,12 +149,10 @@ class TestClassArrangement:
                 yield context
 
             def ping(self):
-                self.context.setdefault('pings', 0)
                 self.context.pings += 1
 
         class CA2(CA1):
             def pong(self):
-                self.context.setdefault('pongs', 0)
                 self.context.pongs += 1
 
         ca1 = CA1()
@@ -279,7 +273,10 @@ class TestArrangement:
         a4.test()
 
     def test_dict_arrangement(self):
-        pass
+        from netcast.arrangement import DictArrangement
+
+        class A1(DictArrangement):
+            pass
 
     def test_list_arrangement(self):
         pass

@@ -160,10 +160,9 @@ class ClassArrangement(_BaseArrangement):
             return
 
         if descent is None:
-            descent = super(ClassArrangement, cls)
-            cls.descent_type = None
-        else:
-            cls.descent_type = descent
+            descent = cls.__base__
+
+        cls.descent_type = descent
 
         inherit_context = cls._get_inherit_context()
         if _type_check:
@@ -254,7 +253,7 @@ class Arrangement(ClassArrangement, netcast=True):
         inherit_context = cls._inherits_context
 
         fixed_descent_type = getattr(cls, 'descent_type', None)
-        if fixed_descent_type is not None:
+        if None not in (descent, fixed_descent_type):
             if not isinstance(descent, fixed_descent_type):  # soft-check descent type
                 raise TypeError('passed descent\'s type and the fixed descent type are not alike')
 
