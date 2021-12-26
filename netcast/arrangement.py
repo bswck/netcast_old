@@ -215,6 +215,10 @@ class ClassArrangement(_BaseArrangement):
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext()
 
+    @property
+    def inherits_context(self) -> bool:
+        return self.inherit_context
+
 
 class Arrangement(ClassArrangement, netcast=True):
     descent: Arrangement | None
