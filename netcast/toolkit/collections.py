@@ -186,6 +186,27 @@ class MemorySet(ItemTransformingSet):
     transform_item = id
 
 
-class Params(NamedTuple):
-    args: tuple | Callable = ()
-    kwargs: dict | Callable = {}
+class Params:
+    _args: tuple | Callable = ()
+    _kwargs: dict | Callable = {}
+
+    def __init__(self, args=None, kwargs=None):
+        if args is not None:
+            self._args = args
+        if kwargs is not None:
+            self._kwargs = kwargs
+
+    def __iter__(self):
+        yield from (self.args, self.kwargs)
+
+    @classmethod
+    def from_starred(cls, *args, **kwargs):
+        return cls(args=args, kwargs=kwargs)
+
+    @property
+    def args(self) -> tuple | Callable :
+        return self._args
+
+    @property
+    def kwargs(self) -> dict | Callable:
+        return self._kwargs
