@@ -13,7 +13,7 @@ from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 CT, C = Type["Context"], ForwardRef("Context")
 
 
-class ContextHook:
+class _Hook:
     prepared_contexts = MemoryList()
 
     @classmethod
@@ -72,7 +72,7 @@ def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass
             if isinstance(method, str)
             else method
         )
-        env[method.__name__] = _hooked_method(method, hook=ContextHook.on_modify, cls=cls)
+        env[method.__name__] = _hooked_method(method, hook=_Hook.on_modify, cls=cls)
     if name is None:
         cls_name = cls.__name__
         suffix = 'Context'

@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Type
 
 from netcast.context import (
     Context,
-    ContextHook,
+    _Hook,
     ListContext,
     DequeContext,
     DictContext,
@@ -195,7 +195,7 @@ class ClassArrangement(_BaseArrangement):
 
         cls.inherit_context = None
 
-        if _use_wrapper and not ContextHook.is_prepared(context):
+        if _use_wrapper and not _Hook.is_prepared(context):
             context = cls.get_context()
             context_wrapper = cls.context_wrapper
             if not _is_classmethod(cls, cls.context_wrapper):
@@ -280,7 +280,7 @@ class Arrangement(ClassArrangement, netcast=True):
             contexts[self] = cls._create_context(self=self)
         context = contexts[self]
         with self._context_lock:
-            unprepared = ContextHook.is_prepared(context)
+            unprepared = _Hook.is_prepared(context)
             if unprepared:
                 context_wrapper = cls.context_wrapper
                 if _is_classmethod(cls, context_wrapper) or isinstance(context_wrapper, staticmethod):
@@ -288,7 +288,7 @@ class Arrangement(ClassArrangement, netcast=True):
                 else:
                     context_wrapper = functools.partial(context_wrapper, self)
                 contexts[self] = next(context_wrapper(context), context)
-                ContextHook.on_prepare(context)
+                _Hook.on_prepare(context)
         return self
 
     def context_wrapper(self, context):
