@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import operator
+import threading
 from typing import Any, ClassVar, Type
 
 from netcast.context import (
@@ -18,7 +19,6 @@ from netcast.context import (
     AsyncioQueueContext,
     AsyncioPriorityQueueContext,
     AsyncioLifoQueueContext,
-    FileIOContext,
     BytesIOContext,
     StringIOContext,
 )
@@ -28,7 +28,7 @@ from netcast.toolkit.collections import MemoryDict, Params
 CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
 
 
-def _init_arrangement(self, descent=None):
+def _arrangement_init(self, descent=None):
     self.descent = descent
 
 
@@ -146,7 +146,7 @@ class ClassArrangement(_BaseArrangement):
         return context_class
 
     def __init_subclass__(
-            cls, *,
+            cls,
             descent=None,
             clear_init=False,
             context_class=None,
@@ -156,6 +156,9 @@ class ClassArrangement(_BaseArrangement):
             _type_check=True
     ):
         """When a new subclass is created, handle its access to the local context."""
+        if getattr(cls, '_context_lock', None) is None:
+            cls._context_lock = threading.RLock()
+
         if netcast:
             return
 
@@ -200,7 +203,7 @@ class ClassArrangement(_BaseArrangement):
             cls._context = next(context_wrapper(context), context)
 
         if clear_init:
-            cls.__init__ = _init_arrangement
+            cls.__init__ = _arrangement_init
 
     @property
     def context(self) -> Context | Any:
@@ -218,10 +221,10 @@ class Arrangement(ClassArrangement, netcast=True):
     _inherits_context = True
 
     def __init__(self, descent=None):
-        _init_arrangement(self, descent)
+        _arrangement_init(self, descent)
 
     def __init_subclass__(
-            cls, *,
+            cls,
             descent=None,
             clear_init=False,
             context_class=None,
@@ -252,14 +255,17 @@ class Arrangement(ClassArrangement, netcast=True):
             descent = None
         inherit_context = cls._inherits_context
 
-        fixed_descent_type = getattr(cls, 'descent_type', None)
-        if None not in (descent, fixed_descent_type):
-            if not isinstance(descent, fixed_descent_type):  # soft-check descent type
-                raise TypeError('passed descent\'s type and the fixed descent type are not alike')
+        fixed_type = getattr(cls, 'descent_type', None)
+        if None not in (descent, fixed_type):
+            if not isinstance(descent, fixed_type):  # soft-check descent type
+                raise TypeError(
+                    'passed descent\'s type '
+                    'and the fixed descent type are not equal'
+                )
 
         contexts = cls.get_context()
         self = object.__new__(cls)
-        self.descent = descent
+        _arrangement_init(self, descent)
         if contexts is None:
             raise TypeError('abstract class')
         if inherit_context and descent is not None:
@@ -269,14 +275,16 @@ class Arrangement(ClassArrangement, netcast=True):
         else:
             contexts[self] = cls._create_context(self=self)
         context = contexts[self]
-        if not ContextHook.is_prepared(context):
-            context_wrapper = cls.context_wrapper
-            if _is_classmethod(cls, context_wrapper) or isinstance(context_wrapper, staticmethod):
-                context_wrapper = functools.partial(context_wrapper)
-            else:
-                context_wrapper = functools.partial(context_wrapper, self)
-            contexts[self] = next(context_wrapper(context), context)
-            ContextHook.on_prepare(context)
+        with self._context_lock:
+            unprepared = ContextHook.is_prepared(context)
+            if unprepared:
+                context_wrapper = cls.context_wrapper
+                if _is_classmethod(cls, context_wrapper) or isinstance(context_wrapper, staticmethod):
+                    context_wrapper = functools.partial(context_wrapper)
+                else:
+                    context_wrapper = functools.partial(context_wrapper, self)
+                contexts[self] = next(context_wrapper(context), context)
+                ContextHook.on_prepare(context)
         return self
 
     def context_wrapper(self, context):
@@ -312,46 +320,46 @@ class Arrangement(ClassArrangement, netcast=True):
         return self._inherits_context
 
 
-def _wrap_arrangement(name, context_class, class_arrangement=False, doc=None, env=None):
+def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, env=None):
     if class_arrangement:
         super_class = ClassArrangement
     else:
         super_class = Arrangement
     if env is None:
         env = {}
-    _BoilerplateArrangement = type(name, (super_class,), env, abstract=True, context_class=context_class)
+    cls = type(name, (super_class,), env, abstract=True, context_class=context_class)
     if doc:
-        _BoilerplateArrangement.__doc__ = doc
-    return _BoilerplateArrangement
+        cls.__doc__ = doc
+    return cls
 
 
-ClassDictArrangement = _wrap_arrangement('ClassDictArrangement', DictContext, True)
-ClassListArrangement = _wrap_arrangement('ClassListArrangement', ListContext, True)
-ClassByteArrayArrangement = _wrap_arrangement('ClassByteArrayArrangement', ByteArrayContext, True)
-ClassDequeArrangement = _wrap_arrangement('ClassDequeArrangement', DequeContext, True)
-ClassQueueArrangement = _wrap_arrangement('ClassQueueArrangement', QueueContext, True)
-ClassLifoQueueArrangement = _wrap_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
-ClassPriorityQueueArrangement = _wrap_arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
-ClassAsyncioQueueArrangement = _wrap_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
-ClassAsyncioLifoQueueArrangement = _wrap_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
-ClassAsyncioPriorityQueueArrangement = _wrap_arrangement('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
+ClassDictArrangement = wrap_to_arrangement('ClassDictArrangement', DictContext, True)
+ClassListArrangement = wrap_to_arrangement('ClassListArrangement', ListContext, True)
+ClassByteArrayArrangement = wrap_to_arrangement('ClassByteArrayArrangement', ByteArrayContext, True)
+ClassDequeArrangement = wrap_to_arrangement('ClassDequeArrangement', DequeContext, True)
+ClassQueueArrangement = wrap_to_arrangement('ClassQueueArrangement', QueueContext, True)
+ClassLifoQueueArrangement = wrap_to_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
+ClassPriorityQueueArrangement = wrap_to_arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
+ClassAsyncioQueueArrangement = wrap_to_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
+ClassAsyncioLifoQueueArrangement = wrap_to_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
+ClassAsyncioPriorityQueueArrangement = wrap_to_arrangement('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
+ClassBytesIOArrangement = wrap_to_arrangement('ClassBytesIOArrangement', BytesIOContext)
+ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', StringIOContext)
+
+DictArrangement = wrap_to_arrangement('DictArrangement', DictContext)
+ListArrangement = wrap_to_arrangement('ListArrangement', ListContext)
+ByteArrayArrangement = wrap_to_arrangement('ByteArrayArrangement', ByteArrayContext)
+DequeArrangement = wrap_to_arrangement('DequeArrangement', DequeContext)
+QueueArrangement = wrap_to_arrangement('QueueArrangement', QueueContext)
+LifoQueueArrangement = wrap_to_arrangement('LifoQueueArrangement', LifoQueueContext)
+PriorityQueueArrangement = wrap_to_arrangement('PriorityQueueArrangement', PriorityQueueContext)
+AsyncioQueueArrangement = wrap_to_arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
+AsyncioLifoQueueArrangement = wrap_to_arrangement('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)  # noqa: E501
+AsyncioPriorityQueueArrangement = wrap_to_arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
 # ClassFileIOArrangement = _wrap_arrangement('ClassFileIOArrangement', FileIOContext)
-ClassBytesIOArrangement = _wrap_arrangement('ClassBytesIOArrangement', BytesIOContext)
-ClassStringIOArrangement = _wrap_arrangement('ClassStringIOArrangement', StringIOContext)
-
-DictArrangement = _wrap_arrangement('DictArrangement', DictContext)
-ListArrangement = _wrap_arrangement('ListArrangement', ListContext)
-ByteArrayArrangement = _wrap_arrangement('ByteArrayArrangement', ByteArrayContext)
-DequeArrangement = _wrap_arrangement('DequeArrangement', DequeContext)
-QueueArrangement = _wrap_arrangement('QueueArrangement', QueueContext)
-LifoQueueArrangement = _wrap_arrangement('LifoQueueArrangement', LifoQueueContext)
-PriorityQueueArrangement = _wrap_arrangement('PriorityQueueArrangement', PriorityQueueContext)
-AsyncioQueueArrangement = _wrap_arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
-AsyncioLifoQueueArrangement = _wrap_arrangement('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)  # noqa: E501
-AsyncioPriorityQueueArrangement = _wrap_arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
 # FileIOArrangement = _wrap_arrangement('FileIOArrangement', FileIOContext)
-BytesIOArrangement = _wrap_arrangement('BytesIOArrangement', BytesIOContext)
-StringIOArrangement = _wrap_arrangement('StringIOArrangement', StringIOContext)
+BytesIOArrangement = wrap_to_arrangement('BytesIOArrangement', BytesIOContext)
+StringIOArrangement = wrap_to_arrangement('StringIOArrangement', StringIOContext)
 
 # shortcuts
 CArrangement = ClassArrangement
@@ -375,3 +383,5 @@ PQArrangement = PriorityQueueArrangement
 AQArrangement = AsyncioQueueArrangement
 ALQArrangement = AsyncioLifoQueueContext
 APQArrangement = AsyncioPriorityQueueContext
+BIOArrangement = BytesIOArrangement
+SIOArrangement = StringIOArrangement

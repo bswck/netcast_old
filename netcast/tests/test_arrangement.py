@@ -1,3 +1,4 @@
+import asyncio
 from typing import ClassVar
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
 from netcast.arrangement import ClassArrangement, Arrangement
 from netcast.context import C, CT
+from netcast.toolkit.collections import Params, ForwardDependency
 
 ca_params = {ClassArrangement, *ClassArrangement.__subclasses__()} - {Arrangement}
 
@@ -45,12 +47,15 @@ class TestClassArrangement:
                 assert self.context is None
 
         class CA1(ClassArrangement, descent=Abstract):
+            context_class = None
+
             def test(self):
-                assert isinstance(self.context, Abstract.context_class)  # we want a list here
+                assert self.context_class is Abstract.context_class
+                assert isinstance(self.context, Abstract.context_class)
 
         class CA2(Abstract):
             def test(self):
-                assert isinstance(self.context, Abstract.context_class)  # we want a list here
+                assert isinstance(self.context, Abstract.context_class)
 
         from netcast.context import QueueContext as SomeOtherContext
 
@@ -201,26 +206,59 @@ class TestClassArrangement:
         assert ca2.context.pop() == 1
         assert ca2.context == [1, 2]
 
-    def test_class_deque_arrangement(self):
-        pass
-
     def test_class_queue_arrangement(self):
-        pass
+        from netcast.arrangement import ClassQueueArrangement
 
-    def test_class_lifo_queue_arrangement(self):
-        pass
+        class CQA(ClassQueueArrangement):
+            get = ForwardDependency()
+            put = ForwardDependency()
 
-    def test_class_priority_queue_arrangement(self):
-        pass
+        class Get(ClassQueueArrangement, descent=CQA):
+            def __call__(self):
+                self.context.get()
 
-    def test_class_asyncio_queue_arrangement(self):
-        pass
+        CQA.get.dependency(Get)
 
-    def test_class_asyncio_lifo_queue_arrangement(self):
-        pass
+        class Put(ClassQueueArrangement, descent=CQA):
+            def __init__(self, *args):
+                """We do this to check if ForwardDependency() guessed the unbound param well"""
+                assert not args
 
-    def test_class_asyncio_priority_queue_arrangement(self):
-        pass
+            def __call__(self, item):
+                self.context.put(item)
+
+        CQA.put.dependency(Put)
+
+        qa = CQA()
+        assert qa.context is qa.put.context
+        assert qa.context is qa.get.context
+
+        qa.put(1)
+        assert qa.context.qsize() == 1
+
+        qa.get()
+        assert qa.context.qsize() == 0
+
+    @pytest.mark.asyncio
+    async def test_class_asyncio_queue_arrangement(self):
+        from netcast.arrangement import ClassAsyncioQueueArrangement
+
+        class QueuePut(ClassAsyncioQueueArrangement):
+            async def __call__(self, item):
+                await self.context.put(item)
+
+        class QueueGet(ClassAsyncioQueueArrangement, descent=QueuePut):
+            async def __call__(self):
+                return await self.context.get()
+
+        put = QueuePut()
+        get = QueueGet()
+        queue = put.context
+
+        await asyncio.gather(put(1), put(5), get(), put(3))
+        assert queue.qsize() == 2
+        await asyncio.gather(get(), put(2), get(), get())
+        assert queue.qsize() == 0
 
 
 class TestArrangement:
@@ -275,29 +313,131 @@ class TestArrangement:
     def test_dict_arrangement(self):
         from netcast.arrangement import DictArrangement
 
-        class A1(DictArrangement):
+        class DA1(DictArrangement):
+            context_params = Params.from_starred(pings=0, pongs=0)
+
+            def clear(self):
+                self.context.update(dict.fromkeys(('pings', 'pongs'), 0))
+
+            def ping(self):
+                self.context.pings += 1
+
+            def pong(self):
+                self.context.pongs += 1
+
+        class DA2(DA1):
             pass
 
-    def test_list_arrangement(self):
-        pass
+        da1 = DA1()
+        da2 = DA2(da1)
+        assert da1.context.pings == 0
+        assert da2.context.pings == 0
+        assert da1.context.pongs == 0
+        assert da2.context.pongs == 0
 
-    def test_deque_arrangement(self):
-        pass
+        da2.ping()
+        assert da1.context.pings == 1
+        assert da1.context.pongs == 0
+        assert da2.context.pings == 1
+        assert da2.context.pongs == 0
+
+        da1.pong()
+        assert da1.context.pings == 1
+        assert da1.context.pongs == 1
+        assert da2.context.pings == 1
+        assert da2.context.pongs == 1
+
+        da1.clear()
+        assert da1.context.pings == 0
+        assert da2.context.pings == 0
+        assert da1.context.pongs == 0
+        assert da2.context.pongs == 0
+
+    def test_list_arrangement(self):
+        from netcast.arrangement import ListArrangement
+
+        class Appender(ListArrangement):
+            def __call__(self, x):
+                self.context.append(x)
+
+        class Popper(ListArrangement, descent=Appender):
+            def __call__(self, x=-1):
+                return self.context.pop(x)
+
+        class Extender(ListArrangement, descent=Appender):
+            def __call__(self, x):
+                self.context.extend(x)
+
+        append = Appender()
+        pop = Popper(append)
+        with pytest.raises(TypeError):
+            Extender(pop)
+
+        extend = Extender(append)
+        unbound = Extender()
+        assert unbound.context is not extend.context
+
+        context = append.context
+        append(5)
+        assert context == [5]
+        assert pop() == 5
+        assert not context
+
+        extend([1, 2, 3])
+        assert context == [1, 2, 3]
+
+        context.clear()
+        assert not context
+
+        foreign_appender = Appender()
+        assert foreign_appender.context is not context
 
     def test_queue_arrangement(self):
-        pass
+        from netcast.arrangement import QueueArrangement
 
-    def test_lifo_queue_arrangement(self):
-        pass
+        class QA(QueueArrangement):
+            put = ForwardDependency()
+            get = ForwardDependency()
 
-    def test_priority_queue_arrangement(self):
-        pass
+        class Put(QueueArrangement, descent=QA):
+            def __call__(self, item):
+                self.context.put(item)
 
-    def test_asyncio_queue_arrangement(self):
-        pass
+        QA.put.dependency(Put)
 
-    def test_asyncio_lifo_queue_arrangement(self):
-        pass
+        class Get(QueueArrangement, descent=QA):
+            def __call__(self):
+                self.context.get()
 
-    def test_asyncio_priority_queue_arrangement(self):
-        pass
+        QA.get.dependency(Get)
+
+        qa = QA()
+        assert qa.context is qa.put.context
+        assert qa.context is qa.get.context
+
+        qa.put(1)
+        assert qa.context.qsize() == 1
+
+        qa.get()
+        assert qa.context.qsize() == 0
+
+    @pytest.mark.asyncio
+    async def test_asyncio_queue_arrangement(self):
+        from netcast.arrangement import AsyncioQueueArrangement
+
+        class QueuePut(AsyncioQueueArrangement):
+            async def __call__(self, item):
+                await self.context.put(item)
+
+        class QueueGet(AsyncioQueueArrangement, descent=QueuePut):
+            async def __call__(self):
+                return await self.context.get()
+
+        put = QueuePut()
+        get = QueueGet(put)
+        queue = put.context
+
+        await asyncio.gather(put(1), put(5), get(), put(3))
+        assert queue.qsize() == 2
+        await asyncio.gather(get(), put(2), get(), get())
+        assert queue.qsize() == 0

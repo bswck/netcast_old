@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import collections
-from typing import NamedTuple, Callable
+from typing import Callable
 
 from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
 
@@ -29,7 +29,7 @@ class KeyTransformingDict(_KeyTransformingDict):
         # …or it's a pesky bug. IDK, according to the docs that magic method should be called then.
         # So, to make things work, I just turned the docs into the code below.
         d = self
-        if e and e is not None:
+        if e:
             if callable(getattr(e, 'keys', None)):
                 for k in e:
                     d[k] = e[k]
@@ -210,3 +210,33 @@ class Params:
     @property
     def kwargs(self) -> dict | Callable:
         return self._kwargs
+
+
+class ForwardDependency:
+    def __init__(self, dependent_class=None, unbound=None):
+        self.dependent_class = None
+        self.cache = MemoryDict()
+        self.unbound = unbound
+
+        self.dependency(dependent_class)
+
+    def dependency(self, dependent_class=None):
+        if self.dependent_class is not None:
+            raise TypeError('dynamic dependency already bound')
+        self.dependent_class = dependent_class
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        if instance not in self.cache:
+            if self.unbound is None:
+                from netcast.arrangement import Arrangement
+                unbound = issubclass(type(instance), Arrangement)
+            else:
+                unbound = self.unbound
+            self.cache[instance] = (
+                self.dependent_class(instance)
+                if unbound
+                else self.dependent_class()
+            )
+        return self.cache[instance]
