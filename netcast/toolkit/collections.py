@@ -224,6 +224,7 @@ class ForwardDependency:
         if self.dependent_class is not None:
             raise TypeError('dynamic dependency already bound')
         self.dependent_class = dependent_class
+        return dependent_class
 
     def __get__(self, instance, owner):
         if instance is None:
