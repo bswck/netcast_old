@@ -17,8 +17,12 @@ class _Hook:
     prepared_contexts = MemoryList()
 
     @classmethod
-    def on_modify(cls, context, func, *args, **kwargs):
+    def before_modify(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified, this method is called."""
+
+    @classmethod
+    def after_modify(cls, context, func, *args, **kwargs):
+        """Anytime a context was modified, this method is called."""
 
     @classmethod
     def is_prepared(cls, context):
@@ -38,7 +42,7 @@ class Context(metaclass=abc.ABCMeta):
     """
 
 
-def _hooked_method(method, hook, cls=None):
+def _hooked_method(method, pre_hook=None, post_hook=None, cls=None):
     if method is None:
         raise TypeError(
             f'method {method!r} '
@@ -49,8 +53,10 @@ def _hooked_method(method, hook, cls=None):
     @functools.wraps(method)
     def _method_wrapper(self, *args, **kwargs):
         bound_method = getattr(self, method.__name__)
-        hook(self, bound_method, *args, **kwargs)
-        return method(self, *args, **kwargs)
+        callable(pre_hook) and pre_hook(self, bound_method, *args, **kwargs)
+        res = method(self, *args, **kwargs)
+        callable(post_hook) and post_hook(self, bound_method, *args, **kwargs)
+        return res
 
     return _method_wrapper
 
@@ -72,7 +78,10 @@ def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass
             if isinstance(method, str)
             else method
         )
-        env[method.__name__] = _hooked_method(method, hook=_Hook.on_modify, cls=cls)
+        env[method.__name__] = _hooked_method(
+            method, pre_hook=_Hook.before_modify,
+            post_hook=_Hook.after_modify, cls=cls
+        )
     if name is None:
         cls_name = cls.__name__
         suffix = 'Context'
