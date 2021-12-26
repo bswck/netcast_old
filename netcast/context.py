@@ -55,7 +55,7 @@ def _hooked_method(method, hook, cls=None):
     return _method_wrapper
 
 
-def _wrap_to_ctx(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
+def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError('at least 1 base class is required')
@@ -97,20 +97,20 @@ _dict_modifiers = ('__setitem__',)
 _queue_modifiers = ('_put', '_get')
 _io_modifiers = ('write', 'read', 'seek', 'close')
 
-ListContext = _wrap_to_ctx(list, _list_modifiers)
-DequeContext = _wrap_to_ctx(collections.deque, _deque_modifiers)
-DictContext = _wrap_to_ctx(AttributeDict, _dict_modifiers)
-ByteArrayContext = _wrap_to_ctx(bytearray, _list_modifiers)
-MemoryDictContext = _wrap_to_ctx(MemoryDict, _dict_modifiers)
-QueueContext = _wrap_to_ctx(queue.Queue, _queue_modifiers)
-PriorityQueueContext = _wrap_to_ctx(queue.PriorityQueue, _queue_modifiers)
-LifoQueueContext = _wrap_to_ctx(queue.LifoQueue, _queue_modifiers)
-AsyncioQueueContext = _wrap_to_ctx(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
-AsyncioPriorityQueueContext = _wrap_to_ctx(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = _wrap_to_ctx(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
-FileIOContext = _wrap_to_ctx(io.FileIO, _io_modifiers)
-BytesIOContext = _wrap_to_ctx(io.BytesIO, _io_modifiers)
-StringIOContext = _wrap_to_ctx(io.StringIO, _io_modifiers)
+ListContext = wrap_to_context(list, _list_modifiers)
+DequeContext = wrap_to_context(collections.deque, _deque_modifiers)
+DictContext = wrap_to_context(AttributeDict, _dict_modifiers)
+ByteArrayContext = wrap_to_context(bytearray, _list_modifiers)
+MemoryDictContext = wrap_to_context(MemoryDict, _dict_modifiers)
+QueueContext = wrap_to_context(queue.Queue, _queue_modifiers)
+PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_modifiers)
+LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_modifiers)
+AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_modifiers, name='AsyncioQueue')
+AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
+FileIOContext = wrap_to_context(io.FileIO, _io_modifiers)
+BytesIOContext = wrap_to_context(io.BytesIO, _io_modifiers)
+StringIOContext = wrap_to_context(io.StringIO, _io_modifiers)
 
 # shortcuts
 LContext = ListContext
