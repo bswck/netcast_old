@@ -392,6 +392,42 @@ class TestArrangement:
         foreign_appender = Appender()
         assert foreign_appender.context is not context
 
+    def test_string_io_arrangement(self):
+        from netcast.arrangement import StringIOArrangement
+
+        class SA(StringIOArrangement):
+            read = ForwardDependency()
+            write = ForwardDependency()
+
+            def seek(self, offset, whence=0):
+                return self.context.seek(offset, whence)
+
+            def tell(self):
+                return self.context.tell()
+
+        @SA.read.dependency
+        class Reader(StringIOArrangement, descent=SA):
+            def __call__(self, nchars=-1):
+                return self.context.read(nchars)
+
+        @SA.write.dependency
+        class Writer(StringIOArrangement, descent=SA):
+            def __call__(self, chars):
+                self.context.write(chars)
+
+        sa = SA()
+        assert sa.context is sa.read.context
+        assert sa.read.context is sa.write.context
+        assert sa.read() == ''
+
+        sa.write('hello')
+        sa.seek(0)
+        content = sa.read()
+        assert content == 'hello'
+
+        offset = sa.seek(1)
+        assert sa.read() == content[offset:]
+
     def test_queue_arrangement(self):
         from netcast.arrangement import QueueArrangement
 
