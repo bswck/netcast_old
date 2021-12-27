@@ -43,7 +43,8 @@ class KeyTransformingDict(_KeyTransformingDict):
 class MemoryDict(KeyTransformingDict):
     """
     A dictionary for storing information about Python objects without comparing themselves,
-    but their ID.  Keys don't have to be hashable, because only their place in memory is stored.
+    but their "Pythonic" ID.
+    Keys don't have to be hashable, because only their place in memory is stored.
 
     Examples
     --------
