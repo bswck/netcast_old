@@ -23,7 +23,7 @@ class CMManager:
     """Literally a context-manager manager."""
     cm_class: type
     per_instance: bool = False
-    methods: Sequence = dataclasses.field(default_factory=[])
+    methods: Sequence = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         if self.methods is None:
