@@ -78,6 +78,7 @@ class CMManager:
                 exitted = exit_cm(*exc_info)
         return exitted
 
+
 @final
 class _LocalHook:
     prepared_contexts = MemoryList()
