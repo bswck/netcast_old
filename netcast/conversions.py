@@ -21,15 +21,15 @@ TT = TypeVar('TT', Callable[[Any, Any], Any], NoneType)  # Transformer type
 
 @dataclasses.dataclass
 class Replacement:
-    from_value: _BaseVar
-    to_value: _BaseVar
+    old_value: _BaseVar
+    new_value: _BaseVar
     key: KT = operator.eq
 
     def __iter__(self):
         return dataclasses.fields(self)
 
     def __post_init__(self):
-        self.check_replaceable()
+        self.check_possible()
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -38,11 +38,11 @@ class Replacement:
                 return maybe_replacement
         return object.__new__(cls)
 
-    def check_replaceable(self):
-        if not isinstance(self.from_value, type(self.to_value)):
+    def check_possible(self):
+        if not isinstance(self.old_value, type(self.new_value)):
             raise TypeError("types of replacement arguments do not match")
-        assert self.from_value.replaceable(), "from_value isn't replaceable"
-        assert self.to_value.applicable(self.from_value), "to_value isn't replaceable"
+        assert self.old_value.replaceable(self.new_value), "old value isn't replaceable"
+        assert self.new_value.applicable(self.old_value), "new value isn't applicable"
 
     @classmethod
     def from_multiple_replacements(
@@ -65,11 +65,17 @@ class _BaseVar:
     value: Any
     _replacement_class = Replacement
 
-    def replaceable(self):
+    def applicable_itself(self):
         return True
 
-    def applicable(self):
+    def replaceable_itself(self):
         return True
+
+    def replaceable(self, to_value):
+        return self.replaceable_itself() or not to_value.replaceable_itself()
+
+    def applicable(self, from_value):
+        return self.applicable_itself() or not from_value.applicable_itself()
 
     def __neg__(self):
         """Used for left-arrow notation."""
@@ -85,7 +91,7 @@ class Key(_BaseVar):
     value: Hashable
     transformer: TT = hash
 
-    def applicable(self):
+    def applicable_itself(self):
         try:
             hash(self.value)
         except TypeError:
