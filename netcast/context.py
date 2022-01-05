@@ -11,10 +11,10 @@ import itertools
 import operator
 import queue
 import socket
+import ssl
 import sys
 import threading
 import warnings
-from ssl import SSLSocket
 from types import FunctionType, MethodType
 from typing import Type, ForwardRef, Sequence, final
 
@@ -315,7 +315,7 @@ FileIOContext = wrap_to_context(io.FileIO, _io_modifiers)
 BytesIOContext = wrap_to_context(io.BytesIO, _io_modifiers)
 StringIOContext = wrap_to_context(io.StringIO, _io_modifiers)
 SocketContext = wrap_to_context(socket.socket, _socket_modifiers)
-SSLSocketContext = wrap_to_context(SSLSocket, _socket_modifiers)
+SSLSocketContext = wrap_to_context(ssl.SSLSocket, _socket_modifiers)
 
 # shortcuts
 LContext = ListContext

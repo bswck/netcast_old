@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import functools
 import operator
+import ssl
 import threading
-from typing import Any, ClassVar, Type
+from typing import Any, ClassVar, Type, Callable
 
 from netcast.context import (
     Context,
@@ -21,7 +22,7 @@ from netcast.context import (
     AsyncioLifoQueueContext,
     BytesIOContext,
     StringIOContext,
-    FileIOContext
+    FileIOContext, SSLSocketContext, SocketContext
 )
 from netcast.toolkit.collections import MemoryDict, Params
 
@@ -37,12 +38,24 @@ def _is_classmethod(cls, method):
     return getattr(method, '__self__', None) is cls
 
 
+def bind_factory(context_class=None, *, factory: Callable | None = None):
+    if context_class is not None:
+        if not callable(factory):
+            raise ValueError('factory must be a callable')
+        _BaseArrangement._factory_registry[context_class] = factory
+        return context_class
+    return functools.partial(bind_factory, factory=factory)
+
+
 DEFAULT_CONTEXT_CLASS = DictContext
 
 
 class _BaseArrangement:
     _super_registry = MemoryDict()  # B-)
     """Helper dict for managing an arrangement's class attributes."""
+
+    _factory_registry = {}
+    """For creating contexts."""
 
     context_class: ClassVar[Type[Context] | None] = None
     """Context class. Must derive from the abstract class :class:`Context`."""
@@ -78,7 +91,8 @@ class _BaseArrangement:
             args = args(cls_or_self)
         if callable(kwargs):
             kwargs = kwargs(cls_or_self)
-        context = context_class(*args, **kwargs)
+        factory = cls._factory_registry.get(context_class, context_class)
+        context = factory(*args, **kwargs)
         cls._set_supercontext(context, supercontext)
         return context
 
@@ -357,6 +371,8 @@ ClassAsyncioPriorityQueueArrangement = wrap_to_arrangement('ClassAsyncioPriority
 ClassBytesIOArrangement = wrap_to_arrangement('ClassBytesIOArrangement', BytesIOContext, True)
 ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', StringIOContext, True)
 ClassFileIOArrangement = wrap_to_arrangement('ClassFileIOArrangement', FileIOContext, True)
+ClassSocketArrangement = wrap_to_arrangement('ClassSocketArrangement', SocketContext, True)
+ClassSSLSocketArrangement = wrap_to_arrangement('ClassSSLSocketArrangement', bind_factory(SSLSocketContext, factory=ssl.wrap_socket), True)  # noqa: E501
 
 DictArrangement = wrap_to_arrangement('DictArrangement', DictContext)
 ListArrangement = wrap_to_arrangement('ListArrangement', ListContext)
@@ -371,6 +387,9 @@ AsyncioPriorityQueueArrangement = wrap_to_arrangement('AsyncioPriorityQueueArran
 FileIOArrangement = wrap_to_arrangement('FileIOArrangement', FileIOContext)
 BytesIOArrangement = wrap_to_arrangement('BytesIOArrangement', BytesIOContext)
 StringIOArrangement = wrap_to_arrangement('StringIOArrangement', StringIOContext)
+SocketArrangement = wrap_to_arrangement('SocketArrangement', SocketContext)
+SSLSocketArrangement = wrap_to_arrangement('SSLSocketArrangement', bind_factory(SSLSocketContext, factory=ssl.wrap_socket))  # noqa: E501
+
 
 # shortcuts
 CArrangement = ClassArrangement

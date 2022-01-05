@@ -5,9 +5,9 @@ import pytest
 
 from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
 from netcast.arrangement import (
-    ClassArrangement,
-    ClassFileIOArrangement,
-    Arrangement, FileIOArrangement
+    ClassArrangement, ClassFileIOArrangement,
+    Arrangement, FileIOArrangement,
+    ClassSSLSocketArrangement, SSLSocketArrangement
 )
 from netcast.context import C, CT
 from netcast.toolkit.collections import Params, ForwardDependency
@@ -15,6 +15,7 @@ from netcast.toolkit.collections import Params, ForwardDependency
 class_arrangements = {ClassArrangement, *ClassArrangement.__subclasses__()}
 class_arrangements.discard(Arrangement)
 class_arrangements.discard(ClassFileIOArrangement)
+class_arrangements.discard(ClassSSLSocketArrangement)
 
 
 @pytest.fixture(params=class_arrangements)
@@ -24,6 +25,7 @@ def ca(request) -> CAT:
 
 arrangements = {Arrangement, *Arrangement.__subclasses__()}
 arrangements.discard(FileIOArrangement)
+arrangements.discard(SSLSocketArrangement)
 
 
 @pytest.fixture(params=arrangements)
