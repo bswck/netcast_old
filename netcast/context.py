@@ -31,8 +31,6 @@ class ContextManagerPool:
     methods: list = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
-        if self.methods is None:
-            self.methods = []
         self._class_cms = MemoryDict()
         self._instance_cms = MemoryDict()
         self._method_cms = MemoryDict()
@@ -40,13 +38,18 @@ class ContextManagerPool:
     def setup_context(self, context):
         for method in self.methods:
             self._method_cms.setdefault(context, {})
-            if method not in self._method_cms[context]:
-                for cm in self.per_class_cms:  # noo way, that can't be O(n^2) you little bastard
-                    self._method_cms[context][method] = cm()
+            for cm in self.per_class_cms:  # noo way, that can't be O(n^2) you little bastard
+                self._method_cms[context].setdefault(method, [])
+                self._method_cms[context][method].append(cm())
         else:
             if self.per_instance_cms and context not in self._instance_cms:
                 for cm in self.per_class_cms:  # stop, ugh!
-                    self._instance_cms[context] = cm()
+                    self._instance_cms.setdefault(context, [])
+                    self._instance_cms[context].append(cm())
+            elif self.per_class_cms and type(context) not in self._class_cms:
+                for cm in self.per_class_cms:  # stop, ugh!
+                    self._class_cms.setdefault(context, [])
+                    self._class_cms[context].append(cm())
 
     def get_base_cms(self, context):
         if self.per_instance_cms:
