@@ -133,7 +133,7 @@ class ClassArrangement(_BaseArrangement):
             context_class, = filter(None, args)
         if context_class is None and descent_context_class is None:
             context_class = DEFAULT_CONTEXT_CLASS
-        _original_context_class: type | None = context_class
+        root_context_class: type | None = context_class
         if context_class is None:
             context_class = descent_context_class
             cls._default_context_class = False
@@ -141,11 +141,11 @@ class ClassArrangement(_BaseArrangement):
                 descent is not None
                 and inherit_context is not None
                 and inherit_context
-                and None not in (_original_context_class, descent_context_class)
+                and None not in (root_context_class, descent_context_class)
         ):
-            _original_context_class: type
+            root_context_class: type
             descent_context_class: type
-            if not issubclass(_original_context_class, descent_context_class):
+            if not issubclass(root_context_class, descent_context_class):
                 raise TypeError(
                     'context_class is different for descent and this class '
                     '(inherit_context = False may fix this error)'
