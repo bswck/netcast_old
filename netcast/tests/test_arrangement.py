@@ -453,7 +453,7 @@ class TestArrangement:
 
         class Get(QueueArrangement, descent=QA):
             def __call__(self):
-                self.context.get()
+                return self.context.get()
 
         QA.get.dependency(Get)
 
