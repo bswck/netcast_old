@@ -1,13 +1,11 @@
 from __future__ import annotations
-
-import abc
 from typing import Any, ClassVar
 
 from netcast.arrangement import Arrangement
 from netcast.context import DictContext
 
 
-class Hook(Arrangement):
+class Hook(Arrangement, abstract=True):
     """Before send/after receive data handler."""
     source: ClassVar[Any]
     """
@@ -18,10 +16,10 @@ class Hook(Arrangement):
     context_class = DictContext
 
 
-class ReceiveHook(Hook, metaclass=abc.ABCMeta):
+class ReceiveHook(Hook):
     inherit_context = False
 
-    def after_receive(self, data, **params):
+    def on_receive(self, data, **params):
         """
         Interpret a raw data. It might be a JSON string, XML string or bytes.
         It should use the :attr:`source` set during the construction.
@@ -29,10 +27,10 @@ class ReceiveHook(Hook, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
 
-class SendHook(Hook, metaclass=abc.ABCMeta):
+class SendHook(Hook):
     inherit_context = False
 
-    def before_send(self, data, **params):
+    def on_send(self, data, **params):
         """
         Prepare the data to send.
         """

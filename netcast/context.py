@@ -54,9 +54,9 @@ class CMManager:
             method_name = method_name.__name__
 
         if context in self._method_cms:
-            locks = self._method_cms[context]
-            if method_name in locks:
-                return locks[method_name]
+            cms = self._method_cms[context]
+            if method_name in cms:
+                return cms[method_name]
 
         return self.get_base_cm(context)
 
