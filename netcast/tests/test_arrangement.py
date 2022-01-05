@@ -4,22 +4,29 @@ from typing import ClassVar
 import pytest
 
 from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
-from netcast.arrangement import ClassArrangement, Arrangement
+from netcast.arrangement import (
+    ClassArrangement,
+    ClassFileIOArrangement,
+    Arrangement, FileIOArrangement
+)
 from netcast.context import C, CT
 from netcast.toolkit.collections import Params, ForwardDependency
 
-ca_params = {ClassArrangement, *ClassArrangement.__subclasses__()} - {Arrangement}
+class_arrangements = {ClassArrangement, *ClassArrangement.__subclasses__()}
+class_arrangements.discard(Arrangement)
+class_arrangements.discard(ClassFileIOArrangement)
 
 
-@pytest.fixture(params=ca_params)
+@pytest.fixture(params=class_arrangements)
 def ca(request) -> CAT:
     yield request.param
 
 
-a_params = {Arrangement, *Arrangement.__subclasses__()}
+arrangements = {Arrangement, *Arrangement.__subclasses__()}
+arrangements.discard(FileIOArrangement)
 
 
-@pytest.fixture(params=a_params)
+@pytest.fixture(params=arrangements)
 def a(request) -> AT:
     yield request.param
 

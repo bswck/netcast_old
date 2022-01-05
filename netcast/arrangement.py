@@ -21,6 +21,7 @@ from netcast.context import (
     AsyncioLifoQueueContext,
     BytesIOContext,
     StringIOContext,
+    FileIOContext
 )
 from netcast.toolkit.collections import MemoryDict, Params
 
@@ -350,8 +351,9 @@ ClassPriorityQueueArrangement = wrap_to_arrangement('ClassPriorityQueueArrangeme
 ClassAsyncioQueueArrangement = wrap_to_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
 ClassAsyncioLifoQueueArrangement = wrap_to_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
 ClassAsyncioPriorityQueueArrangement = wrap_to_arrangement('ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True)  # noqa: E501
-ClassBytesIOArrangement = wrap_to_arrangement('ClassBytesIOArrangement', BytesIOContext)
-ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', StringIOContext)
+ClassBytesIOArrangement = wrap_to_arrangement('ClassBytesIOArrangement', BytesIOContext, True)
+ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', StringIOContext, True)
+ClassFileIOArrangement = wrap_to_arrangement('ClassFileIOArrangement', FileIOContext, True)
 
 DictArrangement = wrap_to_arrangement('DictArrangement', DictContext)
 ListArrangement = wrap_to_arrangement('ListArrangement', ListContext)
@@ -363,8 +365,7 @@ PriorityQueueArrangement = wrap_to_arrangement('PriorityQueueArrangement', Prior
 AsyncioQueueArrangement = wrap_to_arrangement('AsyncioQueueArrangement', AsyncioQueueContext)
 AsyncioLifoQueueArrangement = wrap_to_arrangement('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)  # noqa: E501
 AsyncioPriorityQueueArrangement = wrap_to_arrangement('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)  # noqa: E501
-# ClassFileIOArrangement = _wrap_arrangement('ClassFileIOArrangement', FileIOContext)
-# FileIOArrangement = _wrap_arrangement('FileIOArrangement', FileIOContext)
+FileIOArrangement = wrap_to_arrangement('FileIOArrangement', FileIOContext)
 BytesIOArrangement = wrap_to_arrangement('BytesIOArrangement', BytesIOContext)
 StringIOArrangement = wrap_to_arrangement('StringIOArrangement', StringIOContext)
 

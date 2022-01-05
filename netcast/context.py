@@ -8,8 +8,10 @@ import functools
 import inspect
 import io
 import queue
+import socket
 import threading
 import warnings
+from ssl import SSLSocket
 from types import FunctionType, MethodType
 from typing import Type, ForwardRef, Sequence, final
 
@@ -242,6 +244,7 @@ _deque_modifiers = _list_modifiers + ('appendleft', 'extendleft', 'popleft')
 _dict_modifiers = ('__setitem__',)
 _queue_modifiers = ('_put', '_get', 'put', 'get')
 _io_modifiers = ('write', 'read', 'seek', 'close')
+_socket_modifiers = ('send', 'recv')
 
 ListContext = wrap_to_context(list, _list_modifiers)
 DequeContext = wrap_to_context(collections.deque, _deque_modifiers)
@@ -257,6 +260,8 @@ AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_modifiers, n
 FileIOContext = wrap_to_context(io.FileIO, _io_modifiers)
 BytesIOContext = wrap_to_context(io.BytesIO, _io_modifiers)
 StringIOContext = wrap_to_context(io.StringIO, _io_modifiers)
+SocketContext = wrap_to_context(socket.socket, _socket_modifiers)
+SSLSocketContext = wrap_to_context(SSLSocket, _socket_modifiers)
 
 # shortcuts
 LContext = ListContext
