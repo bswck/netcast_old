@@ -198,14 +198,15 @@ class Params:
             self._kwargs = kwargs
 
     def __iter__(self):
-        yield from (self.args, self.kwargs)
+        self_as_tuple = (self.args, self.kwargs)
+        yield from self_as_tuple
 
     @classmethod
-    def from_starred(cls, *args, **kwargs):
+    def from_args(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
 
     @property
-    def args(self) -> tuple | Callable :
+    def args(self) -> tuple | Callable:
         return self._args
 
     @property

@@ -7,8 +7,11 @@ import dataclasses
 import functools
 import inspect
 import io
+import itertools
+import operator
 import queue
 import socket
+import sys
 import threading
 import warnings
 from ssl import SSLSocket
@@ -21,16 +24,16 @@ CT, C = Type["Context"], ForwardRef("Context")
 
 
 @dataclasses.dataclass
-class CMManager:
-    """Literally a context-manager manager."""
-    cm_class: type
-    per_instance: bool = False
-    methods: Sequence = dataclasses.field(default_factory=list)
+class ContextManagerPool:
+    """Literally a context-manager pool."""
+    per_class_cms: list[type]
+    per_instance_cms: list = dataclasses.field(default_factory=list)
+    methods: list = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         if self.methods is None:
             self.methods = []
-        self._class_cm = self.cm_class()
+        self._class_cms = MemoryDict()
         self._instance_cms = MemoryDict()
         self._method_cms = MemoryDict()
 
@@ -38,19 +41,21 @@ class CMManager:
         for method in self.methods:
             self._method_cms.setdefault(context, {})
             if method not in self._method_cms[context]:
-                self._method_cms[context][method] = self.cm_class()
+                for cm in self.per_class_cms:  # noo way, that can't be O(n^2) you little bastard
+                    self._method_cms[context][method] = cm()
         else:
-            if self.per_instance and context not in self._instance_cms:
-                self._instance_cms[context] = self.cm_class()
+            if self.per_instance_cms and context not in self._instance_cms:
+                for cm in self.per_class_cms:  # stop, ugh!
+                    self._instance_cms[context] = cm()
 
-    def get_base_cm(self, context):
-        if self.per_instance:
+    def get_base_cms(self, context):
+        if self.per_instance_cms:
             return self._instance_cms[context]
-        return self._class_cm
+        return self._class_cms[type(context)]
 
-    def get_cm(self, context, method_name=None):
+    def get_cms(self, context, method_name=None):
         if method_name is None:
-            return self.get_base_cm(context)
+            return self.get_base_cms(context)
 
         if isinstance(method_name, (FunctionType, MethodType)):
             method_name = method_name.__name__
@@ -60,31 +65,53 @@ class CMManager:
             if method_name in cms:
                 return cms[method_name]
 
-        return self.get_base_cm(context)
+        return self.get_base_cms(context)
+
+    @staticmethod
+    def enter_one(cm):
+        enter_value = None
+        if cm is not None:
+            enter_cm = getattr(cm, '__enter__', getattr(cm, '__aenter__', None))
+            if callable(enter_cm):
+                enter_value = enter_cm()
+        return enter_value
 
     def enter(self, context, method_name=None):
-        lock = self.get_cm(context, method_name=method_name)
-        entered = None
-        if lock is not None:
-            enter_cm = getattr(lock, '__enter__', getattr(lock, '__aenter__', None))
-            if callable(enter_cm):
-                entered = enter_cm()
-        return entered
+        cms = self.get_cms(context, method_name=method_name)
+        return list(map(self.enter_one, cms))
 
-    def exit(self, context, method_name=None, exc_info=(None, None, None)):
-        lock = self.get_cm(context, method_name=method_name)
-        exitted = None
-        if lock is not None:
-            exit_cm = getattr(lock, '__exit__', getattr(lock, '__aexit__', None))
+    @staticmethod
+    def exit_one(cm, exc_info=(None, None, None)):
+        exit_value = None
+        if cm is not None:
+            exit_cm = getattr(cm, '__exit__', getattr(cm, '__aexit__', None))
             if callable(exit_cm):
-                exitted = exit_cm(*exc_info)
-        return exitted
+                exit_value = exit_cm(*exc_info)
+        return exit_value
+
+    def exit(self, context, method_name=None, initial_exc_info=(None, None, None)):
+        sequence = self.get_cms(context, method_name=method_name)
+        results = []
+
+        def inner_exit(value, element):
+            exit_value = None
+            exc_values = value
+            try:
+                exit_value = self.exit_one(cm=element, exc_info=value)  # but it might be a coro!
+            except Exception:
+                exc_values = sys.exc_info()
+            finally:
+                results.append(exit_value)
+                return exc_values
+
+        functools.reduce(inner_exit, sequence=sequence, initial=initial_exc_info)
+        return results
 
 
 @final
-class _LocalHook:
+class LocalHook:
     prepared_contexts = MemoryList()
-    cm_managers = MemoryDict()
+    cm_pools = MemoryDict()
     listeners = MemoryDict()
 
     # Class _LocalHook is final, shouldn't those below be static methods?
@@ -111,33 +138,53 @@ class _LocalHook:
     @classmethod
     def on_prepare(cls, context):
         cls.prepared_contexts.append(context)
-        lock_manager = cls.cm_managers.get(type(context))
+        lock_manager = cls.cm_pools.get(type(context))
         if lock_manager:
             lock_manager.setup_context(context)
 
 
-def locked(context_class=None, *, cm_class, per_instance=True, methods=None):
+def locked(
+        context_class=None, *,
+        per_class_cms=None,
+        per_instance_cms=None,
+        methods=None
+):
     if context_class is None:
-        return functools.partial(locked, lock_class=cm_class, per_instance=per_instance)
-    cm_manager = _LocalHook.cm_managers.get(cm_class)
-    if cm_manager:
-        if methods:
-            cm_manager.methods.extend(methods)
-        cm_manager.per_instance = per_instance
-    else:
-        cm_manager = CMManager(
-            cm_class=cm_class,
-            per_instance=per_instance,
+        return functools.partial(
+            locked,
+            per_class_cms=per_class_cms,
+            per_instance_cms=per_instance_cms,
             methods=methods
         )
-        _LocalHook.cm_managers[context_class] = cm_manager
+    pool = LocalHook.cm_pools.get(context_class)
+    select_args = map(operator.not_, (per_class_cms, per_instance_cms, methods))
+    if pool:
+        per_class_cms, per_instance_cms, methods = itertools.compress(select_args, ((), (), ()))
+        per_class_cms and pool.per_class_cms.extend(per_instance_cms)
+        per_instance_cms and pool.per_instance_cms.extend(per_instance_cms)
+        methods and pool.methods.extend(methods)
+    else:
+        per_class_cms, per_instance_cms, methods = map(
+            lambda arg: arg if isinstance(arg, list) else list(arg),
+            itertools.compress(select_args, ([], [], []))
+        )
+        pool = ContextManagerPool(
+            per_class_cms=per_class_cms,
+            per_instance_cms=per_instance_cms,
+            methods=methods
+        )
+        LocalHook.cm_pools[context_class] = pool
     return context_class
 
 
 def concurrency_safe(context_class, cm_class, per_instance=True, name=None):
     if name is None:
         name = 'Locked' + context_class.__name__
-    return locked(type(name, (context_class,), {}), cm_class=cm_class, per_instance=per_instance)
+    if per_instance:
+        kwds = {'per_instance_cms': [cm_class]}
+    else:
+        kwds = {'per_class_cms': [cm_class]}
+    return locked(type(name, (context_class,), {}), **kwds)
 
 
 thread_safe = functools.partial(concurrency_safe, cm_class=threading.RLock)
@@ -194,6 +241,20 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
     return functools.update_wrapper(hooked_method_wrapper, func)
 
 
+def _prepare_context_name(cls):
+    class_name = cls.__name__
+    suffix = 'Context'
+    if class_name:
+        first_letter = class_name[0].upper()
+        if len(class_name) > 1:
+            name = first_letter + class_name[1:] + suffix
+        else:
+            name = first_letter + suffix
+    else:
+        raise ValueError('class name was not provided')
+    return name
+
+
 def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
     if isinstance(bases, Sequence):
         if not bases:
@@ -212,26 +273,17 @@ def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass
             else method
         )
         if inspect.iscoroutinefunction(method):
-            pre_hook = _LocalHook.async_pre
-            post_hook = _LocalHook.async_post
+            pre_hook = LocalHook.async_pre
+            post_hook = LocalHook.async_post
         else:
-            pre_hook = _LocalHook.pre_hook
-            post_hook = _LocalHook.post_hook
+            pre_hook = LocalHook.pre_hook
+            post_hook = LocalHook.post_hook
         env[method.__name__] = _hooked_method(
             method, pre_hook=pre_hook,
             post_hook=post_hook, cls=cls
         )
     if name is None:
-        cls_name = cls.__name__
-        suffix = 'Context'
-        if cls_name:
-            f = cls_name[0].upper()
-            if len(cls_name) > 1:
-                name = f + cls_name[1:] + suffix
-            else:
-                name = f + suffix
-        else:
-            raise ValueError('class name was not provided')
+        name = _prepare_context_name(cls)
     if init_subclass is None:
         init_subclass = {}
     return type(name, bases, env, **init_subclass)
@@ -255,8 +307,10 @@ QueueContext = wrap_to_context(queue.Queue, _queue_modifiers)
 PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_modifiers)
 LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_modifiers)
 AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_modifiers, name='AsyncioQueueContext')
-AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_modifiers, name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_modifiers, name='AsyncioLifoQueueContext')  # noqa: E501
+AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_modifiers,
+                                              name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_modifiers,
+                                          name='AsyncioLifoQueueContext')  # noqa: E501
 FileIOContext = wrap_to_context(io.FileIO, _io_modifiers)
 BytesIOContext = wrap_to_context(io.BytesIO, _io_modifiers)
 StringIOContext = wrap_to_context(io.StringIO, _io_modifiers)

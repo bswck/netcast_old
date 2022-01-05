@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Type
 
 from netcast.context import (
     Context,
-    _LocalHook,
+    LocalHook,
     ListContext,
     DequeContext,
     DictContext,
@@ -196,7 +196,7 @@ class ClassArrangement(_BaseArrangement):
 
         cls.inherit_context = None
 
-        if _use_wrapper and not _LocalHook.is_prepared(context):
+        if _use_wrapper and not LocalHook.is_prepared(context):
             context = cls.get_context()
             context_wrapper = cls.context_wrapper
             if not _is_classmethod(cls, cls.context_wrapper):
@@ -284,15 +284,18 @@ class Arrangement(ClassArrangement, netcast=True):
             contexts[self] = cls._create_context(self=self)
         context = contexts[self]
         with self._context_lock:
-            unprepared = _LocalHook.is_prepared(context)
+            unprepared = LocalHook.is_prepared(context)
             if unprepared:
                 context_wrapper = cls.context_wrapper
-                if _is_classmethod(cls, context_wrapper) or isinstance(context_wrapper, staticmethod):
+                if (
+                    _is_classmethod(cls, context_wrapper)
+                    or isinstance(context_wrapper, staticmethod)
+                ):
                     context_wrapper = functools.partial(context_wrapper)
                 else:
                     context_wrapper = functools.partial(context_wrapper, self)
                 contexts[self] = next(context_wrapper(context), context)
-                _LocalHook.on_prepare(context)
+                LocalHook.on_prepare(context)
         return self
 
     def context_wrapper(self, context):
@@ -381,6 +384,9 @@ CPQArrangement = ClassPriorityQueueArrangement
 CAQArrangement = ClassAsyncioQueueArrangement
 CALQArrangement = ClassAsyncioLifoQueueArrangement
 CAPQArrangement = ClassAsyncioPriorityQueueArrangement
+CBIOArrangement = ClassBytesIOArrangement
+CSIOArrangement = ClassStringIOArrangement
+CFIOArrangement = ClassFileIOArrangement
 DArrangement = DictArrangement
 LArrangement = ListArrangement
 BAArrangement = ByteArrangement = ByteArrayArrangement
@@ -393,3 +399,4 @@ ALQArrangement = AsyncioLifoQueueContext
 APQArrangement = AsyncioPriorityQueueContext
 BIOArrangement = BytesIOArrangement
 SIOArrangement = StringIOArrangement
+FIOArrangement = FileIOArrangement

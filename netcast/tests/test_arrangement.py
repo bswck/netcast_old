@@ -321,7 +321,7 @@ class TestArrangement:
         from netcast.arrangement import DictArrangement
 
         class DA1(DictArrangement):
-            context_params = Params.from_starred(pings=0, pongs=0)
+            context_params = Params.from_args(pings=0, pongs=0)
 
             def clear(self):
                 self.context.update(dict.fromkeys(('pings', 'pongs'), 0))
@@ -423,6 +423,9 @@ class TestArrangement:
                 self.context.write(chars)
 
         sa = SA()
+
+        assert isinstance(sa.read, Reader)
+        assert isinstance(sa.write, Writer)
         assert sa.context is sa.read.context
         assert sa.read.context is sa.write.context
         assert sa.read() == ''
@@ -432,8 +435,8 @@ class TestArrangement:
         content = sa.read()
         assert content == 'hello'
 
-        offset = sa.seek(1)
-        assert sa.read() == content[offset:]
+        sa_offset = sa.seek(1)
+        assert sa.read() == content[sa_offset:]
 
     def test_queue_arrangement(self):
         from netcast.arrangement import QueueArrangement
