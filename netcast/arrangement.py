@@ -4,7 +4,7 @@ import functools
 import operator
 import ssl
 import threading
-from typing import Any, ClassVar, Type, Callable
+from typing import Any, ClassVar, Type, Callable, Final
 
 from netcast.context import (
     Context,
@@ -51,10 +51,10 @@ DEFAULT_CONTEXT_CLASS = DictContext
 
 
 class _BaseArrangement:
-    _super_registry = MemoryDict()  # B-)
+    _super_registry: Final[MemoryDict] = MemoryDict()  # B-)
     """Helper dict for managing an arrangement's class attributes."""
 
-    _factory_registry = {}
+    _factory_registry: Final[dict] = {}
     """For creating contexts."""
 
     context_class: ClassVar[Type[Context] | None] = None
@@ -85,14 +85,7 @@ class _BaseArrangement:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
-        args, kwargs = cls.context_params
-        cls_or_self = cls if self is None else self
-        if callable(args):
-            args = args(cls_or_self)
-        if callable(kwargs):
-            kwargs = kwargs(cls_or_self)
-        factory = cls._factory_registry.get(context_class, context_class)
-        context = factory(*args, **kwargs)
+        context = create_context(context_class, cls if self is None else self, cls.context_params)
         cls._set_supercontext(context, supercontext)
         return context
 
@@ -345,6 +338,16 @@ class Arrangement(ClassArrangement, netcast=True):
         return self._inherits_context
 
 
+def create_context(context_class, cls_or_self, params=Params()):
+    args, kwargs = params
+    if callable(args):
+        args = args(cls_or_self)
+    if callable(kwargs):
+        kwargs = kwargs(cls_or_self)
+    factory = _BaseArrangement._factory_registry.get(context_class, context_class)
+    return factory(*args, **kwargs)
+
+
 def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, env=None):
     if class_arrangement:
         super_class = ClassArrangement
@@ -360,10 +363,10 @@ def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, 
 
 ClassDictArrangement = wrap_to_arrangement('ClassDictArrangement', DictContext, True)
 ClassListArrangement = wrap_to_arrangement('ClassListArrangement', ListContext, True)
-ClassByteArrayArrangement = wrap_to_arrangement('ClassByteArrayArrangement', ByteArrayContext, True)
+ClassByteArrayArrangement = wrap_to_arrangement('ClassByteArrayArrangement', ByteArrayContext, True)  # noqa: E501
 ClassDequeArrangement = wrap_to_arrangement('ClassDequeArrangement', DequeContext, True)
 ClassQueueArrangement = wrap_to_arrangement('ClassQueueArrangement', QueueContext, True)
-ClassLifoQueueArrangement = wrap_to_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)
+ClassLifoQueueArrangement = wrap_to_arrangement('ClassLifoQueueArrangement', LifoQueueContext, True)  # noqa: E501
 ClassPriorityQueueArrangement = wrap_to_arrangement('ClassPriorityQueueArrangement', PriorityQueueContext, True)  # noqa: E501
 ClassAsyncioQueueArrangement = wrap_to_arrangement('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)  # noqa: E501
 ClassAsyncioLifoQueueArrangement = wrap_to_arrangement('ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True)  # noqa: E501
@@ -406,6 +409,8 @@ CAPQArrangement = ClassAsyncioPriorityQueueArrangement
 CBIOArrangement = ClassBytesIOArrangement
 CSIOArrangement = ClassStringIOArrangement
 CFIOArrangement = ClassFileIOArrangement
+CSArrangement = ClassSocketArrangement
+CSSLSArrangement = ClassSSLSocketArrangement
 DArrangement = DictArrangement
 LArrangement = ListArrangement
 BAArrangement = ByteArrangement = ByteArrayArrangement
@@ -419,3 +424,5 @@ APQArrangement = AsyncioPriorityQueueContext
 BIOArrangement = BytesIOArrangement
 SIOArrangement = StringIOArrangement
 FIOArrangement = FileIOArrangement
+SArrangement = SocketArrangement
+SSLSArrangement = SSLSocketArrangement
