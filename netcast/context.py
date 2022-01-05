@@ -218,6 +218,7 @@ class Context(metaclass=abc.ABCMeta):
     """
 
 
+_MISSING = object()
 _WARN_ASYNC_HOOK = 'method must be async in order to invoke async hooks'
 
 
@@ -236,7 +237,7 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
                 pre_res = pre_hook(self, bound_method, *args, **kwargs)
                 if inspect.isawaitable(pre_res):
                     await pre_res
-            res = None
+            res = _MISSING
             try:
                 res = await func(self, *args, **kwargs)
             finally:
@@ -244,6 +245,8 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
                     post_res = post_hook(self, bound_method, *args, **kwargs)
                     if inspect.isawaitable(post_res):
                         await post_res
+                if res is _MISSING:
+                    raise
                 return res
     else:
         if inspect.iscoroutinefunction(pre_hook):
@@ -255,10 +258,15 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
             bound_method = getattr(self, func.__name__)
             if callable(pre_hook):
                 pre_hook(self, bound_method, *args, **kwargs)
-            res = func(self, *args, **kwargs)
-            if callable(post_hook):
-                post_hook(self, bound_method, *args, **kwargs)
-            return res
+            res = _MISSING
+            try:
+                res = func(self, *args, **kwargs)
+            finally:
+                if callable(post_hook):
+                    post_hook(self, bound_method, *args, **kwargs)
+                if res is _MISSING:
+                    raise
+                return res
     return functools.update_wrapper(hooked_method_wrapper, func)
 
 
