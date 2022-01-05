@@ -114,22 +114,40 @@ class LocalHook:
     cm_pools = MemoryDict()
     listeners = MemoryDict()
 
-    # Class _LocalHook is final, shouldn't those below be static methods?
+    # Class LocalHook is final, shouldn't those below be static methods?
     @classmethod
     def pre_hook(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified, this method is called."""
+        pool = cls.cm_pools.get(context)
+        if pool:
+            pool.enter(context, func, sys.exc_info())
 
     @classmethod
     def post_hook(cls, context, func, *args, **kwargs):
         """Anytime a context was modified, this method is called."""
+        pool = cls.cm_pools.get(context)
+        if pool:
+            pool.exit(context, func, sys.exc_info())
 
     @classmethod
     async def async_pre(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified asynchronously, this method is called."""
+        pool = cls.cm_pools.get(context)
+        if pool:
+            enter_values = pool.enter(context, func)
+            for enter_value in enter_values:
+                if inspect.isawaitable(enter_value):
+                    await enter_value
 
     @classmethod
     async def async_post(cls, context, func, *args, **kwargs):
         """Anytime a context was modified asynchronously, this method is called."""
+        pool = cls.cm_pools.get(context)
+        if pool:
+            exit_values = pool.exit(context, func)
+            for exit_value in exit_values:
+                if inspect.isawaitable(exit_value):
+                    await exit_value
 
     @classmethod
     def is_prepared(cls, context):
@@ -143,7 +161,7 @@ class LocalHook:
             lock_manager.setup_context(context)
 
 
-def locked(
+def extend_cm_pool(
         context_class=None, *,
         per_class_cms=None,
         per_instance_cms=None,
@@ -151,7 +169,7 @@ def locked(
 ):
     if context_class is None:
         return functools.partial(
-            locked,
+            extend_cm_pool,
             per_class_cms=per_class_cms,
             per_instance_cms=per_instance_cms,
             methods=methods
@@ -177,18 +195,18 @@ def locked(
     return context_class
 
 
-def concurrency_safe(context_class, cm_class, per_instance=True, name=None):
+def append_cm_pool(context_class, cm_class, per_instance=True, name=None):
     if name is None:
-        name = 'Locked' + context_class.__name__
+        name = 'CM' + context_class.__name__
     if per_instance:
         kwds = {'per_instance_cms': [cm_class]}
     else:
         kwds = {'per_class_cms': [cm_class]}
-    return locked(type(name, (context_class,), {}), **kwds)
+    return extend_cm_pool(type(name, (context_class,), {}), **kwds)
 
 
-thread_safe = functools.partial(concurrency_safe, cm_class=threading.RLock)
-greenlet_safe = functools.partial(concurrency_safe, cm_class=asyncio.Lock)
+thread_safe = functools.partial(append_cm_pool, cm_class=threading.RLock)
+greenlet_safe = functools.partial(append_cm_pool, cm_class=asyncio.Lock)
 
 
 class Context(metaclass=abc.ABCMeta):
@@ -218,12 +236,15 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
                 pre_res = pre_hook(self, bound_method, *args, **kwargs)
                 if inspect.isawaitable(pre_res):
                     await pre_res
-            res = await func(self, *args, **kwargs)
-            if callable(post_hook):
-                post_res = post_hook(self, bound_method, *args, **kwargs)
-                if inspect.isawaitable(post_res):
-                    await post_res
-            return res
+            res = None
+            try:
+                res = await func(self, *args, **kwargs)
+            finally:
+                if callable(post_hook):
+                    post_res = post_hook(self, bound_method, *args, **kwargs)
+                    if inspect.isawaitable(post_res):
+                        await post_res
+                return res
     else:
         if inspect.iscoroutinefunction(pre_hook):
             warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
