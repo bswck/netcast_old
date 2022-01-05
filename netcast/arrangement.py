@@ -22,7 +22,7 @@ from netcast.context import (
     AsyncioLifoQueueContext,
     BytesIOContext,
     StringIOContext,
-    FileIOContext, SSLSocketContext, SocketContext
+    FileIOContext, SSLSocketContext, SocketContext, CounterContext
 )
 from netcast.toolkit.collections import MemoryDict, Params
 
@@ -376,6 +376,7 @@ ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', Strin
 ClassFileIOArrangement = wrap_to_arrangement('ClassFileIOArrangement', FileIOContext, True)
 ClassSocketArrangement = wrap_to_arrangement('ClassSocketArrangement', SocketContext, True)
 ClassSSLSocketArrangement = wrap_to_arrangement('ClassSSLSocketArrangement', bind_factory(SSLSocketContext, factory=ssl.wrap_socket), True)  # noqa: E501
+ClassCounterArrangement = wrap_to_arrangement('ClassCounterArrangement', CounterContext)
 
 DictArrangement = wrap_to_arrangement('DictArrangement', DictContext)
 ListArrangement = wrap_to_arrangement('ListArrangement', ListContext)
@@ -391,8 +392,8 @@ FileIOArrangement = wrap_to_arrangement('FileIOArrangement', FileIOContext)
 BytesIOArrangement = wrap_to_arrangement('BytesIOArrangement', BytesIOContext)
 StringIOArrangement = wrap_to_arrangement('StringIOArrangement', StringIOContext)
 SocketArrangement = wrap_to_arrangement('SocketArrangement', SocketContext)
-SSLSocketArrangement = wrap_to_arrangement('SSLSocketArrangement', bind_factory(SSLSocketContext, factory=ssl.wrap_socket))  # noqa: E501
-
+SSLSocketArrangement = wrap_to_arrangement('SSLSocketArrangement', SSLSocketContext)
+CounterArrangement = wrap_to_arrangement('CounterArrangement', CounterContext)
 
 # shortcuts
 CArrangement = ClassArrangement

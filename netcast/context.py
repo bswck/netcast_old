@@ -198,13 +198,16 @@ def extend_cm_pool(
     return context_class
 
 
-def append_cm_pool(context_class, cm_class, per_instance=True, name=None):
+def append_cm_pool(context_class, cm_class, per_instance=True, methods=None, name=None):
     if name is None:
         name = 'CM' + context_class.__name__
+    kwds = {}
+    if methods:
+        kwds = {'methods': methods}
     if per_instance:
-        kwds = {'per_instance_cms': [cm_class]}
+        kwds.update(per_instance_cms=[cm_class])
     else:
-        kwds = {'per_class_cms': [cm_class]}
+        kwds.update(per_class_cms=[cm_class])
     return extend_cm_pool(type(name, (context_class,), {}), **kwds)
 
 
@@ -335,6 +338,9 @@ _socket_hooked_methods = (
     'setblocking', 'setsockopt', 'settimeout', 'sendfile',
     'shutdown',
 )
+_counter_hooked_methods = (
+    'update', 'subtract', 'update', 'clear', '__ior__', '__iand__'
+)
 
 ListContext = wrap_to_context(list, _list_hooked_methods)
 DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
@@ -344,7 +350,7 @@ MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
 PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_hooked_methods)
 LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_hooked_methods)
-AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueueContext')
+AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueueContext')  # noqa: E501
 AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext')  # noqa: E501
 AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext')  # noqa: E501
 FileIOContext = wrap_to_context(io.FileIO, _io_hooked_methods)
@@ -352,6 +358,7 @@ BytesIOContext = wrap_to_context(io.BytesIO, _io_hooked_methods)
 StringIOContext = wrap_to_context(io.StringIO, _io_hooked_methods)
 SocketContext = wrap_to_context(socket.socket, _socket_hooked_methods)
 SSLSocketContext = wrap_to_context(ssl.SSLSocket, _socket_hooked_methods)
+CounterContext = wrap_to_context(collections.Counter, _counter_hooked_methods)
 
 # shortcuts
 LContext = ListContext
@@ -370,3 +377,4 @@ BIOContext = BytesIOContext
 SIOContext = StringIOContext
 SockContext = SocketContext
 SSLSockContext = SocketContext
+CContext = CounterContext
