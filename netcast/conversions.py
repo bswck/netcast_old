@@ -3,15 +3,20 @@ from __future__ import annotations
 import dataclasses
 import operator
 from typing import Any, Hashable, Callable, TypeVar, Sequence
+try:
+    from types import NoneType
+except ImportError:
+    NoneType = type(None)
 
 
 def coerce_var(v):
     if isinstance(v, _BaseVar):
         return v
-    return Var(v)
+    return Key(v)
 
 
-TT = TypeVar('TT', Callable[[Any, Any], Any], type(None))
+KT = Callable[[Any, Any], bool]  # Key type
+TT = TypeVar('TT', Callable[[Any, Any], Any], NoneType)  # Transformer type
 
 
 @dataclasses.dataclass
@@ -23,6 +28,9 @@ class Replacement:
     def __iter__(self):
         return dataclasses.fields(self)
 
+    def __post_init__(self):
+        self.check_replaceable()
+
     def __new__(cls, *args, **kwargs):
         if args:
             maybe_replacement = args[0]
@@ -30,21 +38,38 @@ class Replacement:
                 return maybe_replacement
         return object.__new__(cls)
 
+    def check_replaceable(self):
+        if not isinstance(self.from_value, type(self.to_value)):
+            raise TypeError("types of replacement arguments do not match")
+        assert self.from_value.replaceable(), "from_value isn't replaceable"
+        assert self.to_value.applicable(self.from_value), "to_value isn't replaceable"
+
     @classmethod
     def from_multiple_replacements(
             cls, *replacements: (
                 Sequence[_BaseVar, _BaseVar]
-                | Sequence[_BaseVar, _BaseVar, KT]
                 | Replacement
             )
     ):
-        return tuple(
-            map(lambda r: (lambda: cls(*r), lambda: r)[isinstance(r, cls)](), replacements)
-        )
+        self = tuple(map(
+            lambda replacement: (
+                lambda: cls(*replacement),
+                lambda: replacement
+            )[isinstance(replacement, cls)](),
+            replacements
+        ))
+        return self
 
 
 class _BaseVar:
+    value: Any
     _replacement_class = Replacement
+
+    def replaceable(self):
+        return True
+
+    def applicable(self):
+        return True
 
     def __neg__(self):
         """Used for left-arrow notation."""
@@ -56,15 +81,20 @@ class _BaseVar:
 
 
 @dataclasses.dataclass
-class Var(_BaseVar):
+class Key(_BaseVar):
     value: Hashable
-    transformer: TT = None
+    transformer: TT = hash
+
+    def applicable(self):
+        try:
+            hash(self.value)
+        except TypeError:
+            return False
+        else:
+            return True
 
 
 @dataclasses.dataclass
-class MemoryVar(_BaseVar):
+class Value(_BaseVar):
     value: Any
-    transformer = id
-
-
-KT = Callable[[_BaseVar, _BaseVar], bool]
+    transformer: TT = None
