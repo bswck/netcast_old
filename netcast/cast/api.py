@@ -7,7 +7,7 @@ from typing import ClassVar, Any, Type
 from netcast.context import DictContext
 
 
-class ContextDataclass(DictContext):
+class ContextDataclass:
     context: DictContext = dataclasses.field(default_factory=DictContext)
 
 
