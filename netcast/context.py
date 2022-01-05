@@ -310,33 +310,37 @@ def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass
     return type(name, bases, env, **init_subclass)
 
 
-_list_modifiers = (
+_list_hooked_methods = (
     'append', 'extend', 'insert', 'pop', 'remove', 'reverse', '__setitem__', '__delitem__'
 )
-_deque_modifiers = _list_modifiers + ('appendleft', 'extendleft', 'popleft')
-_dict_modifiers = ('__setitem__',)
-_queue_modifiers = ('_put', '_get', 'put', 'get')
-_io_modifiers = ('write', 'read', 'seek', 'close')
-_socket_modifiers = ('send', 'recv')
+_deque_hooked_methods = _list_hooked_methods + ('appendleft', 'extendleft', 'popleft')
+_dict_hooked_methods = ('__setitem__',)
+_queue_hooked_methods = ('_put', '_get', 'put', 'get')
+_io_hooked_methods = ('write', 'read', 'seek', 'close')
+_socket_hooked_methods = (
+    'accept', 'bind', 'connect', 'connect_ex',
+    'detach', 'recv', 'recvfrom', 'recv_into',
+    'recvfrom_into', 'send', 'sendall', 'sendto',
+    'setblocking', 'setsockopt', 'settimeout', 'sendfile',
+    'shutdown',
+)
 
-ListContext = wrap_to_context(list, _list_modifiers)
-DequeContext = wrap_to_context(collections.deque, _deque_modifiers)
-DictContext = wrap_to_context(AttributeDict, _dict_modifiers, name='DictContext')
-ByteArrayContext = wrap_to_context(bytearray, _list_modifiers, name='ByteArrayContext')
-MemoryDictContext = wrap_to_context(MemoryDict, _dict_modifiers)
-QueueContext = wrap_to_context(queue.Queue, _queue_modifiers)
-PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_modifiers)
-LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_modifiers)
-AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_modifiers, name='AsyncioQueueContext')
-AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_modifiers,
-                                              name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_modifiers,
-                                          name='AsyncioLifoQueueContext')  # noqa: E501
-FileIOContext = wrap_to_context(io.FileIO, _io_modifiers)
-BytesIOContext = wrap_to_context(io.BytesIO, _io_modifiers)
-StringIOContext = wrap_to_context(io.StringIO, _io_modifiers)
-SocketContext = wrap_to_context(socket.socket, _socket_modifiers)
-SSLSocketContext = wrap_to_context(ssl.SSLSocket, _socket_modifiers)
+ListContext = wrap_to_context(list, _list_hooked_methods)
+DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
+DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
+ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
+MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
+QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
+PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_hooked_methods)
+LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_hooked_methods)
+AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueueContext')
+AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext')  # noqa: E501
+AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext')  # noqa: E501
+FileIOContext = wrap_to_context(io.FileIO, _io_hooked_methods)
+BytesIOContext = wrap_to_context(io.BytesIO, _io_hooked_methods)
+StringIOContext = wrap_to_context(io.StringIO, _io_hooked_methods)
+SocketContext = wrap_to_context(socket.socket, _socket_hooked_methods)
+SSLSocketContext = wrap_to_context(ssl.SSLSocket, _socket_hooked_methods)
 
 # shortcuts
 LContext = ListContext
