@@ -44,10 +44,10 @@ class Cast(abc.ABC):
     load_factory: ClassVar[Type[Load]]
     dump_factory: ClassVar[Type[Dump]]
 
-    def dump(self, load: load_factory, *args, **kwargs) -> dump_factory:
+    def dump(self, load: Load, *args, **kwargs) -> Dump:
         dump = self.load_factory(load)
         return dump(*args, **kwargs)
 
-    def load(self, dump: dump_factory, *args, **kwargs) -> load_factory:
+    def load(self, dump: Dump, *args, **kwargs) -> Load:
         load = self.dump_factory(dump)
         return load(*args, **kwargs)
