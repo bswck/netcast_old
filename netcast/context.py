@@ -368,3 +368,5 @@ ALQContext = AsyncioLifoQueueContext
 FIOContext = FileIOContext
 BIOContext = BytesIOContext
 SIOContext = StringIOContext
+SockContext = SocketContext
+SSLSockContext = SocketContext

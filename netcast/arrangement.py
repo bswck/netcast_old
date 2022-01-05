@@ -410,7 +410,7 @@ CBIOArrangement = ClassBytesIOArrangement
 CSIOArrangement = ClassStringIOArrangement
 CFIOArrangement = ClassFileIOArrangement
 CSArrangement = ClassSocketArrangement
-CSSLSArrangement = ClassSSLSocketArrangement
+CSSLSockArrangement = ClassSSLSocketArrangement
 DArrangement = DictArrangement
 LArrangement = ListArrangement
 BAArrangement = ByteArrangement = ByteArrayArrangement
@@ -425,4 +425,4 @@ BIOArrangement = BytesIOArrangement
 SIOArrangement = StringIOArrangement
 FIOArrangement = FileIOArrangement
 SArrangement = SocketArrangement
-SSLSArrangement = SSLSocketArrangement
+SSLSockArrangement = SSLSocketArrangement
