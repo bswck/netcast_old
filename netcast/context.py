@@ -353,7 +353,7 @@ DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
 DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
 
 
-class ConstructContext(DictContext):
+class SingleSupDirectedContext(DictContext):
     """
     A dictionary context that can access its supercontext via '_' key.
     You can set your own supercontext key, however.
@@ -362,8 +362,31 @@ class ConstructContext(DictContext):
     
     def _visit_supercontext(self, supercontext):
         self[self._supercontext_key] = supercontext
+        
+        
+class SingleSubDirectedContext(DictContext):
+    """
+    A dictionary context that can access its subcontext via '__' key.
+    You can set your own supercontext key, however.
+    """
+    _subcontext_key = '__'
+    
+    def _visit_subcontext(self, subcontext):
+        self[self._subcontext_key] = subcontext
 
+        
+class SubDirectedContext(DictContext):
+    """
+    A dictionary context that can access its subcontexts via '__' key.
+    You can set your own supercontext key, however.
+    """
+    _subcontext_key = '__'
+    
+    def _visit_subcontext(self, subcontext):
+        self.setdefault(self._subcontext_key, [])
+        self[self._subcontext_key].append(subcontext)
 
+        
 ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
