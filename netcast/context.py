@@ -353,7 +353,7 @@ DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
 DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
 
 
-class SingleSupDirectedContext(DictContext):
+class SupDirectedContext(DictContext):
     """
     A dictionary context that can access its supercontext via '_' key.
     You can set your own supercontext key, however.
@@ -367,7 +367,9 @@ class SingleSupDirectedContext(DictContext):
 class SingleSubDirectedContext(DictContext):
     """
     A dictionary context that can access its subcontext via '__' key.
-    You can set your own supercontext key, however.
+    You can set your own subcontext key, however.
+    
+    Used solely, it behaves exactly like a linked list.
     """
     _subcontext_key = '__'
     
@@ -378,7 +380,7 @@ class SingleSubDirectedContext(DictContext):
 class SubDirectedContext(DictContext):
     """
     A dictionary context that can access its subcontexts via '__' key.
-    You can set your own supercontext key, however.
+    You can set your own subcontexts key, however.
     """
     _subcontext_key = '__'
     
@@ -387,6 +389,22 @@ class SubDirectedContext(DictContext):
         self[self._subcontext_key].append(subcontext)
 
         
+class RootedTreeContext(
+    SupDirectedContext,
+    SubDirectedContext
+):
+    """A context that can be traversed like a rooted tree."""
+
+    
+class DoublyLinkedListContext(
+    SupDirectedContext,
+    SingleSubDirectedContext
+):
+    """A context that can be traversed like a doubly linked list."""
+
+    
+LinkedListContext = SingleSubDirectedContext
+ConstructContext = SupDirectedContext  # technically, the construct library implements that one
 ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
