@@ -405,6 +405,7 @@ class DoublyLinkedListContext(
     
 LinkedListContext = SingleSubDirectedContext
 ConstructContext = SupDirectedContext  # technically, the construct library implements that one
+
 ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
