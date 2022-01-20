@@ -130,7 +130,7 @@ class ClassArrangement(_BaseArrangement):
 
     @classmethod
     def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
-        args = (context_class, cls.context_class:
+        args = (context_class, cls.context_class)
                 
         if None not in args and operator.is_not(*args):
             raise ValueError('context_class= set both when subclassing and in a subclass')
