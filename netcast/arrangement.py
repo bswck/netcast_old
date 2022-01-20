@@ -79,6 +79,8 @@ class _BaseArrangement:
     @staticmethod
     def _set_supercontext(context: Context, supercontext: Context | None):
         _BaseArrangement._super_registry[context] = supercontext
+        context._visit_supercontext(supercontext)
+        supercontext._visit_subcontext(context)
 
     @classmethod
     def _create_context(cls, supercontext=None, context_class=None, self=None) -> Any:
@@ -139,7 +141,6 @@ class ClassArrangement(_BaseArrangement):
             cls._default_context_class = False
         if (
                 descent is not None
-                and inherit_context is not None
                 and inherit_context
                 and None not in (root_context_class, descent_context_class)
         ):
@@ -160,8 +161,8 @@ class ClassArrangement(_BaseArrangement):
             context_class=None,
             abstract=False,
             netcast=False,
-            _use_wrapper=True,
-            _type_check=True
+            _generate=True,
+            _check_descent_type=True
     ):
         """When a new subclass is created, handle its access to the local context."""
         if getattr(cls, '_context_lock', None) is None:
@@ -176,7 +177,7 @@ class ClassArrangement(_BaseArrangement):
         cls.descent_type = descent
 
         inherit_context = cls._get_inherit_context()
-        if _type_check:
+        if _check_descent_type:
             context_class = cls._get_context_class(
                 context_class,
                 inherit_context and not abstract,
@@ -203,7 +204,7 @@ class ClassArrangement(_BaseArrangement):
 
         cls.inherit_context = None
 
-        if _use_wrapper and not LocalHook.is_prepared(context):
+        if _generate and not LocalHook.is_prepared(context):
             context = cls.get_context()
             context_wrapper = cls.context_wrapper
             if not _is_classmethod(cls, cls.context_wrapper):
@@ -246,18 +247,20 @@ class Arrangement(ClassArrangement, netcast=True):
     ):
         if netcast:
             return
+        
         context_class = cls._get_context_class(context_class)
         inherit_context = cls._get_inherit_context()
+        
         cls.context_class = None
         cls.inherit_context = True
+        
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
             context_class=MemoryDictContext, abstract=abstract, netcast=netcast,
             _use_wrapper=False, _type_check=False
         )
+        
         cls.context_class = context_class
-        if netcast:
-            return
         cls._inherits_context = inherit_context
 
     def __new__(cls, *args, **kwargs):
@@ -265,6 +268,7 @@ class Arrangement(ClassArrangement, netcast=True):
             descent, *args = args
         else:
             descent = None
+            
         inherit_context = cls._inherits_context
 
         fixed_type = getattr(cls, 'descent_type', None)
@@ -278,8 +282,10 @@ class Arrangement(ClassArrangement, netcast=True):
         contexts = cls.get_context()
         self = object.__new__(cls)
         _arrangement_init(self, descent)
+        
         if contexts is None:
             raise TypeError('abstract class')
+            
         if inherit_context and descent is not None:
             context = contexts.get(descent)
             if context is None:
@@ -289,7 +295,9 @@ class Arrangement(ClassArrangement, netcast=True):
             contexts[self] = cls._create_context(contexts[descent], self=self)
         else:
             contexts[self] = cls._create_context(self=self)
+            
         context = contexts[self]
+        
         with self._context_lock:
             unprepared = LocalHook.is_prepared(context)
             if unprepared:
@@ -303,6 +311,7 @@ class Arrangement(ClassArrangement, netcast=True):
                     context_wrapper = functools.partial(context_wrapper, self)
                 contexts[self] = next(context_wrapper(context), context)
                 LocalHook.on_prepare(context)
+                
         return self
 
     def context_wrapper(self, context):
@@ -312,8 +321,10 @@ class Arrangement(ClassArrangement, netcast=True):
     def get_context(cls, self=None):
         """Get the current context."""
         contexts = super().get_context()
+        
         if self is None:
             return contexts
+        
         return contexts[self]
 
     @classmethod
@@ -321,6 +332,7 @@ class Arrangement(ClassArrangement, netcast=True):
         """Get the current supercontext."""
         if self is None:
             return super()._get_supercontext()
+        
         return _BaseArrangement._super_registry.get(cls.get_context(self))
 
     @property
@@ -340,10 +352,13 @@ class Arrangement(ClassArrangement, netcast=True):
 
 def create_context(context_class, cls_or_self, params=Params()):
     args, kwargs = params
+    
     if callable(args):
         args = args(cls_or_self)
+        
     if callable(kwargs):
         kwargs = kwargs(cls_or_self)
+        
     factory = _BaseArrangement._factory_registry.get(context_class, context_class)
     return factory(*args, **kwargs)
 
@@ -353,11 +368,13 @@ def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, 
         super_class = ClassArrangement
     else:
         super_class = Arrangement
+        
     if env is None:
         env = {}
+        
     cls = type(name, (super_class,), env, abstract=True, context_class=context_class)
-    if doc:
-        cls.__doc__ = doc
+    doc and setattr(cls, '__doc__', doc)
+    
     return cls
 
 
