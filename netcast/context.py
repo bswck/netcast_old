@@ -178,16 +178,16 @@ def extend_cm_pool(
             methods=methods
         )
     pool = LocalHook.cm_pools.get(context_class)
-    select_args = map(operator.not_, (per_class_cms, per_instance_cms, methods))
+    args = map(lambda arg: arg if arg else [], (per_class_cms, per_instance_cms, methods))
     if pool:
-        per_class_cms, per_instance_cms, methods = itertools.compress(select_args, ((), (), ()))
+        per_class_cms, per_instance_cms, methods = args
         per_class_cms and pool.per_class_cms.extend(per_instance_cms)
         per_instance_cms and pool.per_instance_cms.extend(per_instance_cms)
         methods and pool.methods.extend(methods)
     else:
         per_class_cms, per_instance_cms, methods = map(
             lambda arg: arg if isinstance(arg, list) else list(arg),
-            itertools.compress(select_args, ([], [], []))
+            args
         )
         pool = ContextManagerPool(
             per_class_cms=per_class_cms,
@@ -222,6 +222,12 @@ class Context(metaclass=abc.ABCMeta):
     If subclassing, remember to call :class:`ModifyHandle` in all modification methods
     in order to make modification hooks work.
     """
+    
+    def _visit_supercontext(self, supercontext: Context):
+        """Handle a supercontext. Handful for creating traversible context trees."""
+    
+    def _visit_subcontext(self, subcontext: Context):
+        """Handle a subcontext. Handful for creating traversible context trees."""
 
 
 _MISSING = object()
@@ -345,6 +351,19 @@ _counter_hooked_methods = (
 ListContext = wrap_to_context(list, _list_hooked_methods)
 DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
 DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
+
+
+class ConstructContext(DictContext):
+    """
+    A dictionary context that can access its supercontext via '_' key.
+    You can set your own supercontext key, however.
+    """
+    _supercontext_key = '_'
+    
+    def _visit_supercontext(self, supercontext):
+        self[self._supercontext_key] = supercontext
+
+
 ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
