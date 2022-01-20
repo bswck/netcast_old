@@ -87,8 +87,10 @@ class _BaseArrangement:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
+            
         context = create_context(context_class, cls if self is None else self, cls.context_params)
         cls._set_supercontext(context, supercontext)
+        
         return context
 
     @classmethod
@@ -123,22 +125,30 @@ class ClassArrangement(_BaseArrangement):
     def _get_inherit_context(cls):
         if cls.inherit_context is None:
             return True
+        
         return cls.inherit_context
 
     @classmethod
     def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
-        args = (context_class, cls.context_class)
+        args = (context_class, cls.context_class:
+                
         if None not in args and operator.is_not(*args):
             raise ValueError('context_class= set both when subclassing and in a subclass')
+                
         descent_context_class = getattr(descent, 'context_class', context_class)
+                
         if any(args):
             context_class, = filter(None, args)
+                
         if context_class is None and descent_context_class is None:
             context_class = DEFAULT_CONTEXT_CLASS
+                
         root_context_class: type | None = context_class
+                
         if context_class is None:
             context_class = descent_context_class
             cls._default_context_class = False
+                
         if (
                 descent is not None
                 and inherit_context
@@ -151,6 +161,7 @@ class ClassArrangement(_BaseArrangement):
                     'context_class is different for descent and this class '
                     '(inherit_context = False may fix this error)'
                 )
+                
         cls.context_class = context_class
         return context_class
 
