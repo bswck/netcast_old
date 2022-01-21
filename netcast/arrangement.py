@@ -30,7 +30,7 @@ from netcast.toolkit.collections import MemoryDict, Params
 CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
 
 
-def _arrangement_init(self, descent=None):
+def arrangement_init(self, descent=None):
     self.descent = descent
 
 
@@ -133,7 +133,6 @@ class ClassArrangement(_BaseArrangement):
     def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
         args = (context_class, cls.context_class)
 
-        print(args)
         if None not in args and operator.is_not(*args):
             raise ValueError('context_class= set both when subclassing and in a subclass')
                 
@@ -172,10 +171,11 @@ class ClassArrangement(_BaseArrangement):
             descent=None,
             clear_init=False,
             context_class=None,
-            abstract=False,
+            family=False,
             irregular=False,
             _generate=True,
-            _check_descent_type=True
+            _check_descent_type=True,
+            _non_forward=True
     ):
         """When a new subclass is created, handle its access to the local context."""
         if getattr(cls, '_context_lock', None) is None:
@@ -193,14 +193,14 @@ class ClassArrangement(_BaseArrangement):
         if _check_descent_type:
             context_class = cls._get_context_class(
                 context_class,
-                inherit_context and not abstract,
+                inherit_context and not family,
                 descent
             )
         else:
             context_class = cls._get_context_class(context_class)
         assert issubclass(context_class, Context)
 
-        if abstract:
+        if family:
             cls.inherit_context = None
             return
 
@@ -222,10 +222,11 @@ class ClassArrangement(_BaseArrangement):
             context_wrapper = cls.context_wrapper
             if not _is_classmethod(cls, cls.context_wrapper):
                 context_wrapper = functools.partial(context_wrapper, cls)
-            cls._context = next(context_wrapper(context), context)
+            original_context = context
+            cls._context = next(context_wrapper(context), original_context)
 
         if clear_init:
-            cls.__init__ = _arrangement_init
+            cls.__init__ = arrangement_init
 
     @property
     def context(self) -> Context | Any:
@@ -243,38 +244,49 @@ class ClassArrangement(_BaseArrangement):
 
 
 class Arrangement(ClassArrangement, irregular=True):
+    # TODO: context wrappers fail
+
     descent: Arrangement | None
     _inherits_context = True
+    _generate = True
 
     def __init__(self, descent=None):
-        _arrangement_init(self, descent)
+        arrangement_init(self, descent)
 
     def __init_subclass__(
             cls,
             descent=None,
             clear_init=False,
             context_class=None,
-            abstract=False,
+            family=False,
             irregular=False,
+            _non_forward=True,
+            _generate=_generate,
             **kwargs
     ):
         if irregular:
             return
-        
-        context_class = cls._get_context_class(context_class)
-        inherit_context = cls._get_inherit_context()
-        
-        cls.context_class = None
-        cls.inherit_context = True
-        
+
+        inherit_context = None
+
+        if _non_forward:
+            context_class = cls._get_context_class(context_class)
+            inherit_context = cls._get_inherit_context()
+
+            cls.context_class = None
+            cls.inherit_context = True
+
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, abstract=abstract, irregular=irregular,
-            _generate=False, _check_descent_type=False
+            context_class=MemoryDictContext, family=family, irregular=irregular,
+            _generate=False, _check_descent_type=False,
+            _non_forward=False
         )
-        
-        cls.context_class = context_class
-        cls._inherits_context = inherit_context
+
+        if _non_forward:
+            cls.context_class = context_class
+            cls._inherits_context = inherit_context
+            cls._generate = _generate
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -294,7 +306,7 @@ class Arrangement(ClassArrangement, irregular=True):
 
         contexts = cls.get_context()
         self = object.__new__(cls)
-        _arrangement_init(self, descent)
+        arrangement_init(self, descent)
         
         if contexts is None:
             raise TypeError('abstract class')
@@ -310,20 +322,23 @@ class Arrangement(ClassArrangement, irregular=True):
             contexts[self] = cls._create_context(self=self)
             
         context = contexts[self]
-        
-        with self._context_lock:
-            unprepared = LocalHook.is_prepared(context)
-            if unprepared:
-                context_wrapper = cls.context_wrapper
-                if (
-                    _is_classmethod(cls, context_wrapper)
-                    or isinstance(context_wrapper, staticmethod)
-                ):
-                    context_wrapper = functools.partial(context_wrapper)
-                else:
-                    context_wrapper = functools.partial(context_wrapper, self)
-                contexts[self] = next(context_wrapper(context), context)
-                LocalHook.on_prepare(context)
+
+        if cls._generate:
+
+            with self._context_lock:
+                unprepared = LocalHook.is_prepared(context)
+                if unprepared:
+                    context_wrapper = cls.context_wrapper
+                    if (
+                        _is_classmethod(cls, context_wrapper)
+                        or isinstance(context_wrapper, staticmethod)
+                    ):
+                        context_wrapper = functools.partial(context_wrapper)
+                    else:
+                        context_wrapper = functools.partial(context_wrapper, self)
+                    original_context = context
+                    contexts[self] = context = next(context_wrapper(context), original_context)
+                    LocalHook.on_prepare(context)
 
         return self
 
@@ -385,7 +400,7 @@ def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, 
     if env is None:
         env = {}
         
-    cls = type(name, (super_class,), env, abstract=True, context_class=context_class)
+    cls = type(name, (super_class,), env, family=True, context_class=context_class)
     doc and setattr(cls, '__doc__', doc)
     
     return cls

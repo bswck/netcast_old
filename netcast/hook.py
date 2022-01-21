@@ -5,7 +5,7 @@ from netcast.arrangement import Arrangement
 from netcast.context import DictContext
 
 
-class Hook(Arrangement, abstract=True):
+class Hook(Arrangement, family=True):
     """Before send/after receive data handler."""
     source: ClassVar[Any]
     """

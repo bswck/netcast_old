@@ -46,31 +46,30 @@ class _TestContextType:
 
 
 class TestClassArrangement:
-    def test_abstract(self):
+    def test_family(self):
         from netcast.context import ListContext
 
-        class Abstract(ClassArrangement, abstract=True):
+        class F(ClassArrangement, family=True):
             context_class = ListContext
 
             def test(self):
                 assert self.context is None
 
-        class CA1(ClassArrangement, descent=Abstract):
+        class CA1(ClassArrangement, descent=F):
             context_class = None
 
             def test(self):
-                assert self.context_class is Abstract.context_class
-                assert isinstance(self.context, Abstract.context_class)
+                assert self.context_class is F.context_class
+                assert isinstance(self.context, F.context_class)
 
-        class CA2(Abstract):
+        class CA2(F):
             def test(self):
-                assert isinstance(self.context, Abstract.context_class)
+                assert isinstance(self.context, F.context_class)
 
         from netcast.context import QueueContext as SomeOtherContext
 
         with pytest.raises(TypeError):
-            # noinspection PyUnusedLocal
-            class Unsafe(ClassArrangement, descent=Abstract):
+            class E(ClassArrangement, descent=F):
                 context_class = SomeOtherContext
 
         CA1().test()
@@ -252,16 +251,16 @@ class TestClassArrangement:
     async def test_class_asyncio_queue_arrangement(self):
         from netcast.arrangement import ClassAsyncioQueueArrangement
 
-        class QueuePut(ClassAsyncioQueueArrangement):
+        class QP(ClassAsyncioQueueArrangement):
             async def __call__(self, item):
                 await self.context.put(item)
 
-        class QueueGet(ClassAsyncioQueueArrangement, descent=QueuePut):
+        class QG(ClassAsyncioQueueArrangement, descent=QP):
             async def __call__(self):
                 return await self.context.get()
 
-        put = QueuePut()
-        get = QueueGet()
+        put = QP()
+        get = QG()
         queue = put.context
 
         await asyncio.gather(put(1), put(5), get(), put(3))
@@ -467,6 +466,37 @@ class TestArrangement:
 
         qa.get()
         assert qa.context.qsize() == 0
+
+    def test_construct_arrangement(self):
+        from netcast.context import ConstructContext
+        from netcast.arrangement import wrap_to_arrangement
+
+        ConstructArrangement = wrap_to_arrangement('ConstructArrangement', ConstructContext)
+
+        class CSA1(ConstructArrangement):
+            pass
+
+        class CSA2(CSA1):
+            inherit_context = False
+
+        csa1 = CSA1()
+        csa2 = CSA2(csa1)
+
+        # Initially, we test if all that's primary works OK
+        assert csa1.context is not csa2.context
+        assert csa2.supercontext is csa1.context
+
+        # Now, test the underlying conditions
+        assert csa2.context == {'_': csa2.supercontext}
+        assert not csa2.context._
+
+        test_val = 1
+        csa2.context._.test_item = test_val
+        csa2.context.test_item = test_val
+
+        assert csa2.context.test_item is test_val
+        assert csa2.context._.test_item is test_val
+        assert csa2.supercontext.test_item is csa2.context.test_item
 
     @pytest.mark.asyncio
     async def test_asyncio_queue_arrangement(self):
