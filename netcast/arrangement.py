@@ -421,7 +421,7 @@ ClassStringIOArrangement = wrap_to_arrangement('ClassStringIOArrangement', Strin
 ClassFileIOArrangement = wrap_to_arrangement('ClassFileIOArrangement', FileIOContext, True)
 ClassSocketArrangement = wrap_to_arrangement('ClassSocketArrangement', SocketContext, True)
 ClassSSLSocketArrangement = wrap_to_arrangement('ClassSSLSocketArrangement', bind_factory(SSLSocketContext, factory=ssl.wrap_socket), True)  # noqa: E501
-ClassCounterArrangement = wrap_to_arrangement('ClassCounterArrangement', CounterContext)
+ClassCounterArrangement = wrap_to_arrangement('ClassCounterArrangement', CounterContext, True)
 
 DictArrangement = wrap_to_arrangement('DictArrangement', DictContext)
 ListArrangement = wrap_to_arrangement('ListArrangement', ListContext)
