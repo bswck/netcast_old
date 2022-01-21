@@ -488,7 +488,7 @@ class TestArrangement:
 
         # Now, test the underlying conditions
         assert csa2.context == {'_': csa2.supercontext}
-        assert not csa2.context._
+        assert csa2.context._ == {}
 
         test_val = 1
         csa2.context._.test_item = test_val
