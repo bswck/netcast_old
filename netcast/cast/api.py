@@ -7,12 +7,12 @@ from typing import ClassVar, Any, Type
 from netcast.context import DictContext
 
 
-class ContextDataclass:
+class _HasContext:
     context: DictContext = dataclasses.field(default_factory=DictContext)
 
 
 @dataclasses.dataclass
-class Load(ContextDataclass):
+class Load(_HasContext):
     load: Any
     cast: Cast
 
@@ -24,12 +24,12 @@ class Load(ContextDataclass):
 
 
 @dataclasses.dataclass
-class Dump(ContextDataclass):
+class Dump(_HasContext):
     dump: Any
     cast: Cast
 
     @abc.abstractmethod
-    def load(self) -> Load:
+    def load(self, *args, **kwargs) -> Load:
         pass
 
     __call__ = load
@@ -41,13 +41,15 @@ class Cast(abc.ABC):
     See also :package:`netcast.cast`.
     """
 
+    load_type: ClassVar[type]
+    dump_type: ClassVar[type]
     load_factory: ClassVar[Type[Load]]
     dump_factory: ClassVar[Type[Dump]]
 
-    def dump(self, load: Load, *args, **kwargs) -> Dump:
+    def dump(self, load: load_type | load_factory, *args, **kwargs) -> Dump:
         dump = self.load_factory(load)
         return dump(*args, **kwargs)
 
-    def load(self, dump: Dump, *args, **kwargs) -> Load:
+    def load(self, dump: dump_type | dump_factory, *args, **kwargs) -> Load:
         load = self.dump_factory(dump)
         return load(*args, **kwargs)

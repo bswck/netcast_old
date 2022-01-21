@@ -7,8 +7,6 @@ import dataclasses
 import functools
 import inspect
 import io
-import itertools
-import operator
 import queue
 import socket
 import ssl
@@ -16,7 +14,7 @@ import sys
 import threading
 import warnings
 from types import FunctionType, MethodType
-from typing import Type, ForwardRef, Sequence, final
+from typing import Type, ForwardRef, Sequence, final, TypeVar, Iterable, Any, Callable
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -119,21 +117,21 @@ class LocalHook:
 
     # Class LocalHook is final, shouldn't those below be static methods?
     @classmethod
-    def pre_hook(cls, context, func, *args, **kwargs):
+    def precede_hook(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified, this method is called."""
         pool = cls.cm_pools.get(context)
         if pool:
             pool.enter(context, func, sys.exc_info())
 
     @classmethod
-    def post_hook(cls, context, func, *args, **kwargs):
+    def finalize_hook(cls, context, func, *args, **kwargs):
         """Anytime a context was modified, this method is called."""
         pool = cls.cm_pools.get(context)
         if pool:
             pool.exit(context, func, sys.exc_info())
 
     @classmethod
-    async def async_pre(cls, context, func, *args, **kwargs):
+    async def async_precede_hook(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified asynchronously, this method is called."""
         pool = cls.cm_pools.get(context)
         if pool:
@@ -143,7 +141,7 @@ class LocalHook:
                     await enter_value
 
     @classmethod
-    async def async_post(cls, context, func, *args, **kwargs):
+    async def async_finalize_hook(cls, context, func, *args, **kwargs):
         """Anytime a context was modified asynchronously, this method is called."""
         pool = cls.cm_pools.get(context)
         if pool:
@@ -218,23 +216,29 @@ greenlet_safe = functools.partial(append_cm_pool, cm_class=asyncio.Lock)
 class Context(metaclass=abc.ABCMeta):
     """
     All context classes must derive from this class.
-    Should not be used directly - choose a proper subclass instead (or create your own).
+
     If subclassing, remember to call :class:`ModifyHandle` in all modification methods
-    in order to make modification hooks work.
+    in order to make modification hooks work
+    (or use a built-in boilerplate saver, :func:`wrap_to_context`).
     """
-    
+
     def _visit_supercontext(self, supercontext: Context):
-        """Handle a supercontext. Handful for creating traversible context trees."""
-    
+        """Handle a supercontext. Handful for creating traversable context trees."""
+
     def _visit_subcontext(self, subcontext: Context):
-        """Handle a subcontext. Handful for creating traversible context trees."""
+        """Handle a subcontext. Handful for creating traversable context trees."""
 
 
 _MISSING = object()
 _WARN_ASYNC_HOOK = 'method must be async in order to invoke async hooks'
 
 
-def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
+def _hooked_method(
+        func: Callable,
+        precede_hook: Callable | None = None,
+        finalize_hook: Callable | None = None,
+        cls: type | None = None
+):
     if func is None:
         raise TypeError(
             f'method {func!r} '
@@ -245,44 +249,45 @@ def _hooked_method(func, pre_hook=None, post_hook=None, cls=None):
     if inspect.iscoroutinefunction(func):
         async def hooked_method_wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
-            if callable(pre_hook):
-                pre_res = pre_hook(self, bound_method, *args, **kwargs)
+            if callable(precede_hook):
+                pre_res = precede_hook(self, bound_method, *args, **kwargs)
                 if inspect.isawaitable(pre_res):
                     await pre_res
             res = _MISSING
             try:
                 res = await func(self, *args, **kwargs)
             finally:
-                if callable(post_hook):
-                    post_res = post_hook(self, bound_method, *args, **kwargs)
+                if callable(finalize_hook):
+                    post_res = finalize_hook(self, bound_method, *args, **kwargs)
                     if inspect.isawaitable(post_res):
                         await post_res
                 if res is _MISSING:
                     raise
                 return res
     else:
-        if inspect.iscoroutinefunction(pre_hook):
+        if inspect.iscoroutinefunction(precede_hook):
             warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
-        if inspect.iscoroutinefunction(post_hook):
+        if inspect.iscoroutinefunction(finalize_hook):
             warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
 
         def hooked_method_wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
-            if callable(pre_hook):
-                pre_hook(self, bound_method, *args, **kwargs)
+            if callable(precede_hook):
+                precede_hook(self, bound_method, *args, **kwargs)
             res = _MISSING
             try:
                 res = func(self, *args, **kwargs)
             finally:
-                if callable(post_hook):
-                    post_hook(self, bound_method, *args, **kwargs)
+                if callable(finalize_hook):
+                    finalize_hook(self, bound_method, *args, **kwargs)
                 if res is _MISSING:
                     raise
                 return res
+
     return functools.update_wrapper(hooked_method_wrapper, func)
 
 
-def _prepare_context_name(cls):
+def _prepare_context_name(cls: type) -> str:
     class_name = cls.__name__
     suffix = 'Context'
     if class_name:
@@ -296,7 +301,17 @@ def _prepare_context_name(cls):
     return name
 
 
-def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass=None):
+_BT = TypeVar('_BT')
+
+
+def wrap_to_context(
+        bases: _BT,
+        hooked_methods: Iterable | None = (),
+        name: str | None = None,
+        doc: str | None = None,
+        init_subclass: dict[str, Any] | None = None
+) -> _BT:
+    """Build a context class and its modification hooks."""
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError('at least 1 base class is required')
@@ -314,14 +329,14 @@ def wrap_to_context(bases, hooked_methods=(), name=None, doc=None, init_subclass
             else method
         )
         if inspect.iscoroutinefunction(method):
-            pre_hook = LocalHook.async_pre
-            post_hook = LocalHook.async_post
+            pre_hook = LocalHook.async_precede_hook
+            post_hook = LocalHook.async_finalize_hook
         else:
-            pre_hook = LocalHook.pre_hook
-            post_hook = LocalHook.post_hook
+            pre_hook = LocalHook.precede_hook
+            post_hook = LocalHook.finalize_hook
         env[method.__name__] = _hooked_method(
-            method, pre_hook=pre_hook,
-            post_hook=post_hook, cls=cls
+            method, precede_hook=pre_hook,
+            finalize_hook=post_hook, cls=cls
         )
     if name is None:
         name = _prepare_context_name(cls)
@@ -353,59 +368,64 @@ DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
 DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
 
 
-class SupDirectedContext(DictContext):
+class SupDirectedContextMixin(Context):
     """
-    A dictionary context that can access its supercontext via '_' key.
+    A context mixin that can access its supercontext via '_' key.
     You can set your own supercontext key, however.
+
+    Used solely, it behaves like a linked list.
     """
     _supercontext_key = '_'
-    
+
     def _visit_supercontext(self, supercontext):
         self[self._supercontext_key] = supercontext
-        
-        
-class SingleSubDirectedContext(DictContext):
+
+
+class SingleSubDirectedContextMixin(Context):
     """
-    A dictionary context that can access its subcontext via '__' key.
+    A context that can access its subcontext via '__' key.
     You can set your own subcontext key, however.
     
-    Used solely, it behaves exactly like a linked list.
+    Used solely, it behaves like a linked list.
     """
     _subcontext_key = '__'
-    
+
     def _visit_subcontext(self, subcontext):
         self[self._subcontext_key] = subcontext
 
-        
-class SubDirectedContext(DictContext):
+
+class SubDirectedContextMixin(Context):
     """
-    A dictionary context that can access its subcontexts via '__' key.
+    A context that can access its subcontexts via '__' key.
     You can set your own subcontexts key, however.
     """
     _subcontext_key = '__'
-    
+
     def _visit_subcontext(self, subcontext):
         self.setdefault(self._subcontext_key, [])
         self[self._subcontext_key].append(subcontext)
 
-        
-class RootedTreeContext(
-    SupDirectedContext,
-    SubDirectedContext
+
+class RootedTreeContextMixin(
+    SupDirectedContextMixin,
+    SubDirectedContextMixin
 ):
-    """A context that can be traversed like a rooted tree."""
+    """A context mixin that can be traversed like a rooted tree."""
 
-    
-class DoublyLinkedListContext(
-    SupDirectedContext,
-    SingleSubDirectedContext
+
+class DoublyLinkedListContextMixin(
+    SupDirectedContextMixin,
+    SingleSubDirectedContextMixin
 ):
-    """A context that can be traversed like a doubly linked list."""
+    """A context mixin that can be traversed like a doubly linked list."""
 
-    
-LinkedListContext = SingleSubDirectedContext
-ConstructContext = SupDirectedContext  # technically, the construct library implements that one
 
+LinkedListContextMixin = SingleSubDirectedContextMixin
+ConstructContext = wrap_to_context((
+    SupDirectedContextMixin,
+    AttributeDict,
+    collections.OrderedDict
+))
 ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
 QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)

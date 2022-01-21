@@ -79,8 +79,9 @@ class _BaseArrangement:
     @staticmethod
     def _set_supercontext(context: Context, supercontext: Context | None):
         _BaseArrangement._super_registry[context] = supercontext
-        context._visit_supercontext(supercontext)
-        supercontext._visit_subcontext(context)
+        if supercontext is not None:
+            context._visit_supercontext(supercontext)
+            supercontext._visit_subcontext(context)
 
     @classmethod
     def _create_context(cls, supercontext=None, context_class=None, self=None) -> Any:
@@ -131,7 +132,8 @@ class ClassArrangement(_BaseArrangement):
     @classmethod
     def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
         args = (context_class, cls.context_class)
-                
+
+        print(args)
         if None not in args and operator.is_not(*args):
             raise ValueError('context_class= set both when subclassing and in a subclass')
                 
@@ -171,7 +173,7 @@ class ClassArrangement(_BaseArrangement):
             clear_init=False,
             context_class=None,
             abstract=False,
-            netcast=False,
+            irregular=False,
             _generate=True,
             _check_descent_type=True
     ):
@@ -179,7 +181,7 @@ class ClassArrangement(_BaseArrangement):
         if getattr(cls, '_context_lock', None) is None:
             cls._context_lock = threading.RLock()
 
-        if netcast:
+        if irregular:
             return
 
         if descent is None:
@@ -240,7 +242,7 @@ class ClassArrangement(_BaseArrangement):
         return self.inherit_context
 
 
-class Arrangement(ClassArrangement, netcast=True):
+class Arrangement(ClassArrangement, irregular=True):
     descent: Arrangement | None
     _inherits_context = True
 
@@ -253,10 +255,10 @@ class Arrangement(ClassArrangement, netcast=True):
             clear_init=False,
             context_class=None,
             abstract=False,
-            netcast=False,
+            irregular=False,
             **kwargs
     ):
-        if netcast:
+        if irregular:
             return
         
         context_class = cls._get_context_class(context_class)
@@ -267,8 +269,8 @@ class Arrangement(ClassArrangement, netcast=True):
         
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, abstract=abstract, netcast=netcast,
-            _use_wrapper=False, _type_check=False
+            context_class=MemoryDictContext, abstract=abstract, irregular=irregular,
+            _generate=False, _check_descent_type=False
         )
         
         cls.context_class = context_class
@@ -322,7 +324,7 @@ class Arrangement(ClassArrangement, netcast=True):
                     context_wrapper = functools.partial(context_wrapper, self)
                 contexts[self] = next(context_wrapper(context), context)
                 LocalHook.on_prepare(context)
-                
+
         return self
 
     def context_wrapper(self, context):

@@ -280,7 +280,6 @@ class TestArrangement:
 
         a1 = A1()
         a1.test(a)
-        # noinspection PyArgumentList
         A2(a1).test(a)
 
     def test_inherit_context(self, a: AT):
@@ -326,7 +325,7 @@ class TestArrangement:
             context_params = Params.from_args(pings=0, pongs=0)
 
             def clear(self):
-                self.context.update(dict.fromkeys(('pings', 'pongs'), 0))
+                self.context.update(**self.context_params.kwargs)
 
             def ping(self):
                 self.context.pings += 1
@@ -365,25 +364,25 @@ class TestArrangement:
     def test_list_arrangement(self):
         from netcast.arrangement import ListArrangement
 
-        class Appender(ListArrangement):
+        class LA(ListArrangement):
             def __call__(self, x):
                 self.context.append(x)
 
-        class Popper(ListArrangement, descent=Appender):
+        class LP(ListArrangement, descent=LA):
             def __call__(self, x=-1):
                 return self.context.pop(x)
 
-        class Extender(ListArrangement, descent=Appender):
+        class LE(ListArrangement, descent=LA):
             def __call__(self, x):
                 self.context.extend(x)
 
-        append = Appender()
-        pop = Popper(append)
+        append = LA()
+        pop = LP(append)
         with pytest.raises(TypeError):
-            Extender(pop)
+            LE(pop)
 
-        extend = Extender(append)
-        unbound = Extender()
+        extend = LE(append)
+        unbound = LE()
         assert unbound.context is not extend.context
 
         context = append.context
@@ -398,7 +397,7 @@ class TestArrangement:
         context.clear()
         assert not context
 
-        foreign_appender = Appender()
+        foreign_appender = LA()
         assert foreign_appender.context is not context
 
     def test_string_io_arrangement(self):
@@ -415,19 +414,19 @@ class TestArrangement:
                 return self.context.tell()
 
         @SA.read.dependency
-        class Reader(StringIOArrangement, descent=SA):
+        class AR(StringIOArrangement, descent=SA):
             def __call__(self, nchars=-1):
                 return self.context.read(nchars)
 
         @SA.write.dependency
-        class Writer(StringIOArrangement, descent=SA):
+        class AW(StringIOArrangement, descent=SA):
             def __call__(self, chars):
                 self.context.write(chars)
 
         sa = SA()
 
-        assert isinstance(sa.read, Reader)
-        assert isinstance(sa.write, Writer)
+        assert isinstance(sa.read, AR)
+        assert isinstance(sa.write, AW)
         assert sa.context is sa.read.context
         assert sa.read.context is sa.write.context
         assert sa.read() == ''
@@ -447,17 +446,17 @@ class TestArrangement:
             put = ForwardDependency()
             get = ForwardDependency()
 
-        class Put(QueueArrangement, descent=QA):
+        class QP(QueueArrangement, descent=QA):
             def __call__(self, item):
                 self.context.put(item)
 
-        QA.put.dependency(Put)
+        QA.put.dependency(QP)
 
-        class Get(QueueArrangement, descent=QA):
+        class QG(QueueArrangement, descent=QA):
             def __call__(self):
                 return self.context.get()
 
-        QA.get.dependency(Get)
+        QA.get.dependency(QG)
 
         qa = QA()
         assert qa.context is qa.put.context
@@ -473,16 +472,16 @@ class TestArrangement:
     async def test_asyncio_queue_arrangement(self):
         from netcast.arrangement import AsyncioQueueArrangement
 
-        class QueuePut(AsyncioQueueArrangement):
+        class QP(AsyncioQueueArrangement):
             async def __call__(self, item):
                 await self.context.put(item)
 
-        class QueueGet(AsyncioQueueArrangement, descent=QueuePut):
+        class QG(AsyncioQueueArrangement, descent=QP):
             async def __call__(self):
                 return await self.context.get()
 
-        put = QueuePut()
-        get = QueueGet(put)
+        put = QP()
+        get = QG(put)
         queue = put.context
 
         await asyncio.gather(put(1), put(5), get(), put(3))

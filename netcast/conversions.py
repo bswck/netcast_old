@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import operator
-from typing import Any, Hashable, Callable, TypeVar, Sequence
+from typing import Any, Hashable, Callable
 try:
     from types import NoneType
 except ImportError:
@@ -16,7 +16,6 @@ def coerce_var(v):
 
 
 KT = Callable[[Any, Any], bool]  # Key type
-TT = TypeVar('TT', Callable[[Any, Any], Any], NoneType)  # Transformer type
 
 
 @dataclasses.dataclass
@@ -45,12 +44,7 @@ class Replacement:
         assert self.new_value.applicable(self.old_value), "new value isn't applicable"
 
     @classmethod
-    def from_multiple_replacements(
-            cls, *replacements: (
-                Sequence[_BaseVar, _BaseVar]
-                | Replacement
-            )
-    ):
+    def from_multiple_replacements(cls, *replacements: Replacement):
         self = tuple(map(
             lambda replacement: (
                 lambda: cls(*replacement),
@@ -89,7 +83,6 @@ class _BaseVar:
 @dataclasses.dataclass
 class Key(_BaseVar):
     value: Hashable
-    transformer: TT = hash
 
     def applicable_itself(self):
         try:
@@ -103,4 +96,3 @@ class Key(_BaseVar):
 @dataclasses.dataclass
 class Value(_BaseVar):
     value: Any
-    transformer: TT = None
