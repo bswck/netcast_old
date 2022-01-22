@@ -51,18 +51,18 @@ class TestClassArrangement:
         CA1().test()
         CA2().test()
 
-    def test_context_type(self, ca: CAT):
-        class CA1(ca, _TestContextType):
+    def test_context_type(self, injected_class_arrangement):
+        class CA1(injected_class_arrangement, _TestContextType):
             pass
 
-        class CA2(ca, _TestContextType, descent=CA1):
+        class CA2(injected_class_arrangement, _TestContextType, descent=CA1):
             inherit_context = False
 
-        CA1().test(ca)
-        CA2().test(ca)
+        CA1().test(injected_class_arrangement)
+        CA2().test(injected_class_arrangement)
 
-    def test_descent(self, ca: CAT):
-        class CA1(ca):
+    def test_descent(self, injected_class_arrangement):
+        class CA1(injected_class_arrangement):
             pass
 
         class CA2(CA1):
@@ -75,7 +75,7 @@ class TestClassArrangement:
                 assert self.descent_type is CA2
                 assert self.context is CA1.get_context()
 
-        class CA4(ca, descent=CA1):
+        class CA4(injected_class_arrangement, descent=CA1):
             def test(self):
                 assert self.descent_type is CA1
                 assert self.context is CA2.get_context()
@@ -84,36 +84,36 @@ class TestClassArrangement:
         CA3().test()
         CA4().test()
 
-    def test_inherit_context(self, ca: CAT):
-        class CA1(ca):
+    def test_inherit_context(self, injected_class_arrangement):
+        class CA1(injected_class_arrangement):
             def test(self):
                 assert self.supercontext is None
 
-        class CA2(ca, descent=CA1):
+        class CA2(injected_class_arrangement, descent=CA1):
             inherit_context = False
 
             def test(self):
                 assert self.supercontext is CA1.get_context()
                 assert self.context is CA2.get_context()
 
-        class CA3(ca, descent=CA1):
+        class CA3(injected_class_arrangement, descent=CA1):
             inherit_context = None  # default one
 
             def test(self):
                 assert self.context is CA1.get_context()
 
-        class CA4(ca, descent=CA3):
+        class CA4(injected_class_arrangement, descent=CA3):
             inherit_context = False
 
             def test(self):
                 assert self.supercontext is CA3.get_context() is CA1.get_context()
                 assert self.context is CA4.get_context()
 
-        class CA5(ca, descent=CA4):
+        class CA5(injected_class_arrangement, descent=CA4):
             def test(self):
                 CA4.test(self)  # type: ignore
 
-        class CA6(ca, descent=CA5):
+        class CA6(injected_class_arrangement, descent=CA5):
             inherit_context = False
 
             def test(self):
@@ -246,29 +246,29 @@ class TestClassArrangement:
 
 
 class TestArrangement:
-    def test_context_type(self, a: AT):
-        class A1(a, _TestContextType):
+    def test_context_type(self, injected_arrangement):
+        class A1(injected_arrangement, _TestContextType):
             pass
 
-        class A2(a, _TestContextType, descent=A1):
+        class A2(injected_arrangement, _TestContextType, descent=A1):
             inherit_context = False
 
         a1 = A1()
-        a1.test(a)
-        A2(a1).test(a)  # noqa
+        a1.test(injected_arrangement)
+        A2(a1).test(injected_arrangement)  # noqa
 
-    def test_inherit_context(self, a: AT):
-        class A1(a):
+    def test_inherit_context(self, injected_arrangement):
+        class A1(injected_arrangement):
             def test(self):
                 assert self.supercontext is None
                 assert self.inherits_context
 
-        class A2(a, descent=A1):
+        class A2(injected_arrangement, descent=A1):
             def test(self):
                 assert self.context is self.descent.context
                 assert self.inherits_context
 
-        class A3(a, descent=A2):
+        class A3(injected_arrangement, descent=A2):
             inherit_context = False
 
             def test(self):
@@ -278,7 +278,7 @@ class TestArrangement:
                 assert self.context is not self.descent.context
                 assert not self.inherits_context
 
-        class A4(a, descent=A3):
+        class A4(injected_arrangement, descent=A3):
             def test(self):
                 assert self.supercontext is self.descent.supercontext
                 assert self.context is self.descent.context

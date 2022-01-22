@@ -14,7 +14,7 @@ class_arrangements.discard(ClassSSLSocketArrangement)
 
 
 @pytest.fixture(params=class_arrangements, scope='session')
-def ca(request) -> CAT:
+def injected_class_arrangement(request) -> CAT:
     yield request.param
 
 
@@ -24,7 +24,7 @@ arrangements.discard(SSLSocketArrangement)
 
 
 @pytest.fixture(params=arrangements, scope='session')
-def a(request) -> AT:
+def injected_arrangement(request) -> AT:
     yield request.param
 
 
