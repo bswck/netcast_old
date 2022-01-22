@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ctypes
 import functools
-import itertools
 import operator
 import ssl
 import threading
