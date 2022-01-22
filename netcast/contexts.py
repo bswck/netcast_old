@@ -14,7 +14,7 @@ import sys
 import threading
 import warnings
 from types import FunctionType, MethodType
-from typing import Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type
+from typing import Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -31,7 +31,6 @@ __all__ = (
     'ByteArrayContext',
     'ByteContext',
     'BytesIOContext',
-    'C',
     'CT',
     'CContext',
     'ConstructContext',
@@ -349,7 +348,7 @@ def _prepare_context_name(cls: type) -> str:
     return name
 
 
-BT = TypeVar('BT', type, tuple[type, ...])
+BT = TypeVar('BT', type, Tuple[type, ...])
 
 
 def wrap_to_context(

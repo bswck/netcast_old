@@ -417,9 +417,9 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
 
     def __init_subclass__(
             cls,
-            descent: Arrangement = None,
+            descent: Arrangement | None = None,
             clear_init: bool = False,
-            context_class: Type[CT] = None,
+            context_class: Type[CT] | None = None,
             family: bool = False,
             irregular: bool = False,
             _generate: bool = _generate,
