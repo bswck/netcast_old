@@ -273,10 +273,6 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
     _default_context_class = True
 
     @classmethod
-    def context_wrapper(cls, context) -> Generator[CT]:
-        yield context
-
-    @classmethod
     def _get_inherit_context(cls) -> bool:
         if cls.inherit_context is None:
             return True
@@ -324,6 +320,10 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
 
         cls.context_class = context_class
         return context_class
+
+    @classmethod
+    def context_wrapper(cls, context) -> Generator[CT]:
+        yield context
 
     def __init_subclass__(
             cls,
@@ -562,7 +562,7 @@ def wrap_to_arrangement(
         class_arrangement: bool = False,
         doc: str | None = None,
         env: dict[str, Any] | None = None
-) -> Type[(ClassArrangement[CT] | Arrangement[CT])]:
+) -> Type[ClassArrangement]:
     if class_arrangement:
         super_class = ClassArrangement
     else:

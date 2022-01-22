@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import abc
 import enum
-from typing import Any
+from typing import Any, ClassVar, Generic, TypeVar
 
+from netcast import RootedTreeContextMixin
 from netcast.toolkit.collections import AttributeDict
-from netcast.arrangements import ConstructArrangement
+from netcast.arrangements import ClassArrangement
+
+Origin = TypeVar('Origin')
+Cast = TypeVar('Cast')
 
 
 class ConstraintPolicy(enum.Enum):
@@ -51,12 +55,21 @@ class Constraint(metaclass=abc.ABCMeta):
         raise ConstraintError(''.join(getattr(self, 'error_msg', ())))
 
 
-class DataType(ConstructArrangement, irregular=True):
-    def __init__(self, **cfg):
-        self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
-        self.constraints: tuple[Constraint, ...] = ()
+class DataTypeRegistry(RootedTreeContextMixin, AttributeDict):
+    """Data types registry."""
 
-    def copy(self, **cfg: [str, Any]):
+
+class TypeArrangement(ClassArrangement, family=True):
+    context_class = DataTypeRegistry
+
+
+class DataType(TypeArrangement, Generic[Origin, Cast], irregular=True):
+    constraints: ClassVar[tuple[Constraint, ...]] = ()
+
+    def __init__(self, **cfg: Any):
+        self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
+
+    def copy(self, **cfg: Any) -> DataType[Origin, Cast]:
         """Copy this type."""
         if cfg:
             new_cfg = {**self.cfg, **cfg}
@@ -68,23 +81,17 @@ class DataType(ConstructArrangement, irregular=True):
 
     @abc.abstractmethod
     @property
-    def python_type(self) -> type:
-        """Get a Python type that this Type object refers to."""
+    def python_type(self) -> Origin:
+        """Get an origin Python type that this Type object refers to."""
         python_type = object
         return python_type
 
     @abc.abstractmethod
-    @property
-    def template_type(self) -> type:
-        """Get a template type that this Type object refers to."""
-        template_type = object
-        return template_type
+    def _cast(self, python_value: Origin) -> Cast:
+        new_value = python_value
+        return new_value
 
-    @abc.abstractmethod
-    def _cast(self, python_value):
-        return python_value
-
-    def cast(self, python_value):
+    def cast(self, python_value: Origin) -> Cast:
         """Create a type template."""
         for constraint in self.constraints:
             python_value = constraint.validate(python_value, python=True)
@@ -93,5 +100,5 @@ class DataType(ConstructArrangement, irregular=True):
             cast_value = constraint.validate(cast_value)
         return cast_value
 
-    def __call__(self, **cfg):
+    def __call__(self, **cfg: Any) -> DataType[Origin, Cast]:
         return self.copy(**cfg)
