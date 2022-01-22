@@ -540,7 +540,13 @@ def create_context(context_class, cls_or_self, params=Params()):
     return factory(*args, **kwargs)
 
 
-def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, env=None):
+def wrap_to_arrangement(
+        name,
+        context_class,
+        class_arrangement=False,
+        doc=None,
+        env=None
+) -> type | CAT:
     if class_arrangement:
         super_class = ClassArrangement
     else:
@@ -549,7 +555,9 @@ def wrap_to_arrangement(name, context_class, class_arrangement=False, doc=None, 
     if env is None:
         env = {}
 
-    cls = type(name, (super_class,), env, family=True, context_class=context_class)
+    cls = type(
+        name, (super_class,), env, family=True, context_class=context_class
+    )
     doc and setattr(cls, '__doc__', doc)
 
     return cls
