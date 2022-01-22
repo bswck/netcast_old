@@ -3,16 +3,6 @@ from __future__ import annotations
 import dataclasses
 import operator
 from typing import Any, Hashable, Callable
-try:
-    from types import NoneType
-except ImportError:
-    NoneType = type(None)
-
-
-def coerce_var(v):
-    if isinstance(v, _BaseVar):
-        return v
-    return Key(v)
 
 
 KT = Callable[[Any, Any], bool]  # Key type
@@ -39,9 +29,9 @@ class Replacement:
 
     def check_possible(self):
         if not isinstance(self.old_value, type(self.new_value)):
-            raise TypeError("types of replacement arguments do not match")
-        assert self.old_value.replaceable(self.new_value), "old value isn't replaceable"
-        assert self.new_value.applicable(self.old_value), "new value isn't applicable"
+            raise TypeError('types of replacement arguments do not match')
+        assert self.old_value.replaceable(self.new_value), 'old value isn\'t replaceable'
+        assert self.new_value.applicable(self.old_value), 'new value isn\'t applicable'
 
     @classmethod
     def from_multiple_replacements(cls, *replacements: Replacement):
@@ -55,9 +45,14 @@ class Replacement:
         return self
 
 
+@dataclasses.dataclass
+class _LeftArrowMark:
+    obj: Any
+
+
 class _BaseVar:
     value: Any
-    _replacement_class = Replacement
+    _cached_mark = None
 
     def applicable_itself(self):
         return True
@@ -73,11 +68,18 @@ class _BaseVar:
 
     def __neg__(self):
         """Used for left-arrow notation."""
-        return self
+        if self._cached_mark is None:
+            self._cached_mark = _LeftArrowMark(self)
+        return self._cached_mark
 
     def __lt__(self, other):
         """Used for left-arrow notation."""
-        return self._replacement_class(coerce_var(other), self)
+        if isinstance(other, _LeftArrowMark):
+            return Replacement(other, self)
+        try:
+            return self.value.__lt__(other)
+        except AttributeError:
+            return NotImplemented
 
 
 @dataclasses.dataclass

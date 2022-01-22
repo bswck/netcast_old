@@ -14,7 +14,7 @@ import sys
 import threading
 import warnings
 from types import FunctionType, MethodType
-from typing import Type, ForwardRef, Sequence, final, TypeVar, Iterable, Any, Callable
+from typing import Type, ForwardRef, Sequence, final, TypeVar, Iterable, Any, Callable, Union
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -45,7 +45,7 @@ class ContextManagerPool:
                     self._instance_cms.setdefault(context, [])
                     self._instance_cms[context].append(cm())
             elif self.per_class_cms and type(context) not in self._class_cms:
-                for cm in self.per_class_cms:  # stop, ugh!
+                for cm in self.per_class_cms:  # ...no.
                     self._class_cms.setdefault(context, [])
                     self._class_cms[context].append(cm())
 
@@ -229,14 +229,13 @@ class Context(metaclass=abc.ABCMeta):
         """Handle a subcontext. Handful for creating traversable context trees."""
 
 
-_MISSING = object()
 _WARN_ASYNC_HOOK = 'method must be async in order to invoke async hooks'
 
 
-def _hooked_method(
+def wrap_method(
         func: Callable,
-        precede_hook: Callable | None = None,
-        finalize_hook: Callable | None = None,
+        precede_hook: Union[Callable, None] = None,
+        finalize_hook: Union[Callable, None] = None,
         cls: type | None = None
 ):
     if func is None:
@@ -247,21 +246,21 @@ def _hooked_method(
         )
 
     if inspect.iscoroutinefunction(func):
-        async def hooked_method_wrapper(self, *args, **kwargs):
+        async def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
             if callable(precede_hook):
-                pre_res = precede_hook(self, bound_method, *args, **kwargs)
-                if inspect.isawaitable(pre_res):
-                    await pre_res
-            res = _MISSING
+                precede_greenlet = precede_hook(self, bound_method, *args, **kwargs)
+                if inspect.isawaitable(precede_greenlet):
+                    await precede_greenlet
+            res = missing = object()
             try:
                 res = await func(self, *args, **kwargs)
             finally:
                 if callable(finalize_hook):
-                    post_res = finalize_hook(self, bound_method, *args, **kwargs)
-                    if inspect.isawaitable(post_res):
-                        await post_res
-                if res is _MISSING:
+                    finalize_greenlet = finalize_hook(self, bound_method, *args, **kwargs)
+                    if inspect.isawaitable(finalize_greenlet):
+                        await finalize_greenlet
+                if res is missing:
                     raise
                 return res
     else:
@@ -270,21 +269,21 @@ def _hooked_method(
         if inspect.iscoroutinefunction(finalize_hook):
             warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
 
-        def hooked_method_wrapper(self, *args, **kwargs):
+        def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
             if callable(precede_hook):
                 precede_hook(self, bound_method, *args, **kwargs)
-            res = _MISSING
+            res = missing = object()
             try:
                 res = func(self, *args, **kwargs)
             finally:
                 if callable(finalize_hook):
                     finalize_hook(self, bound_method, *args, **kwargs)
-                if res is _MISSING:
+                if res is missing:
                     raise
                 return res
 
-    return functools.update_wrapper(hooked_method_wrapper, func)
+    return functools.update_wrapper(wrapper, func)
 
 
 def _prepare_context_name(cls: type) -> str:
@@ -329,14 +328,14 @@ def wrap_to_context(
             else method
         )
         if inspect.iscoroutinefunction(method):
-            pre_hook = LocalHook.async_precede_hook
-            post_hook = LocalHook.async_finalize_hook
+            precede_hook = LocalHook.async_precede_hook
+            finalize_hook = LocalHook.async_finalize_hook
         else:
-            pre_hook = LocalHook.precede_hook
-            post_hook = LocalHook.finalize_hook
-        env[method.__name__] = _hooked_method(
-            method, precede_hook=pre_hook,
-            finalize_hook=post_hook, cls=cls
+            precede_hook = LocalHook.precede_hook
+            finalize_hook = LocalHook.finalize_hook
+        env[method.__name__] = wrap_method(
+            method, precede_hook=precede_hook,
+            finalize_hook=finalize_hook, cls=cls
         )
     if name is None:
         name = _prepare_context_name(cls)
@@ -375,7 +374,8 @@ class SupDirectedContextMixin(Context):
 
     Used solely, it behaves like a linked list.
     """
-    _supercontext_key = '_'
+    __setitem__: Callable
+    _supercontext_key: Any = '_'
 
     def _visit_supercontext(self, supercontext):
         self[self._supercontext_key] = supercontext
@@ -388,7 +388,8 @@ class SingleSubDirectedContextMixin(Context):
     
     Used solely, it behaves like a linked list.
     """
-    _subcontext_key = '__'
+    __setitem__: Callable
+    _subcontext_key: Any = '__'
 
     def _visit_subcontext(self, subcontext):
         self[self._subcontext_key] = subcontext
@@ -399,10 +400,15 @@ class SubDirectedContextMixin(Context):
     A context that can access its subcontexts via '__' key.
     You can set your own subcontexts key, however.
     """
-    _subcontext_key = '__'
+    __setitem__: Callable
+    __getitem__: Callable
+    _subcontext_key: Any = '__'
 
     def _visit_subcontext(self, subcontext):
-        self.setdefault(self._subcontext_key, [])
+        if hasattr(self, 'setdefault'):
+            self.setdefault(self._subcontext_key, [])
+        elif self._subcontext_key not in self:
+            self[self._subcontext_key] = []
         self[self._subcontext_key].append(subcontext)
 
 
@@ -421,25 +427,28 @@ class DoublyLinkedListContextMixin(
 
 
 LinkedListContextMixin = SingleSubDirectedContextMixin
-ConstructContext = wrap_to_context((
-    SupDirectedContextMixin,
-    AttributeDict,
-    collections.OrderedDict
-))
-ByteArrayContext = wrap_to_context(bytearray, _list_hooked_methods, name='ByteArrayContext')
-MemoryDictContext = wrap_to_context(MemoryDict, _dict_hooked_methods)
-QueueContext = wrap_to_context(queue.Queue, _queue_hooked_methods)
-PriorityQueueContext = wrap_to_context(queue.PriorityQueue, _queue_hooked_methods)
-LifoQueueContext = wrap_to_context(queue.LifoQueue, _queue_hooked_methods)
-AsyncioQueueContext = wrap_to_context(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueueContext')  # noqa: E501
-AsyncioPriorityQueueContext = wrap_to_context(asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext')  # noqa: E501
-AsyncioLifoQueueContext = wrap_to_context(asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext')  # noqa: E501
-FileIOContext = wrap_to_context(io.FileIO, _io_hooked_methods)
-BytesIOContext = wrap_to_context(io.BytesIO, _io_hooked_methods)
-StringIOContext = wrap_to_context(io.StringIO, _io_hooked_methods)
-SocketContext = wrap_to_context(socket.socket, _socket_hooked_methods)
-SSLSocketContext = wrap_to_context(ssl.SSLSocket, _socket_hooked_methods)
-CounterContext = wrap_to_context(collections.Counter, _counter_hooked_methods)
+
+_ = wrap_to_context
+
+ConstructContext = _((SupDirectedContextMixin, collections.OrderedDict, AttributeDict))
+ByteArrayContext = _(bytearray, _list_hooked_methods, name='ByteArrayContext')
+MemoryDictContext = _(MemoryDict, _dict_hooked_methods)
+QueueContext = _(queue.Queue, _queue_hooked_methods)
+PriorityQueueContext = _(queue.PriorityQueue, _queue_hooked_methods)
+LifoQueueContext = _(queue.LifoQueue, _queue_hooked_methods)
+AsyncioQueueContext = _(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueueContext')
+AsyncioPriorityQueueContext = _(
+    asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext'
+)
+AsyncioLifoQueueContext = _(
+    asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext'
+)
+FileIOContext = _(io.FileIO, _io_hooked_methods)
+BytesIOContext = _(io.BytesIO, _io_hooked_methods)
+StringIOContext = _(io.StringIO, _io_hooked_methods)
+SocketContext = _(socket.socket, _socket_hooked_methods)
+SSLSocketContext = _(ssl.SSLSocket, _socket_hooked_methods)
+CounterContext = _(collections.Counter, _counter_hooked_methods)
 
 # shortcuts
 LContext = ListContext
