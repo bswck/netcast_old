@@ -1,21 +1,21 @@
 import asyncio
-from typing import ClassVar
+from typing import ClassVar, Type
 
 import pytest
 
-from netcast.arrangements import DEFAULT_CONTEXT_CLASS, AT, CAT
+from netcast.arrangements import CT_DEFAULT, AT
 from netcast.arrangements import ClassArrangement
-from netcast.contexts import C, CT
+from netcast.contexts import CT
 from netcast.toolkit.collections import Params, ForwardDependency
 
 
 class _TestContextType:
-    context: C
-    context_class: ClassVar[CT]
+    context: CT
+    context_class: ClassVar[Type[CT]]
 
-    def test(self, cls: CAT):
+    def test(self, cls: AT):
         if cls.context_class is None:
-            expected_context_class = DEFAULT_CONTEXT_CLASS
+            expected_context_class = CT_DEFAULT
         else:
             expected_context_class = cls.context_class
         assert type(self.context) is expected_context_class is self.context_class

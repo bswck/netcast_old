@@ -5,11 +5,14 @@ import functools
 import operator
 import ssl
 import threading
-from typing import Any, ClassVar, Type, Callable, Final, Union
+from typing import (
+    Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generic, Generator, Literal
+)
 
 from netcast.contexts import *
-from netcast.contexts import LocalHook
+from netcast.contexts import LocalHook  # noqa
 from netcast.toolkit.collections import MemoryDict, Params
+
 
 __all__ = (
     'AT',
@@ -25,7 +28,7 @@ __all__ = (
     'ByteArrangement',
     'ByteArrayArrangement',
     'BytesIOArrangement',
-    'CAT',
+    'CT',
     'CALQArrangement',
     'CAPQArrangement',
     'CAQArrangement',
@@ -49,6 +52,7 @@ __all__ = (
     'ClassAsyncioQueueArrangement',
     'ClassByteArrayArrangement',
     'ClassBytesIOArrangement',
+    'ClassConstructArrangement',
     'ClassCounterArrangement',
     'ClassDequeArrangement',
     'ClassDictArrangement',
@@ -60,8 +64,9 @@ __all__ = (
     'ClassSSLSocketArrangement',
     'ClassSocketArrangement',
     'ClassStringIOArrangement',
+    'ConstructArrangement',
     'CounterArrangement',
-    'DEFAULT_CONTEXT_CLASS',
+    'CT_DEFAULT',
     'DArrangement',
     'DQArrangement',
     'DequeArrangement',
@@ -155,18 +160,23 @@ __all__ = (
     'wrap_to_arrangement'
 )
 
-CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
 
-
-def arrangement_init(self, descent=None):
-    self.descent = descent
+AT = TypeVar('AT', bound='ClassArrangement')
+CT_DEFAULT = ConstructContext
 
 
 def _is_classmethod(cls, method):
     return getattr(method, '__self__', None) is cls
 
 
-def bind_factory(context_class=None, *, factory: Union[Callable, None] = None):
+def arrangement_init(self, descent=None):
+    self.descent = descent
+
+
+def bind_factory(
+        context_class: CT = None,
+        *, factory: Union[Callable, None] = None
+):
     if context_class is not None:
         if not callable(factory):
             raise ValueError('factory must be a callable')
@@ -175,10 +185,7 @@ def bind_factory(context_class=None, *, factory: Union[Callable, None] = None):
     return functools.partial(bind_factory, factory=factory)
 
 
-DEFAULT_CONTEXT_CLASS = DictContext
-
-
-class _BaseArrangement:
+class _BaseArrangement(Generic[CT]):
     _super_registry: Final[MemoryDict] = MemoryDict()
     """Helper dict for managing an arrangement's class attributes."""
 
@@ -188,7 +195,7 @@ class _BaseArrangement:
     context_class: ClassVar[Type[Context] | None] = None
     """Context class. Must derive from the abstract class :class:`Context`."""
 
-    _context: Context | Any | None
+    _context: CT | None
     """A :class:`Context` object shared across members of a class arrangement."""
 
     inherit_context: bool | None = None
@@ -232,7 +239,7 @@ class _BaseArrangement:
             supercontext._visit_subcontext(context)
 
     @classmethod
-    def _create_context(cls, supercontext=None, context_class=None, self=None) -> Any:
+    def _create_context(cls, supercontext=None, context_class=None, self=None) -> CT:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
@@ -242,12 +249,12 @@ class _BaseArrangement:
         return context
 
     @classmethod
-    def get_context(cls, *args, **kwargs):
+    def get_context(cls, *args, **kwargs) -> CT | None:
         """Get the current context."""
         return getattr(cls, '_context', None)
 
 
-class ClassArrangement(_BaseArrangement):
+class ClassArrangement(_BaseArrangement, Generic[CT]):
     """
     An arrangement of classes bound to a :class:`Context` object.
 
@@ -266,18 +273,23 @@ class ClassArrangement(_BaseArrangement):
     _default_context_class = True
 
     @classmethod
-    def context_wrapper(cls, context):
+    def context_wrapper(cls, context) -> Generator[CT]:
         yield context
 
     @classmethod
-    def _get_inherit_context(cls):
+    def _get_inherit_context(cls) -> bool:
         if cls.inherit_context is None:
             return True
 
         return cls.inherit_context
 
     @classmethod
-    def _get_context_class(cls, context_class=None, inherit_context=None, descent=None):
+    def _get_context_class(
+            cls,
+            context_class: Type[CT] | None = None,
+            inherit_context=None,
+            descent=None
+    ) -> Type[CT]:
         args = (context_class, cls.context_class)
 
         if None not in args and operator.is_not(*args):
@@ -289,7 +301,7 @@ class ClassArrangement(_BaseArrangement):
             context_class, = filter(None, args)
 
         if context_class is None and descent_context_class is None:
-            context_class = DEFAULT_CONTEXT_CLASS
+            context_class = CT_DEFAULT
 
         root_context_class: type | None = context_class
 
@@ -315,13 +327,13 @@ class ClassArrangement(_BaseArrangement):
 
     def __init_subclass__(
             cls,
-            descent=None,
-            clear_init=False,
-            context_class=None,
-            family=False,
-            irregular=False,
-            _generate=True,
-            _check_descent_type=True,
+            descent: AT | None = None,
+            clear_init: bool = False,
+            context_class: Type[CT] | None = None,
+            family: bool = False,
+            irregular: bool = False,
+            _generate: bool = True,
+            _check_descent_type: bool = True,
     ):
         """When a new subclass is created, handle its access to the local context."""
         if getattr(cls, '_context_lock', None) is None:
@@ -375,43 +387,43 @@ class ClassArrangement(_BaseArrangement):
             cls.__init__ = arrangement_init
 
     @property
-    def context(self) -> Context | Any:
+    def context(self: ClassArrangement[CT]) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self.get_context()
 
     @property
-    def supercontext(self) -> Context | Any | None:
+    def supercontext(self: ClassArrangement[CT]) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext()
 
     @property
-    def subcontexts(self) -> tuple[Context] | Any | None:
+    def subcontexts(self: ClassArrangement[CT]) -> tuple[Context, ...] | None:
         return self._get_subcontexts()
 
     @property
-    def inherits_context(self) -> bool:
+    def inherits_context(self: ClassArrangement[CT]) -> bool:
         return self.inherit_context
 
 
-class Arrangement(ClassArrangement, irregular=True):
+class Arrangement(ClassArrangement, Generic[CT], irregular=True):
     # TODO: context wrappers fail
 
     descent: Arrangement | None
-    _inherits_context = True
-    _generate = True
+    _inherits_context: bool = True
+    _generate: bool = True
 
-    def __init__(self, descent=None):
+    def __init__(self: Arrangement[CT], descent: Arrangement[CT] | None = None):
         arrangement_init(self, descent)
 
     def __init_subclass__(
             cls,
-            descent=None,
-            clear_init=False,
-            context_class=None,
-            family=False,
-            irregular=False,
-            _generate=_generate,
-            **kwargs
+            descent: Arrangement = None,
+            clear_init: bool = False,
+            context_class: Type[CT] = None,
+            family: bool = False,
+            irregular: bool = False,
+            _generate: bool = _generate,
+            _check_descent_type: Literal[True] = True
     ):
         if irregular:
             return
@@ -487,11 +499,11 @@ class Arrangement(ClassArrangement, irregular=True):
         cls._connect_contexts(context)
         return self
 
-    def context_wrapper(self, context):
+    def context_wrapper(self, context: CT) -> Generator[CT]:
         yield context
 
     @classmethod
-    def get_context(cls, self=None):
+    def get_context(cls, self: Arrangement[CT] | None = None) -> CT:
         """Get the current context."""
         contexts = super().get_context()
 
@@ -509,25 +521,29 @@ class Arrangement(ClassArrangement, irregular=True):
         return _BaseArrangement._super_registry.get(cls.get_context(self))
 
     @property
-    def context(self) -> Context | Any:
+    def context(self: Arrangement[CT]) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self.get_context(self)
 
     @property
-    def supercontext(self) -> Context | Any | None:
+    def supercontext(self: Arrangement[CT]) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext(self)
 
     @property
-    def subcontexts(self) -> tuple[Context] | Any | None:
+    def subcontexts(self: Arrangement[CT]) -> tuple[Context, ...] | None:
         return self._get_subcontexts(self)
 
     @property
-    def inherits_context(self) -> bool:
+    def inherits_context(self: Arrangement[CT]) -> bool:
         return self._inherits_context
 
 
-def create_context(context_class, cls_or_self, params=Params()):
+def create_context(
+        context_class: Type[CT],
+        cls_or_self,
+        params=Params()
+) -> CT:
     args, kwargs = params
 
     if callable(args):
@@ -541,12 +557,12 @@ def create_context(context_class, cls_or_self, params=Params()):
 
 
 def wrap_to_arrangement(
-        name,
-        context_class,
-        class_arrangement=False,
-        doc=None,
-        env=None
-) -> type | CAT:
+        name: str,
+        context_class: Type[CT],
+        class_arrangement: bool = False,
+        doc: str | None = None,
+        env: dict[str, Any] | None = None
+) -> Type[(ClassArrangement[CT] | Arrangement[CT])]:
     if class_arrangement:
         super_class = ClassArrangement
     else:
@@ -555,15 +571,15 @@ def wrap_to_arrangement(
     if env is None:
         env = {}
 
-    cls = type(
-        name, (super_class,), env, family=True, context_class=context_class
-    )
+    cls = type(name, (super_class,), env, family=True, context_class=context_class)
+    cls.context: context_class  # noqa
     doc and setattr(cls, '__doc__', doc)
 
-    return cls
+    return cls  # type: ignore
 
 
 _ = wrap_to_arrangement
+
 ClassDictArrangement = _('ClassDictArrangement', DictContext, True)
 ClassListArrangement = _('ClassListArrangement', ListContext, True)
 ClassByteArrayArrangement = _('ClassByteArrayArrangement', ByteArrayContext, True)
@@ -585,6 +601,7 @@ ClassSocketArrangement = _('ClassSocketArrangement', SocketContext, True)
 SSLSocketContext = bind_factory(SSLSocketContext, factory=ssl.wrap_socket)
 ClassSSLSocketArrangement = _('ClassSSLSocketArrangement', SSLSocketContext, True)
 ClassCounterArrangement = _('ClassCounterArrangement', CounterContext, True)
+ClassConstructArrangement = _('ClassConstructArrangement', ConstructContext, True)
 
 DictArrangement = _('DictArrangement', DictContext)
 ListArrangement = _('ListArrangement', ListContext)

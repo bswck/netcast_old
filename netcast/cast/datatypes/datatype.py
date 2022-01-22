@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import abc
 import enum
-from typing import Any, Type
+from typing import Any
 
 from netcast.toolkit.collections import AttributeDict
-from netcast.arrangements import DArrangement
+from netcast.arrangements import ConstructArrangement
 
 
 class ConstraintPolicy(enum.Enum):
@@ -51,8 +51,8 @@ class Constraint(metaclass=abc.ABCMeta):
         raise ConstraintError(''.join(getattr(self, 'error_msg', ())))
 
 
-class DataType:
-    def __init__(self, **cfg: [str, Any]):
+class DataType(ConstructArrangement, irregular=True):
+    def __init__(self, **cfg):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
         self.constraints: tuple[Constraint, ...] = ()
 
@@ -75,42 +75,23 @@ class DataType:
 
     @abc.abstractmethod
     @property
-    def template_type(self) -> Type[Template]:
+    def template_type(self) -> type:
         """Get a template type that this Type object refers to."""
-        template_type = Template
+        template_type = object
         return template_type
 
     @abc.abstractmethod
-    def create_template(self) -> Template:
+    def _cast(self, python_value):
+        return python_value
+
+    def cast(self, python_value):
         """Create a type template."""
+        for constraint in self.constraints:
+            python_value = constraint.validate(python_value, python=True)
+        cast_value = self._cast(python_value)
+        for constraint in self.constraints:
+            cast_value = constraint.validate(cast_value)
+        return cast_value
 
     def __call__(self, **cfg):
         return self.copy(**cfg)
-
-
-class Template(DArrangement, metaclass=abc.ABCMeta):
-    def __init__(self, descent, data_type: DataType):
-        super().__init__(descent)
-        self.type = data_type
-
-    @abc.abstractmethod
-    @property
-    def source(self) -> Any:
-        """Template source."""
-        return Any
-
-    @abc.abstractmethod
-    def cast(self, val):
-        """Get a value cast to the template type."""
-        return val
-
-    def save(self):
-        """Optional. Used for file-based templates."""
-
-    def process(self, python_value):
-        for constraint in self.type.constraints:
-            python_value = constraint.validate(python_value, python=True)
-        cast_value = self.cast(python_value)
-        for constraint in self.type.constraints:
-            cast_value = constraint.validate(cast_value)
-        return cast_value

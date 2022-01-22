@@ -14,7 +14,7 @@ import sys
 import threading
 import warnings
 from types import FunctionType, MethodType
-from typing import Type, ForwardRef, Sequence, final, TypeVar, Iterable, Any, Callable, Union
+from typing import Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -68,8 +68,6 @@ __all__ = (
     'SupDirectedContextMixin',
     'wrap_to_context'
 )
-
-CT, C = Type["Context"], ForwardRef("Context")
 
 
 @dataclasses.dataclass
@@ -351,16 +349,16 @@ def _prepare_context_name(cls: type) -> str:
     return name
 
 
-_BT = TypeVar('_BT')
+BT = TypeVar('BT', type, tuple[type, ...])
 
 
 def wrap_to_context(
-        bases: _BT,
+        bases: BT,
         hooked_methods: Iterable | None = (),
         name: str | None = None,
         doc: str | None = None,
         init_subclass: dict[str, Any] | None = None
-) -> _BT:
+) -> Type[Context] | BT:
     """Build a context class and its modification hooks."""
     if isinstance(bases, Sequence):
         if not bases:
@@ -519,3 +517,26 @@ SIOContext = StringIOContext
 SockContext = SocketContext
 SSLSockContext = SocketContext
 CContext = CounterContext
+
+CT = TypeVar(
+    'CT',
+    Context,
+    ListContext,
+    DictContext,
+    DequeContext,
+    ConstructContext,
+    ByteArrayContext,
+    MemoryDictContext,
+    QueueContext,
+    PriorityQueueContext,
+    LifoQueueContext,
+    AsyncioQueueContext,
+    AsyncioPriorityQueueContext,
+    AsyncioLifoQueueContext,
+    FileIOContext,
+    BytesIOContext,
+    StringIOContext,
+    SocketContext,
+    SSLSocketContext,
+    CounterContext,
+)
