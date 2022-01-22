@@ -63,7 +63,7 @@ class TypeArrangement(ClassArrangement, family=True):
     context_class = DataTypeRegistry
 
 
-class DataType(TypeArrangement, Generic[Origin, Cast], irregular=True):
+class DataType(TypeArrangement, Generic[Origin, Cast], irregular=True, metaclass=abc.ABCMeta):
     constraints: ClassVar[tuple[Constraint, ...]] = ()
 
     def __init__(self, **cfg: Any):
@@ -78,6 +78,11 @@ class DataType(TypeArrangement, Generic[Origin, Cast], irregular=True):
         new = type(self)(**new_cfg)
         new.constraints = self.constraints
         return new
+
+    @abc.abstractmethod
+    @property
+    def type_key(self):
+        raise NotImplementedError
 
     @abc.abstractmethod
     @property
