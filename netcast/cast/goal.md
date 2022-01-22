@@ -64,3 +64,45 @@ assert foo == engine.load(SomeNiceObject, bar)
 ```
 
 sample 2.
+
+```py
+from netcast.cast import metadata
+from netcast.engine import get_engine
+from dataclasses import dataclass, field
+
+
+@metadata.array
+@dataclass
+class SomeObject:
+    me: int = 0
+
+    @metadata.array(max_size=10)
+    @dataclass
+    class SomeNestedObject:
+        me: int = 0
+
+    members: list[SomeNestedObject] = field(default_factory=list)
+
+
+foo = [
+    SomeObject(
+        1, [
+            SomeObject.SomeNestedObject(10),
+            SomeObject.SomeNestedObject(11),
+            SomeObject.SomeNestedObject(12),
+            SomeObject.SomeNestedObject(13),
+            SomeObject.SomeNestedObject(14),
+        ]
+    ),
+    SomeObject(
+        2, [
+            SomeObject.SomeNestedObject(0)
+        ]
+    )
+]
+
+engine = get_engine('construct')
+bar = engine.dumps(foo)
+assert bar == b'\x00\x05\x0A\x0B\x0C\x0D\x0E\x02\x01\x00'
+assert foo == engine.load(bar)
+```
