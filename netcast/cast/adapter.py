@@ -1,55 +1,15 @@
 from __future__ import annotations
 
-import abc
-import dataclasses
-from typing import ClassVar, Any, Type
 
-from netcast.context import Context, ConstructContext
+class Template:
+    """A template."""
 
 
-class _HasContext:
-    context: Context = dataclasses.field(default_factory=ConstructContext)
-
-
-@dataclasses.dataclass
-class Load(_HasContext):
-    load: Any
-    cast: Cast
-
-    @abc.abstractmethod
-    def dump(self, *args, **kwargs) -> Dump:
-        pass
-
-    __call__ = dump
-
-
-@dataclasses.dataclass
-class Dump(_HasContext):
-    dump: Any
-    cast: Cast
-
-    @abc.abstractmethod
-    def load(self, *args, **kwargs) -> Load:
-        pass
-
-    __call__ = load
-
-
-class Cast(abc.ABC):
+class Adapter:
     """
-    A singleton abstract class for cast rules.
-    See also :package:`netcast.cast`.
+    A class for creating templates for each conversion library.
+    Those templates are created as a result of the work of an adapter.
     """
 
-    load_type: ClassVar[type]
-    dump_type: ClassVar[type]
-    load_factory: ClassVar[Type[Load]]
-    dump_factory: ClassVar[Type[Dump]]
-
-    def dump(self, load: load_type | load_factory, *args, **kwargs) -> Dump:
-        dump = self.load_factory(load)
-        return dump(*args, **kwargs)
-
-    def load(self, dump: dump_type | dump_factory, *args, **kwargs) -> Load:
-        load = self.dump_factory(dump)
-        return load(*args, **kwargs)
+    def save(self):
+        pass

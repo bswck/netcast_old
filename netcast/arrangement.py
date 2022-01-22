@@ -7,7 +7,152 @@ import threading
 from typing import Any, ClassVar, Type, Callable, Final, Union
 
 from netcast.context import *
+from netcast.context import LocalHook
 from netcast.toolkit.collections import MemoryDict, Params
+
+__all__ = (
+    'AT',
+    'ALQArrangement',
+    'APQArrangement',
+    'AQArrangement',
+    'Arrangement',
+    'AsyncioLifoQueueArrangement',
+    'AsyncioPriorityQueueArrangement',
+    'AsyncioQueueArrangement',
+    'BAArrangement',
+    'BIOArrangement',
+    'ByteArrangement',
+    'ByteArrayArrangement',
+    'BytesIOArrangement',
+    'CAT',
+    'CALQArrangement',
+    'CAPQArrangement',
+    'CAQArrangement',
+    'CArrangement',
+    'CBAArrangement',
+    'CBIOArrangement',
+    'CByteArrangement',
+    'CDArrangement',
+    'CDQArrangement',
+    'CFIOArrangement',
+    'CLArrangement',
+    'CLQArrangement',
+    'CPQArrangement',
+    'CQArrangement',
+    'CSArrangement',
+    'CSIOArrangement',
+    'CSSLSockArrangement',
+    'ClassArrangement',
+    'ClassAsyncioLifoQueueArrangement',
+    'ClassAsyncioPriorityQueueArrangement',
+    'ClassAsyncioQueueArrangement',
+    'ClassByteArrayArrangement',
+    'ClassBytesIOArrangement',
+    'ClassCounterArrangement',
+    'ClassDequeArrangement',
+    'ClassDictArrangement',
+    'ClassFileIOArrangement',
+    'ClassLifoQueueArrangement',
+    'ClassListArrangement',
+    'ClassPriorityQueueArrangement',
+    'ClassQueueArrangement',
+    'ClassSSLSocketArrangement',
+    'ClassSocketArrangement',
+    'ClassStringIOArrangement',
+    'CounterArrangement',
+    'DEFAULT_CONTEXT_CLASS',
+    'DArrangement',
+    'DQArrangement',
+    'DequeArrangement',
+    'DictArrangement',
+    'FIOArrangement',
+    'FileIOArrangement',
+    'LArrangement',
+    'LQArrangement',
+    'LifoQueueArrangement',
+    'ListArrangement',
+    'PQArrangement',
+    'PriorityQueueArrangement',
+    'QArrangement',
+    'QueueArrangement',
+    'SArrangement',
+    'SIOArrangement',
+    'SSLSockArrangement',
+    'SSLSocketArrangement',
+    'SocketArrangement',
+    'StringIOArrangement',
+    '_BaseArrangement',
+    'arrangement_init',
+    'ALQArrangement',
+    'APQArrangement',
+    'AQArrangement',
+    'Arrangement',
+    'AsyncioLifoQueueArrangement',
+    'AsyncioPriorityQueueArrangement',
+    'AsyncioQueueArrangement',
+    'BAArrangement',
+    'BIOArrangement',
+    'ByteArrangement',
+    'ByteArrayArrangement',
+    'BytesIOArrangement',
+    'CALQArrangement',
+    'CAPQArrangement',
+    'CAQArrangement',
+    'CArrangement',
+    'CBAArrangement',
+    'CBIOArrangement',
+    'CByteArrangement',
+    'CDArrangement',
+    'CDQArrangement',
+    'CFIOArrangement',
+    'CLArrangement',
+    'CLQArrangement',
+    'CPQArrangement',
+    'CQArrangement',
+    'CSArrangement',
+    'CSIOArrangement',
+    'CSSLSockArrangement',
+    'ClassArrangement',
+    'ClassAsyncioLifoQueueArrangement',
+    'ClassAsyncioPriorityQueueArrangement',
+    'ClassAsyncioQueueArrangement',
+    'ClassByteArrayArrangement',
+    'ClassBytesIOArrangement',
+    'ClassCounterArrangement',
+    'ClassDequeArrangement',
+    'ClassDictArrangement',
+    'ClassFileIOArrangement',
+    'ClassLifoQueueArrangement',
+    'ClassListArrangement',
+    'ClassPriorityQueueArrangement',
+    'ClassQueueArrangement',
+    'ClassSSLSocketArrangement',
+    'ClassSocketArrangement',
+    'ClassStringIOArrangement',
+    'CounterArrangement',
+    'DArrangement',
+    'DQArrangement',
+    'DequeArrangement',
+    'DictArrangement',
+    'FIOArrangement',
+    'FileIOArrangement',
+    'LArrangement',
+    'LQArrangement',
+    'LifoQueueArrangement',
+    'ListArrangement',
+    'PQArrangement',
+    'PriorityQueueArrangement',
+    'QArrangement',
+    'QueueArrangement',
+    'SArrangement',
+    'SIOArrangement',
+    'SSLSockArrangement',
+    'SSLSocketArrangement',
+    'SocketArrangement',
+    'StringIOArrangement',
+    'arrangement_init',
+    'wrap_to_arrangement'
+)
 
 CAT, AT = Type["ClassArrangement"], Type["Arrangement"]
 
@@ -33,7 +178,7 @@ DEFAULT_CONTEXT_CLASS = DictContext
 
 
 class _BaseArrangement:
-    _super_registry: Final[MemoryDict] = MemoryDict()  # B-)
+    _super_registry: Final[MemoryDict] = MemoryDict()
     """Helper dict for managing an arrangement's class attributes."""
 
     _factory_registry: Final[dict] = {}
@@ -58,9 +203,15 @@ class _BaseArrangement:
     def _get_supercontext(cls):
         return _BaseArrangement._super_registry.get(cls.get_context())
 
-    @staticmethod
-    def _set_supercontext(context: Context, supercontext: Context | None):
+    @classmethod
+    def _set_supercontext(cls, context: Context, supercontext: Context | None, meet: bool = False):
         _BaseArrangement._super_registry[context] = supercontext
+        meet and cls._connect_contexts(context, supercontext)
+
+    @classmethod
+    def _connect_contexts(cls, context: Context, supercontext: Context | None = None):
+        if supercontext is None:
+            supercontext = _BaseArrangement._super_registry.get(context)
         if supercontext is not None:
             context._visit_supercontext(supercontext)
             supercontext._visit_subcontext(context)
@@ -73,7 +224,6 @@ class _BaseArrangement:
 
         context = create_context(context_class, cls if self is None else self, cls.context_params)
         cls._set_supercontext(context, supercontext)
-
         return context
 
     @classmethod
@@ -315,6 +465,7 @@ class Arrangement(ClassArrangement, irregular=True):
                     contexts[self] = context = next(context_wrapper(context), original_context)
                     LocalHook.on_prepare(context)
 
+        cls._connect_contexts(context)
         return self
 
     def context_wrapper(self, context):

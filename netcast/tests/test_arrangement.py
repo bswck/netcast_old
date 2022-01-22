@@ -4,33 +4,9 @@ from typing import ClassVar
 import pytest
 
 from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
-from netcast.arrangement import (
-    ClassArrangement, ClassFileIOArrangement,
-    Arrangement, FileIOArrangement,
-    ClassSSLSocketArrangement, SSLSocketArrangement
-)
+from netcast.arrangement import ClassArrangement
 from netcast.context import C, CT
 from netcast.toolkit.collections import Params, ForwardDependency
-
-class_arrangements = {ClassArrangement, *ClassArrangement.__subclasses__()}
-class_arrangements.discard(Arrangement)
-class_arrangements.discard(ClassFileIOArrangement)
-class_arrangements.discard(ClassSSLSocketArrangement)
-
-
-@pytest.fixture(params=class_arrangements)
-def ca(request) -> CAT:
-    yield request.param
-
-
-arrangements = {Arrangement, *Arrangement.__subclasses__()}
-arrangements.discard(FileIOArrangement)
-arrangements.discard(SSLSocketArrangement)
-
-
-@pytest.fixture(params=arrangements)
-def a(request) -> AT:
-    yield request.param
 
 
 class _TestContextType:
@@ -279,7 +255,7 @@ class TestArrangement:
 
         a1 = A1()
         a1.test(a)
-        A2(a1).test(a)
+        A2(a1).test(a)  # noqa
 
     def test_inherit_context(self, a: AT):
         class A1(a):
