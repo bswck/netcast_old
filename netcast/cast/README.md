@@ -2,15 +2,16 @@
 The overall effect is meant to be like this:
 
 sample 1.
+
 ```py
 from netcast.cast import metadata
 from netcast.cast.datatypes import Auto, Byte
-from netcast.engine import get_engine
+from netcast.cast.engine import get_engine
 
 
 @metadata(
     rules=dict(
-        exclude_constants=False, 
+        exclude_constants=False,
         exclude_attrs=['SOME_UNSERIALIZED_CONSTANT']
     ),
     serialization=dict(
@@ -28,7 +29,7 @@ class SomeNiceObject:
         self._some_nice_private_value = self.SOME_CONSTANT
         self.some_cool_public_value = 'Hello world!'
         self.some_other_value = 0
-    
+
     def __eq__(self, other):
         return all((
             # Check constants
@@ -42,7 +43,7 @@ class SomeNiceObject:
             # Check properties
             self.some_nice_property == other.some_nice_property
         ))
-        
+
     @property
     def some_nice_property(self):
         return self._some_nice_private_value
@@ -54,7 +55,8 @@ class SomeNiceObject:
     def some_function(self):
         # do something...
         pass
-        
+
+
 foo = SomeNiceObject()
 
 construct = get_engine('construct')
@@ -71,7 +73,7 @@ sample 2.
 
 ```py
 from netcast.cast import metadata
-from netcast.engine import get_engine
+from netcast.cast.engine import get_engine
 from dataclasses import dataclass, field
 
 

@@ -199,7 +199,7 @@ class TestClassArrangement:
 
         class Get(ClassQueueArrangement, descent=CQA):
             def __call__(self):
-                self.context.get()
+                return self.context.get()
 
         CQA.get.dependency(Get)
 
@@ -292,6 +292,8 @@ class TestArrangement:
         a2.test()
         a3.test()
         a4.test()
+
+        assert a1.subcontexts == (a3.context,)
 
     def test_dict_arrangement(self):
         from netcast.arrangements import DictArrangement

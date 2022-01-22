@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ctypes
 import functools
+import itertools
 import operator
 import ssl
 import threading
@@ -204,6 +206,20 @@ class _BaseArrangement:
         return _BaseArrangement._super_registry.get(cls.get_context())
 
     @classmethod
+    def _get_subcontexts(cls, self=None):
+        registry = _BaseArrangement._super_registry
+        subcontexts = []
+        if self is None:
+            context = cls.get_context()
+        else:
+            context = self.context
+        for subcontext, supercontext in registry.items():
+            if supercontext is context:
+                # TODO: is it safe?
+                subcontexts.append(ctypes.cast(subcontext, ctypes.py_object).value)
+        return tuple(subcontexts)
+
+    @classmethod
     def _set_supercontext(cls, context: Context, supercontext: Context | None, meet: bool = False):
         _BaseArrangement._super_registry[context] = supercontext
         meet and cls._connect_contexts(context, supercontext)
@@ -370,6 +386,10 @@ class ClassArrangement(_BaseArrangement):
         return self._get_supercontext()
 
     @property
+    def subcontexts(self) -> tuple[Context] | Any | None:
+        return self._get_subcontexts()
+
+    @property
     def inherits_context(self) -> bool:
         return self.inherit_context
 
@@ -500,6 +520,10 @@ class Arrangement(ClassArrangement, irregular=True):
         return self._get_supercontext(self)
 
     @property
+    def subcontexts(self) -> tuple[Context] | Any | None:
+        return self._get_subcontexts(self)
+
+    @property
     def inherits_context(self) -> bool:
         return self._inherits_context
 
@@ -571,7 +595,7 @@ StringIOArrangement = _('StringIOArrangement', StringIOContext)
 SocketArrangement = _('SocketArrangement', SocketContext)
 SSLSocketArrangement = _('SSLSocketArrangement', SSLSocketContext)
 CounterArrangement = _('CounterArrangement', CounterContext)
-
+ConstructArrangement = _('ConstructArrangement', ConstructContext)
 
 # shortcuts
 CArrangement = ClassArrangement
