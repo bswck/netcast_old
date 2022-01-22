@@ -3,9 +3,9 @@ from typing import ClassVar
 
 import pytest
 
-from netcast.arrangement import DEFAULT_CONTEXT_CLASS, AT, CAT
-from netcast.arrangement import ClassArrangement
-from netcast.context import C, CT
+from netcast.arrangements import DEFAULT_CONTEXT_CLASS, AT, CAT
+from netcast.arrangements import ClassArrangement
+from netcast.contexts import C, CT
 from netcast.toolkit.collections import Params, ForwardDependency
 
 
@@ -23,7 +23,7 @@ class _TestContextType:
 
 class TestClassArrangement:
     def test_family(self):
-        from netcast.context import ListContext
+        from netcast.contexts import ListContext
 
         class F(ClassArrangement, family=True):
             context_class = ListContext
@@ -42,7 +42,7 @@ class TestClassArrangement:
             def test(self):
                 assert isinstance(self.context, F.context_class)
 
-        from netcast.context import QueueContext as SomeOtherContext
+        from netcast.contexts import QueueContext as SomeOtherContext
 
         with pytest.raises(TypeError):
             class E(ClassArrangement, descent=F):
@@ -128,7 +128,7 @@ class TestClassArrangement:
         CA6().test()
 
     def test_class_dict_arrangement(self):
-        from netcast.arrangement import ClassDictArrangement
+        from netcast.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
             @classmethod
@@ -163,7 +163,7 @@ class TestClassArrangement:
         assert ca1.context == {'pings': 3, 'pongs': 2}
 
     def test_class_list_arrangement(self):
-        from netcast.arrangement import ClassListArrangement
+        from netcast.arrangements import ClassListArrangement
 
         class CA(ClassListArrangement, _TestContextType):
             pass
@@ -191,7 +191,7 @@ class TestClassArrangement:
         assert ca2.context == [1, 2]
 
     def test_class_queue_arrangement(self):
-        from netcast.arrangement import ClassQueueArrangement
+        from netcast.arrangements import ClassQueueArrangement
 
         class CQA(ClassQueueArrangement):
             get = ForwardDependency()
@@ -225,7 +225,7 @@ class TestClassArrangement:
 
     @pytest.mark.asyncio
     async def test_class_asyncio_queue_arrangement(self):
-        from netcast.arrangement import ClassAsyncioQueueArrangement
+        from netcast.arrangements import ClassAsyncioQueueArrangement
 
         class QP(ClassAsyncioQueueArrangement):
             async def __call__(self, item):
@@ -294,7 +294,7 @@ class TestArrangement:
         a4.test()
 
     def test_dict_arrangement(self):
-        from netcast.arrangement import DictArrangement
+        from netcast.arrangements import DictArrangement
 
         class DA1(DictArrangement):
             context_params = Params.from_args(pings=0, pongs=0)
@@ -337,7 +337,7 @@ class TestArrangement:
         assert da2.context.pongs == 0
 
     def test_list_arrangement(self):
-        from netcast.arrangement import ListArrangement
+        from netcast.arrangements import ListArrangement
 
         class LA(ListArrangement):
             def __call__(self, x):
@@ -376,7 +376,7 @@ class TestArrangement:
         assert foreign_appender.context is not context
 
     def test_string_io_arrangement(self):
-        from netcast.arrangement import StringIOArrangement
+        from netcast.arrangements import StringIOArrangement
 
         class SA(StringIOArrangement):
             read = ForwardDependency()
@@ -415,7 +415,7 @@ class TestArrangement:
         assert sa.read() == content[sa_offset:]
 
     def test_queue_arrangement(self):
-        from netcast.arrangement import QueueArrangement
+        from netcast.arrangements import QueueArrangement
 
         class QA(QueueArrangement):
             put = ForwardDependency()
@@ -444,8 +444,8 @@ class TestArrangement:
         assert qa.context.qsize() == 0
 
     def test_construct_arrangement(self):
-        from netcast.context import ConstructContext
-        from netcast.arrangement import wrap_to_arrangement
+        from netcast.contexts import ConstructContext
+        from netcast.arrangements import wrap_to_arrangement
 
         ConstructArrangement = wrap_to_arrangement('ConstructArrangement', ConstructContext)
 
@@ -476,7 +476,7 @@ class TestArrangement:
 
     @pytest.mark.asyncio
     async def test_asyncio_queue_arrangement(self):
-        from netcast.arrangement import AsyncioQueueArrangement
+        from netcast.arrangements import AsyncioQueueArrangement
 
         class QP(AsyncioQueueArrangement):
             async def __call__(self, item):

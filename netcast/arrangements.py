@@ -6,8 +6,8 @@ import ssl
 import threading
 from typing import Any, ClassVar, Type, Callable, Final, Union
 
-from netcast.context import *
-from netcast.context import LocalHook
+from netcast.contexts import *
+from netcast.contexts import LocalHook
 from netcast.toolkit.collections import MemoryDict, Params
 
 __all__ = (

@@ -233,7 +233,7 @@ class ForwardDependency:
             return self
         if instance not in self.cache:
             if self.unbound is None:
-                from netcast.arrangement import Arrangement
+                from netcast.arrangements import Arrangement
                 unbound = issubclass(type(instance), Arrangement)
             else:
                 unbound = self.unbound

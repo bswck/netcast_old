@@ -1,2 +1,2 @@
-from .arrangement import *
-from .context import *
+from .arrangements import *
+from .contexts import *
