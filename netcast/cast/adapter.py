@@ -4,11 +4,11 @@ import abc
 import dataclasses
 from typing import ClassVar, Any, Type
 
-from netcast.context import DictContext
+from netcast.context import Context, ConstructContext
 
 
 class _HasContext:
-    context: DictContext = dataclasses.field(default_factory=DictContext)
+    context: Context = dataclasses.field(default_factory=ConstructContext)
 
 
 @dataclasses.dataclass
