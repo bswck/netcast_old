@@ -4,7 +4,7 @@ The overall effect is meant to be like this:
 sample 1.
 ```py
 from netcast.cast import metadata
-from netcast.cast.datatypes import Auto, Byte, Optional
+from netcast.cast.datatypes import Auto, Byte
 from netcast.engine import get_engine
 
 
@@ -16,7 +16,7 @@ from netcast.engine import get_engine
     serialization=dict(
         some_nice_property=Byte(unsigned=True),
         some_cool_public_value=Auto,
-        some_other_value=Optional(Byte)
+        some_other_value=Byte  # signed
     ),
     recreation=dict(some_nice_property=metadata.recreation.setattr)
 )
@@ -27,7 +27,7 @@ class SomeNiceObject:
     def __init__(self):
         self._some_nice_private_value = self.SOME_CONSTANT
         self.some_cool_public_value = 'Hello world!'
-        self.some_other_value = None
+        self.some_other_value = 0
     
     def __eq__(self, other):
         return all((
@@ -57,10 +57,14 @@ class SomeNiceObject:
         
 foo = SomeNiceObject()
 
-engine = get_engine('construct')
-bar = engine.dumps(foo)
+construct = get_engine('construct')
+json = get_engine('json')
+bar = construct.dumps(foo)
+biz = json.dumps(foo)
 assert bar == b'\x0AHello world!\x00\x00\x0A'
-assert foo == engine.load(SomeNiceObject, bar)
+assert biz == '''{"SOME_SERIALIZED_CONSTANT": 10,"some_cool_public_value": "Hello world!","some_other_value": 0,"some_nice_property": 10}'''
+assert foo == construct.loads(SomeNiceObject, bar)
+assert foo == json.loads(SomeNiceObject, biz)
 ```
 
 sample 2.
