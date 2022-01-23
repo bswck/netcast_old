@@ -270,10 +270,10 @@ class Context(metaclass=abc.ABCMeta):
     (or use a built-in boilerplate saver, :func:`wrap_to_context`).
     """
 
-    def _visit_supercontext(self, supercontext: Context):
+    def _visit_supercontext(self, supercontext: Context, key: Union[Callable, None] = None):
         """Handle a supercontext. Handful for creating traversable context trees."""
 
-    def _visit_subcontext(self, subcontext: Context):
+    def _visit_subcontext(self, subcontext: Context, key: Union[Callable, None] = None):
         """Handle a subcontext. Handful for creating traversable context trees."""
 
 
@@ -425,8 +425,10 @@ class SupDirectedContextMixin(Context):
     __setitem__: Callable
     _supercontext_key: Any = '_'
 
-    def _visit_supercontext(self, supercontext):
-        self[self._supercontext_key] = supercontext
+    def _visit_supercontext(self, supercontext, key=None):
+        if key is None:
+            key = self._supercontext_key
+        self[key] = supercontext
 
 
 class SingleSubDirectedContextMixin(Context):
@@ -439,8 +441,10 @@ class SingleSubDirectedContextMixin(Context):
     __setitem__: Callable
     _subcontext_key: Any = '__'
 
-    def _visit_subcontext(self, subcontext):
-        self[self._subcontext_key] = subcontext
+    def _visit_subcontext(self, subcontext, key=None):
+        if key is None:
+            key = self._subcontext_key
+        self[key] = subcontext
 
 
 class SubDirectedContextMixin(Context):
@@ -452,12 +456,14 @@ class SubDirectedContextMixin(Context):
     __getitem__: Callable
     _subcontext_key: Any = '__'
 
-    def _visit_subcontext(self, subcontext):
+    def _visit_subcontext(self, subcontext, key=None):
+        if key is None:
+            key = self._subcontext_key
         if hasattr(self, 'setdefault'):
-            self.setdefault(self._subcontext_key, [])
-        elif self._subcontext_key not in self:
-            self[self._subcontext_key] = []
-        self[self._subcontext_key].append(subcontext)
+            self.setdefault(key, [])
+        elif key not in self:
+            self[key] = []
+        self[key].append(subcontext)
 
 
 class RootedTreeContextMixin(
