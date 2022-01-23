@@ -235,8 +235,14 @@ class _BaseArrangement(Generic[CT]):
         if supercontext is None:
             supercontext = _BaseArrangement._super_registry.get(context)
         if supercontext is not None:
-            context._visit_supercontext(supercontext)
-            supercontext._visit_subcontext(context)
+            supercontext_key = getattr(self, '_supercontext_key', None)
+            if callable(supercontext_key):
+                supercontext_key = supercontext_key(context, supercontext)
+            subcontext_key = getattr(self, '_subcontext_key', None)
+            if callable(supercontext_key):
+                subcontext_key = subcontext_key(context, supercontext)
+            context._visit_supercontext(supercontext, key=supercontext_key)
+            supercontext._visit_subcontext(context, key=subcontext_key)
 
     @classmethod
     def _create_context(cls, supercontext=None, context_class=None, self=None) -> CT:
