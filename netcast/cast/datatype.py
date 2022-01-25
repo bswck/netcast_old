@@ -99,6 +99,7 @@ class DataType(TypeArrangement, metaclass=abc.ABCMeta):
         new.constraints = (copy.deepcopy(self.constraints) if deep else self.constraints)
         return new
 
+    @abc.abstractmethod
     def _cast(self, orig_value: Origin) -> Cast:
         raise NotImplementedError
 
