@@ -62,6 +62,7 @@ class DataTypeRegistry(RootedTreeContextMixin, AttributeDict):
 
 class TypeArrangement(ClassArrangement, config=True):
     __type_key__: Any = None
+    __origin_type__: Any = None
 
     context_class: Type[Context] = DataTypeRegistry
 
@@ -69,16 +70,25 @@ class TypeArrangement(ClassArrangement, config=True):
     @classmethod
     def subcontext_key(cls, *__related_contexts):
         """Return the key for all the subcontexts."""
+        if cls.__type_key__ == getattr(cls.__base__, '__type_key__', None):
+            orig_type = cls.__origin_type__
+            if orig_type is not None:
+                cls.__type_key__ = orig_type.__name__
         return cls.__type_key__
 
 
-class DataType(TypeArrangement, Generic[Origin, Cast], metaclass=abc.ABCMeta):
+class DataType(TypeArrangement, metaclass=abc.ABCMeta):
     constraints: ClassVar[tuple[Constraint[Origin, Cast], ...]] = ()
 
     def __init__(self, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
 
-    def copy(self, deep=False, **cfg: Any) -> DataType[Origin, Cast]:
+    def __init_subclass__(cls, **kwargs):
+        if cls.__base__ is not DataType and cls.new_context is None:
+            cls.new_context = True
+        super().__init_subclass__(**kwargs)
+
+    def copy(self, deep=False, **cfg: Any) -> DataType:  # [Origin, Cast]:
         """Copy this type."""
         if deep:
             new_cfg = {**copy.deepcopy(self.cfg), **cfg}
@@ -89,15 +99,8 @@ class DataType(TypeArrangement, Generic[Origin, Cast], metaclass=abc.ABCMeta):
         new.constraints = (copy.deepcopy(self.constraints) if deep else self.constraints)
         return new
 
-    @property
-    @abc.abstractmethod
-    def orig_type(self) -> Origin:
-        """Get an origin Python type that this Type object refers to."""
-        return
-
-    @abc.abstractmethod
     def _cast(self, orig_value: Origin) -> Cast:
-        return
+        raise NotImplementedError
 
     def cast(self, orig_value: Origin) -> Cast:
         """Cast an origin value to the cast type."""
@@ -108,5 +111,5 @@ class DataType(TypeArrangement, Generic[Origin, Cast], metaclass=abc.ABCMeta):
             cast_value = constraint.validate(cast_value)
         return cast_value
 
-    def __call__(self, **cfg: Any) -> DataType[Origin, Cast]:
+    def __call__(self, **cfg: Any) -> DataType:  # [Origin, Cast]:
         return self.copy(**cfg)

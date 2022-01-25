@@ -3,12 +3,19 @@ import abc
 from netcast.cast.datatype import DataType
 
 
-class Array(DataType, metaclass=abc.ABCMeta):
+class Array(DataType, abc.ABC):
     """Base class for all array types."""
-
-    __type_key__ = 'arrays'
+    __type_key__ = 'array'
     new_context = True
 
 
-print(DataType.get_context())
-print(Array.get_context())
+class List(Array, abc.ABC):
+    """Base class for all list types."""
+    __origin_type__ = list
+
+
+class Dict(Array, abc.ABC):
+    __origin_type__ = dict
+
+
+print(Dict.get_context())

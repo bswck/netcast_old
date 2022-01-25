@@ -5,9 +5,7 @@ import functools
 import operator
 import ssl
 import threading
-from typing import (
-    Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generic, Generator, Literal
-)
+from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
 
 from netcast.contexts import *
 from netcast.contexts import LocalHook  # noqa
@@ -185,7 +183,7 @@ def bind_factory(
     return functools.partial(bind_factory, factory=factory)
 
 
-class _BaseArrangement(Generic[CT]):
+class _BaseArrangement:
     _super_registry: Final[ClassVar[MemoryDict]] = MemoryDict()
     """Helper dict for managing an arrangement's class attributes."""
 
@@ -280,7 +278,7 @@ class _BaseArrangement(Generic[CT]):
         return getattr(cls, '_context', None)
 
 
-class ClassArrangement(_BaseArrangement, Generic[CT]):
+class ClassArrangement(_BaseArrangement):
     """
     An arrangement of classes bound to a :class:`Context` object.
 
@@ -415,32 +413,32 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
             cls.__init__ = arrangement_init
 
     @property
-    def context(self: ClassArrangement[CT]) -> CT | None:
+    def context(self) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self.get_context()
 
     @property
-    def supercontext(self: ClassArrangement[CT]) -> Context | None:
+    def supercontext(self) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext()
 
     @property
-    def subcontexts(self: ClassArrangement[CT]) -> tuple[Context, ...] | None:
+    def subcontexts(self) -> tuple[Context, ...] | None:
         return self._get_subcontexts()
 
     @property
-    def has_new_context(self: ClassArrangement[CT]) -> bool:
+    def has_new_context(self) -> bool:
         return self.new_context
 
 
-class Arrangement(ClassArrangement, Generic[CT], non_arrangement=True):
+class Arrangement(ClassArrangement, non_arrangement=True):
     # TODO: context wrappers fail
 
     descent: Arrangement | None
     _new_context: bool = True
     _generate: bool = True
 
-    def __init__(self: Arrangement[CT], descent: Arrangement[CT] | None = None):
+    def __init__(self, descent: Arrangement | None = None):
         arrangement_init(self, descent)
 
     def __init_subclass__(
@@ -531,7 +529,7 @@ class Arrangement(ClassArrangement, Generic[CT], non_arrangement=True):
         yield context
 
     @classmethod
-    def get_context(cls, self: Arrangement[CT] | None = None) -> CT:
+    def get_context(cls, self: Arrangement | None = None) -> CT:
         """Get the current context."""
         contexts = super().get_context()
 
@@ -549,21 +547,21 @@ class Arrangement(ClassArrangement, Generic[CT], non_arrangement=True):
         return _BaseArrangement._super_registry.get(cls.get_context(self))
 
     @property
-    def context(self: Arrangement[CT]) -> CT | None:
+    def context(self: Arrangement) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self.get_context(self)
 
     @property
-    def supercontext(self: Arrangement[CT]) -> Context | None:
+    def supercontext(self: Arrangement) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext(self)
 
     @property
-    def subcontexts(self: Arrangement[CT]) -> tuple[Context, ...] | None:
+    def subcontexts(self: Arrangement) -> tuple[Context, ...] | None:
         return self._get_subcontexts(self)
 
     @property
-    def has_new_context(self: Arrangement[CT]) -> bool:
+    def has_new_context(self: Arrangement) -> bool:
         return self._new_context
 
 
