@@ -3,12 +3,12 @@ import abc
 from netcast.cast.datatype import DataType
 
 
-class Array(DataType, metaclass=abc.ABCMeta, family=True):
+class Array(DataType, metaclass=abc.ABCMeta):
     """Base class for all array types."""
 
-    inherit_context = False
+    __type_key__ = 'arrays'
+    new_context = True
 
-    @property
-    def type_key(self):
-        return 'Array'
 
+print(DataType.get_context())
+print(Array.get_context())

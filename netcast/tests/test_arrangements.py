@@ -22,10 +22,10 @@ class _TestContextType:
 
 
 class TestClassArrangement:
-    def test_family(self):
+    def test_config(self):
         from netcast.contexts import ListContext
 
-        class F(ClassArrangement, family=True):
+        class F(ClassArrangement, config=True):
             context_class = ListContext
 
             def test(self):
@@ -56,7 +56,7 @@ class TestClassArrangement:
             pass
 
         class CA2(injected_class_arrangement, _TestContextType, descent=CA1):
-            inherit_context = False
+            new_context = True
 
         CA1().test(injected_class_arrangement)
         CA2().test(injected_class_arrangement)
@@ -84,26 +84,26 @@ class TestClassArrangement:
         CA3().test()
         CA4().test()
 
-    def test_inherit_context(self, injected_class_arrangement):
+    def test_new_context(self, injected_class_arrangement):
         class CA1(injected_class_arrangement):
             def test(self):
                 assert self.supercontext is None
 
         class CA2(injected_class_arrangement, descent=CA1):
-            inherit_context = False
+            new_context = True
 
             def test(self):
                 assert self.supercontext is CA1.get_context()
                 assert self.context is CA2.get_context()
 
         class CA3(injected_class_arrangement, descent=CA1):
-            inherit_context = None  # default one
+            new_context = None  # default one
 
             def test(self):
                 assert self.context is CA1.get_context()
 
         class CA4(injected_class_arrangement, descent=CA3):
-            inherit_context = False
+            new_context = True
 
             def test(self):
                 assert self.supercontext is CA3.get_context() is CA1.get_context()
@@ -114,7 +114,7 @@ class TestClassArrangement:
                 CA4.test(self)  # type: ignore
 
         class CA6(injected_class_arrangement, descent=CA5):
-            inherit_context = False
+            new_context = True
 
             def test(self):
                 assert self.supercontext is CA5.get_context()
@@ -132,7 +132,7 @@ class TestClassArrangement:
 
         class CA1(ClassDictArrangement):
             @classmethod
-            def context_wrapper(cls, context):
+            def prepare_context(cls, context):
                 for key, default in {'pings': 0, 'pongs': 0}.items():
                     context.setdefault(key, default)
                 yield context
@@ -251,38 +251,38 @@ class TestArrangement:
             pass
 
         class A2(injected_arrangement, _TestContextType, descent=A1):
-            inherit_context = False
+            new_context = True
 
         a1 = A1()
         a1.test(injected_arrangement)
         A2(a1).test(injected_arrangement)  # noqa
 
-    def test_inherit_context(self, injected_arrangement):
+    def test_new_context(self, injected_arrangement):
         class A1(injected_arrangement):
             def test(self):
                 assert self.supercontext is None
-                assert self.inherits_context
+                assert not self.has_new_context
 
         class A2(injected_arrangement, descent=A1):
             def test(self):
                 assert self.context is self.descent.context
-                assert self.inherits_context
+                assert not self.has_new_context
 
         class A3(injected_arrangement, descent=A2):
-            inherit_context = False
+            new_context = True
 
             def test(self):
                 assert self.supercontext is a1.context
                 assert self.supercontext is self.descent.context
                 assert self.context is not a1.context
                 assert self.context is not self.descent.context
-                assert not self.inherits_context
+                assert self.has_new_context
 
         class A4(injected_arrangement, descent=A3):
             def test(self):
                 assert self.supercontext is self.descent.supercontext
                 assert self.context is self.descent.context
-                assert self.inherits_context
+                assert not self.has_new_context
 
         a1 = A1()
         a2 = A2(a1)
@@ -455,7 +455,7 @@ class TestArrangement:
             pass
 
         class CSA2(CSA1):
-            inherit_context = False
+            new_context = True
 
         csa1 = CSA1()
         csa2 = CSA2(csa1)

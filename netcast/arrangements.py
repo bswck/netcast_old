@@ -186,7 +186,7 @@ def bind_factory(
 
 
 class _BaseArrangement(Generic[CT]):
-    _super_registry: Final[MemoryDict] = MemoryDict()
+    _super_registry: Final[ClassVar[MemoryDict]] = MemoryDict()
     """Helper dict for managing an arrangement's class attributes."""
 
     _factory_registry: Final[dict] = {}
@@ -198,12 +198,12 @@ class _BaseArrangement(Generic[CT]):
     _context: CT | None
     """A :class:`Context` object shared across members of a class arrangement."""
 
-    inherit_context: bool | None = None
+    new_context: bool | None = None
     """
     Indicates whether to inherit the context directly from the superclass
     or create a new context for this class and mark the upper as a supercontext.
 
-    Defaults to True.
+    Defaults to False.
     """
     context_params = Params()
 
@@ -226,32 +226,52 @@ class _BaseArrangement(Generic[CT]):
         return tuple(subcontexts)
 
     @classmethod
-    def _set_supercontext(cls, context: Context, supercontext: Context | None, meet: bool = False):
+    def _set_supercontext(
+            cls, 
+            context: Context, 
+            supercontext: Context | None, 
+            connect: bool = False
+    ):
+        if context is supercontext:
+            raise ValueError('no context can be a supercontext of itself')
         _BaseArrangement._super_registry[context] = supercontext
-        meet and cls._connect_contexts(context, supercontext)
+        connect and cls._connect_contexts(context, supercontext)
 
     @classmethod
-    def _connect_contexts(cls, context: Context, supercontext: Context | None = None):
+    def _connect_contexts(
+            cls, 
+            context: Context, 
+            supercontext: Context | None = None,
+            self=None
+    ):
         if supercontext is None:
             supercontext = _BaseArrangement._super_registry.get(context)
+        if self is None:
+            self = cls
         if supercontext is not None:
-            supercontext_key = getattr(self, '_supercontext_key', None)
+            supercontext_key = getattr(self, 'supercontext_key', None)
             if callable(supercontext_key):
                 supercontext_key = supercontext_key(context, supercontext)
-            subcontext_key = getattr(self, '_subcontext_key', None)
-            if callable(supercontext_key):
+            subcontext_key = getattr(self, 'subcontext_key', None)
+            if callable(subcontext_key):
                 subcontext_key = subcontext_key(context, supercontext)
-            context._visit_supercontext(supercontext, key=supercontext_key)
-            supercontext._visit_subcontext(context, key=subcontext_key)
+            context._connect_supercontext(supercontext, final_key=supercontext_key)
+            supercontext._connect_subcontext(context, final_key=subcontext_key)
 
     @classmethod
-    def _create_context(cls, supercontext=None, context_class=None, self=None) -> CT:
+    def _create_context(
+            cls,
+            supercontext=None,
+            context_class=None,
+            self=None,
+            connect=False
+    ) -> CT:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
 
         context = create_context(context_class, cls if self is None else self, cls.context_params)
-        cls._set_supercontext(context, supercontext)
+        cls._set_supercontext(context, supercontext, connect=connect)
         return context
 
     @classmethod
@@ -267,7 +287,7 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
     When :class:`ClassArrangement` is subclassed, that subclass enters a new context.
     All its subclasses then may inherit it and then modify this context.
 
-    When :class:`ClassArrangement` subclass' subclass has set `inherit_context` to False,
+    When :class:`ClassArrangement` subclass' subclass has set `new_context` to False,
     then a new context is bound to it. The last subclass accesses the top-level context using
     `supercontext` property and the further subclasses access one context further so on.
 
@@ -275,21 +295,24 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
     however you may use :class:`Arrangement` for instance-context arrangements.
     Instances that participate in an instance arrangement must be given their descent.
     """
-    descent_type: Type[ClassArrangement] | None
     _default_context_class = True
 
-    @classmethod
-    def _get_inherit_context(cls) -> bool:
-        if cls.inherit_context is None:
-            return True
+    descent_type: Type[ClassArrangement] | None
+    supercontext_key: Any
+    subcontext_key: Any
 
-        return cls.inherit_context
+    @classmethod
+    def _get_new_context(cls) -> bool:
+        if cls.new_context is None:
+            return False
+
+        return cls.new_context
 
     @classmethod
     def _get_context_class(
             cls,
             context_class: Type[CT] | None = None,
-            inherit_context=None,
+            new_context=None,
             descent=None
     ) -> Type[CT]:
         args = (context_class, cls.context_class)
@@ -305,30 +328,31 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
         if context_class is None and descent_context_class is None:
             context_class = CT_DEFAULT
 
-        root_context_class: type | None = context_class
+        processed_context_class: type | None = context_class
 
         if context_class is None:
             context_class = descent_context_class
             cls._default_context_class = False
 
+        new_context = (False if new_context is None else new_context)
         if (
                 descent is not None
-                and inherit_context
-                and None not in (root_context_class, descent_context_class)
+                and not new_context
+                and None not in (processed_context_class, descent_context_class)
         ):
-            root_context_class: type
-            descent_context_class: type
-            if not issubclass(root_context_class, descent_context_class):
+            processed_context_class: Type[Context]
+            descent_context_class: Type[Context]
+            if not issubclass(processed_context_class, descent_context_class):
                 raise TypeError(
                     'context_class is different for descent and this class '
-                    '(inherit_context = False may fix this error)'
+                    '(new_context = True may fix this error)'
                 )
 
         cls.context_class = context_class
         return context_class
 
     @classmethod
-    def context_wrapper(cls, context) -> Generator[CT]:
+    def prepare_context(cls, context) -> Generator[CT]:
         yield context
 
     def __init_subclass__(
@@ -336,8 +360,8 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
             descent: AT | None = None,
             clear_init: bool = False,
             context_class: Type[CT] | None = None,
-            family: bool = False,
-            irregular: bool = False,
+            config: bool = False,
+            non_arrangement: bool = False,
             _generate: bool = True,
             _check_descent_type: bool = True,
     ):
@@ -345,7 +369,7 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
         if getattr(cls, '_context_lock', None) is None:
             cls._context_lock = threading.RLock()
 
-        if irregular:
+        if non_arrangement:
             return
 
         if descent is None:
@@ -353,19 +377,16 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
 
         cls.descent_type = descent
 
-        inherit_context = cls._get_inherit_context()
+        new_context = cls._get_new_context()
+
         if _check_descent_type:
-            context_class = cls._get_context_class(
-                context_class,
-                inherit_context and not family,
-                descent
-            )
+            context_class = cls._get_context_class(context_class, new_context or config, descent)
         else:
             context_class = cls._get_context_class(context_class)
+
         assert issubclass(context_class, Context)
 
-        if family:
-            cls.inherit_context = None
+        if config:
             return
 
         context = descent.get_context()
@@ -374,20 +395,21 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
         if null_context:
             context = cls._create_context()
 
-        if inherit_context or null_context:
+        if null_context or not new_context:
             cls._context = context
         else:
-            cls._context = cls._create_context(context)
+            cls._context = cls._create_context(context, connect=True)
 
-        cls.inherit_context = None
+        cls.new_context = None
 
         if _generate and not LocalHook.is_prepared(context):
             context = cls.get_context()
-            context_wrapper = cls.context_wrapper
-            if not _is_classmethod(cls, cls.context_wrapper):
-                context_wrapper = functools.partial(context_wrapper, cls)
+            prepare_context = cls.prepare_context
+            if not _is_classmethod(cls, cls.prepare_context):
+                prepare_context = functools.partial(prepare_context, cls)
             original_context = context
-            cls._context = next(context_wrapper(context), original_context)
+            cls._context = next(prepare_context(context), original_context)
+            LocalHook.on_prepare(context)
 
         if clear_init:
             cls.__init__ = arrangement_init
@@ -407,15 +429,15 @@ class ClassArrangement(_BaseArrangement, Generic[CT]):
         return self._get_subcontexts()
 
     @property
-    def inherits_context(self: ClassArrangement[CT]) -> bool:
-        return self.inherit_context
+    def has_new_context(self: ClassArrangement[CT]) -> bool:
+        return self.new_context
 
 
-class Arrangement(ClassArrangement, Generic[CT], irregular=True):
+class Arrangement(ClassArrangement, Generic[CT], non_arrangement=True):
     # TODO: context wrappers fail
 
     descent: Arrangement | None
-    _inherits_context: bool = True
+    _new_context: bool = True
     _generate: bool = True
 
     def __init__(self: Arrangement[CT], descent: Arrangement[CT] | None = None):
@@ -426,28 +448,28 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
             descent: Arrangement | None = None,
             clear_init: bool = False,
             context_class: Type[CT] | None = None,
-            family: bool = False,
-            irregular: bool = False,
+            config: bool = False,
+            non_arrangement: bool = False,
             _generate: bool = _generate,
             _check_descent_type: Literal[True] = True
     ):
-        if irregular:
+        if non_arrangement:
             return
 
         context_class = cls._get_context_class(context_class)
-        inherit_context = cls._get_inherit_context()
+        new_context = cls._get_new_context()
 
         cls.context_class = None
-        cls.inherit_context = True
+        cls.new_context = False
 
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, family=family, irregular=irregular,
+            context_class=MemoryDictContext, config=config, non_arrangement=non_arrangement,
             _generate=False, _check_descent_type=False,
         )
 
         cls.context_class = context_class
-        cls._inherits_context = inherit_context
+        cls._new_context = new_context
         cls._generate = _generate
 
     def __new__(cls, *args, **kwargs):
@@ -456,7 +478,7 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
         else:
             descent = None
 
-        inherit_context = cls._inherits_context
+        new_context = cls._new_context
 
         fixed_type = getattr(cls, 'descent_type', None)
         if None not in (descent, fixed_type):
@@ -473,7 +495,7 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
         if contexts is None:
             raise TypeError('abstract class')
 
-        if inherit_context and descent is not None:
+        if not new_context and descent is not None:
             context = contexts.get(descent)
             if context is None:
                 context = descent.get_context()[descent]
@@ -488,24 +510,24 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
         if cls._generate:
 
             with self._context_lock:
-                unprepared = LocalHook.is_prepared(context)
+                unprepared = not LocalHook.is_prepared(context)
                 if unprepared:
-                    context_wrapper = cls.context_wrapper
+                    prepare_context = cls.prepare_context
                     if (
-                            _is_classmethod(cls, context_wrapper)
-                            or isinstance(context_wrapper, staticmethod)
+                            _is_classmethod(cls, prepare_context)
+                            or isinstance(prepare_context, staticmethod)
                     ):
-                        context_wrapper = functools.partial(context_wrapper)
+                        prepare_context = functools.partial(prepare_context)
                     else:
-                        context_wrapper = functools.partial(context_wrapper, self)
+                        prepare_context = functools.partial(prepare_context, self)
                     original_context = context
-                    contexts[self] = context = next(context_wrapper(context), original_context)
+                    contexts[self] = context = next(prepare_context(context), original_context)
                     LocalHook.on_prepare(context)
 
         cls._connect_contexts(context)
         return self
 
-    def context_wrapper(self, context: CT) -> Generator[CT]:
+    def prepare_context(self, context: CT) -> Generator[CT]:
         yield context
 
     @classmethod
@@ -541,8 +563,8 @@ class Arrangement(ClassArrangement, Generic[CT], irregular=True):
         return self._get_subcontexts(self)
 
     @property
-    def inherits_context(self: Arrangement[CT]) -> bool:
-        return self._inherits_context
+    def has_new_context(self: Arrangement[CT]) -> bool:
+        return self._new_context
 
 
 def create_context(
@@ -577,7 +599,7 @@ def wrap_to_arrangement(
     if env is None:
         env = {}
 
-    cls = type(name, (super_class,), env, family=True, context_class=context_class)
+    cls = type(name, (super_class,), env, config=True, context_class=context_class)
     cls.context: context_class  # noqa
     doc and setattr(cls, '__doc__', doc)
 

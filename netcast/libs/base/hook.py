@@ -5,7 +5,7 @@ from netcast.arrangements import Arrangement
 from netcast.contexts import DictContext
 
 
-class Hook(Arrangement, family=True):
+class Hook(Arrangement, config=True):
     """Before send/after receive data handler."""
     source: ClassVar[Any]
     """
@@ -17,7 +17,7 @@ class Hook(Arrangement, family=True):
 
 
 class ReceiveHook(Hook):
-    inherit_context = False
+    new_context = True
 
     def on_receive(self, data, **params):
         """
@@ -28,7 +28,7 @@ class ReceiveHook(Hook):
 
 
 class SendHook(Hook):
-    inherit_context = False
+    new_context = True
 
     def on_send(self, data, **params):
         """

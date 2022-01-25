@@ -14,7 +14,9 @@ import sys
 import threading
 import warnings
 from types import FunctionType, MethodType
-from typing import Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
+from typing import (
+    MutableSequence, Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
+)
 
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
@@ -59,12 +61,12 @@ __all__ = (
     'SIOContext',
     'SSLSockContext',
     'SSLSocketContext',
-    'SingleSubDirectedContextMixin',
+    'SinglyDownwardContextMixin',
     'SockContext',
     'SocketContext',
     'StringIOContext',
-    'SubDirectedContextMixin',
-    'SupDirectedContextMixin',
+    'DownwardContextMixin',
+    'UpwardContextMixin',
     'wrap_to_context'
 )
 
@@ -270,10 +272,10 @@ class Context(metaclass=abc.ABCMeta):
     (or use a built-in boilerplate saver, :func:`wrap_to_context`).
     """
 
-    def _visit_supercontext(self, supercontext: Context, key: Union[Callable, None] = None):
+    def _connect_supercontext(self, supercontext: Context, final_key: Any | None = None):
         """Handle a supercontext. Handful for creating traversable context trees."""
 
-    def _visit_subcontext(self, subcontext: Context, key: Union[Callable, None] = None):
+    def _connect_subcontext(self, subcontext: Context, final_key: Any | None = None):
         """Handle a subcontext. Handful for creating traversable context trees."""
 
 
@@ -415,76 +417,76 @@ DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
 DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name='DictContext')
 
 
-class SupDirectedContextMixin(Context):
+class UpwardContextMixin(Context):
     """
     A context mixin that can access its supercontext via '_' key.
     You can set your own supercontext key, however.
 
     Used solely, it behaves like a linked list.
     """
-    __setitem__: Callable
     _supercontext_key: Any = '_'
 
-    def _visit_supercontext(self, supercontext, key=None):
-        if key is None:
-            key = self._supercontext_key
-        self[key] = supercontext
+    def _connect_supercontext(
+            self: UpwardContextMixin | MutableSequence, 
+            supercontext: Context, 
+            final_key: _supercontext_key | None = None
+    ):
+        if final_key is None:
+            final_key = self._supercontext_key
+        self[final_key] = supercontext
 
 
-class SingleSubDirectedContextMixin(Context):
+class SinglyDownwardContextMixin(Context):
     """
     A context that can access its subcontext via '__' key.
     You can set your own subcontext key, however.
     
     Used solely, it behaves like a linked list.
     """
-    __setitem__: Callable
     _subcontext_key: Any = '__'
 
-    def _visit_subcontext(self, subcontext, key=None):
-        if key is None:
-            key = self._subcontext_key
-        self[key] = subcontext
+    def _connect_subcontext(
+            self: SinglyDownwardContextMixin | MutableSequence,
+            subcontext: Context, 
+            final_key: _subcontext_key | None = None
+    ):
+        if final_key is None:
+            final_key = self._subcontext_key
+        self[final_key] = subcontext
 
 
-class SubDirectedContextMixin(Context):
+class DownwardContextMixin(Context):
     """
     A context that can access its subcontexts via '__' key.
     You can set your own subcontexts key, however.
     """
-    __setitem__: Callable
-    __getitem__: Callable
     _subcontext_key: Any = '__'
 
-    def _visit_subcontext(self, subcontext, key=None):
-        if key is None:
-            key = self._subcontext_key
-        if hasattr(self, 'setdefault'):
-            self.setdefault(key, [])
-        elif key not in self:
-            self[key] = []
-        self[key].append(subcontext)
+    def _connect_subcontext(
+            self: DownwardContextMixin | MutableSequence, 
+            subcontext: Context, 
+            final_key: _subcontext_key | None = None
+    ):
+        if final_key is None:
+            final_key = self._subcontext_key
+        if final_key not in self:
+            self[final_key] = []
+        self[final_key].append(subcontext)
 
 
-class RootedTreeContextMixin(
-    SupDirectedContextMixin,
-    SubDirectedContextMixin
-):
+class RootedTreeContextMixin(UpwardContextMixin, DownwardContextMixin):
     """A context mixin that can be traversed like a rooted tree."""
 
 
-class DoublyLinkedListContextMixin(
-    SupDirectedContextMixin,
-    SingleSubDirectedContextMixin
-):
+class DoublyLinkedListContextMixin(UpwardContextMixin, SinglyDownwardContextMixin):
     """A context mixin that can be traversed like a doubly linked list."""
 
 
-LinkedListContextMixin = SingleSubDirectedContextMixin
+LinkedListContextMixin = SinglyDownwardContextMixin
 
 _ = wrap_to_context
 
-ConstructContext = _((SupDirectedContextMixin, collections.OrderedDict, AttributeDict))
+ConstructContext = _((UpwardContextMixin, collections.OrderedDict, AttributeDict))
 ByteArrayContext = _(bytearray, _list_hooked_methods, name='ByteArrayContext')
 MemoryDictContext = _(MemoryDict, _dict_hooked_methods)
 QueueContext = _(queue.Queue, _queue_hooked_methods)
