@@ -1,2 +1,2 @@
 # netcast
-Create data structures and send it over the network easily with the netcast serialize &amp; reinterpret system.
+Create data structures and send it over the network easily with the netcast dump and load system.
