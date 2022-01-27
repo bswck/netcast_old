@@ -244,8 +244,8 @@ class ClassArrangement(_BaseArrangement):
         return context_class
 
     @classmethod
-    def prepare_context(cls, context) -> Generator[CT]:
-        yield context
+    def preprocess_context(cls, context) -> Generator[CT]:
+        return context
 
     def __init_subclass__(
             cls,
@@ -296,11 +296,10 @@ class ClassArrangement(_BaseArrangement):
 
         if _generate and not LocalHook.is_prepared(context):
             context = cls.get_context()
-            prepare_context = cls.prepare_context
-            if not _is_classmethod(cls, cls.prepare_context):
-                prepare_context = functools.partial(prepare_context, cls)
-            original_context = context
-            cls._context = next(prepare_context(context), original_context)
+            preprocess = cls.preprocess_context
+            if not _is_classmethod(cls, cls.preprocess_context):
+                preprocess = functools.partial(preprocess, cls)
+            cls._context = preprocess(context)
             LocalHook.on_prepare(context)
 
         if clear_init:
@@ -404,23 +403,22 @@ class Arrangement(ClassArrangement, non_arrangement=True):
             with self._context_lock:
                 unprepared = not LocalHook.is_prepared(context)
                 if unprepared:
-                    prepare_context = cls.prepare_context
+                    preprocess = cls.preprocess_context
                     if (
-                            _is_classmethod(cls, prepare_context)
-                            or isinstance(prepare_context, staticmethod)
+                            _is_classmethod(cls, preprocess)
+                            or isinstance(preprocess, staticmethod)
                     ):
-                        prepare_context = functools.partial(prepare_context)
+                        preprocess = functools.partial(preprocess)
                     else:
-                        prepare_context = functools.partial(prepare_context, self)
-                    original_context = context
-                    contexts[self] = context = next(prepare_context(context), original_context)
+                        preprocess = functools.partial(preprocess, self)
+                    contexts[self] = context = preprocess(context)
                     LocalHook.on_prepare(context)
 
         cls._connect_contexts(context)
         return self
 
-    def prepare_context(self, context: CT) -> Generator[CT]:
-        yield context
+    def preprocess_context(self, context: CT) -> Generator[CT]:
+        return context
 
     @classmethod
     def get_context(cls, self: Arrangement | None = None) -> CT:

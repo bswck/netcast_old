@@ -266,7 +266,7 @@ def wrap_method(
                 precede_coroutine = precede_hook(self, bound_method, *args, **kwargs)
                 if inspect.isawaitable(precede_coroutine):
                     await precede_coroutine
-            res = missing = object()
+            res = missing = Symbol()
             try:
                 res = await func(self, *args, **kwargs)
             finally:
@@ -460,7 +460,6 @@ AsyncioQueueContext = _(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueue
 AsyncioPriorityQueueContext = _(
     asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext'
 )
-async_safe(AsyncioPriorityQueueContext)
 AsyncioLifoQueueContext = _(
     asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext'
 )
