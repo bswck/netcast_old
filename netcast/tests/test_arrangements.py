@@ -458,7 +458,7 @@ class TestArrangement:
             new_context = True
 
         csa1 = CSA1()
-        csa2 = CSA2(csa1)
+        csa2 = CSA2(csa1)  # type: ignore
 
         # Initially, we test if all that's primary works OK
         assert csa1.context is not csa2.context
@@ -474,7 +474,7 @@ class TestArrangement:
 
         assert csa2.context.test_item is test_val
         assert csa2.context._.test_item is test_val
-        assert csa2.supercontext.test_item is csa2.context.test_item
+        assert csa2.supercontext.test_item is csa2.context.test_item  # type: ignore
 
     @pytest.mark.asyncio
     async def test_asyncio_queue_arrangement(self):

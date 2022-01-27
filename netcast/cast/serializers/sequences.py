@@ -1,10 +1,10 @@
 import abc
 import collections.abc
 
-from netcast.cast.datatype import DataType
+from netcast.cast.serializer import Serializer
 
 
-class Sequence(DataType, abc.ABC):
+class Sequence(Serializer, abc.ABC):
     """Base class for all sequence types."""
     __origin_type__ = collections.abc.Sequence
     new_context = True

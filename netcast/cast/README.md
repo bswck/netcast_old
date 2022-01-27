@@ -5,7 +5,7 @@ sample 1.
 
 ```py
 from netcast.cast import metadata
-from netcast.cast.abcs import Auto, Byte
+from netcast.cast.serializers import Auto, Byte
 from netcast.cast.engine import get_engine
 
 

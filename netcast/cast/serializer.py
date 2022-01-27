@@ -45,11 +45,11 @@ class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
         """Reshape a value to suppress the errors."""
         return obj
 
-    def validate(self, obj: Load | Dump, **dump_or_load):
+    def validate(self, obj: Load | Dump, **dump_xor_load):
         """Validate an object and return it."""
-        if len(set(dump_or_load).intersection(('load', 'dump'))) != 1:
+        if len(set(dump_xor_load).intersection(('load', 'dump'))) != 1:
             raise ValueError('load=True xor dump=True must be set')
-        load = dump_or_load.get('load', False)
+        load = dump_xor_load.get('load', False)
         is_ok = self.validate_load(obj) if load else self.validate_dump(obj)
         if self.policy is ConstraintPolicy.ignore or is_ok:
             return obj
@@ -79,18 +79,18 @@ class TypeArrangement(ClassArrangement, config=True):
         return cls.__type_key__
 
 
-class DataType(TypeArrangement, metaclass=abc.ABCMeta):
+class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
     constraints: ClassVar[tuple[Constraint[Load, Dump], ...]] = ()
 
     def __init__(self, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
 
     def __init_subclass__(cls, **kwargs):
-        if cls.__base__ is not DataType and cls.new_context is None:
+        if cls.__base__ is not Serializer and cls.new_context is None:
             cls.new_context = True
         super().__init_subclass__(**kwargs)
 
-    def copy(self, deep=False, **cfg: Any) -> DataType:  # [Origin, Cast]:
+    def copy(self, deep=False, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         """Copy this type."""
         if deep:
             new_cfg = {**copy.deepcopy(self.cfg), **cfg}
@@ -127,5 +127,5 @@ class DataType(TypeArrangement, metaclass=abc.ABCMeta):
             load = constraint.validate(load, load=True)
         return load
 
-    def __call__(self, **cfg: Any) -> DataType:  # [Origin, Cast]:
+    def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         return self.copy(**cfg)
