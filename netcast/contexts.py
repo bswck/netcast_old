@@ -62,14 +62,14 @@ class ContextManagerPool:
                     self._class_cms.setdefault(context, [])
                     self._class_cms[context].append(cm())
 
-    def get_base_cms(self, context):
+    def _get_cms(self, context):
         if self.per_instance_cms:
             return self._instance_cms[context]
         return self._class_cms[type(context)]
 
     def get_cms(self, context, method_name=None):
         if method_name is None:
-            return self.get_base_cms(context)
+            return self._get_cms(context)
 
         if isinstance(method_name, (FunctionType, MethodType)):
             method_name = method_name.__name__
@@ -79,10 +79,10 @@ class ContextManagerPool:
             if method_name in cms:
                 return cms[method_name]
 
-        return self.get_base_cms(context)
+        return self._get_cms(context)
 
     @staticmethod
-    def enter_one(cm):
+    def _enter(cm):
         enter_value = None
         if cm is not None:
             enter_cm = getattr(cm, '__enter__', getattr(cm, '__aenter__', None))
@@ -92,10 +92,10 @@ class ContextManagerPool:
 
     def enter(self, context, method_name=None):
         cms = self.get_cms(context, method_name=method_name)
-        return list(map(self.enter_one, cms))
+        return list(map(self._enter, cms))
 
     @staticmethod
-    def exit_one(cm, exc_info=(None, None, None)):
+    def _exit(cm, exc_info=(None, None, None)):
         exit_value = None
         if cm is not None:
             exit_cm = getattr(cm, '__exit__', getattr(cm, '__aexit__', None))
@@ -111,7 +111,7 @@ class ContextManagerPool:
             exit_value = None
             exc_values = value
             try:
-                exit_value = self.exit_one(cm=element, exc_info=value)  # but it might be a coro!
+                exit_value = self._exit(cm=element, exc_info=value)  # but it might be a coro!
             except Exception:
                 exc_values = sys.exc_info()
             finally:
@@ -223,7 +223,7 @@ def append_cm_pool(context_class, cm_class, per_instance=True, methods=None, nam
 
 
 thread_safe = functools.partial(append_cm_pool, cm_class=threading.RLock)
-greenlet_safe = functools.partial(append_cm_pool, cm_class=asyncio.Lock)
+async_safe = functools.partial(append_cm_pool, cm_class=asyncio.Lock)
 
 
 class Context(metaclass=abc.ABCMeta):
@@ -460,6 +460,7 @@ AsyncioQueueContext = _(asyncio.Queue, _queue_hooked_methods, name='AsyncioQueue
 AsyncioPriorityQueueContext = _(
     asyncio.PriorityQueue, _queue_hooked_methods, name='AsyncioPriorityQueueContext'
 )
+async_safe(AsyncioPriorityQueueContext)
 AsyncioLifoQueueContext = _(
     asyncio.LifoQueue, _queue_hooked_methods, name='AsyncioLifoQueueContext'
 )
@@ -467,6 +468,7 @@ FileIOContext = _(io.FileIO, _io_hooked_methods)
 BytesIOContext = _(io.BytesIO, _io_hooked_methods)
 StringIOContext = _(io.StringIO, _io_hooked_methods)
 SocketContext = _(socket.socket, _socket_hooked_methods)
+
 SSLSocketContext = _(ssl.SSLSocket, _socket_hooked_methods)
 CounterContext = _(collections.Counter, _counter_hooked_methods)
 
