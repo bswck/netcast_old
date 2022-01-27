@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import copy
 import enum
-from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, Union
+from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
 from netcast.toolkit.collections import AttributeDict
