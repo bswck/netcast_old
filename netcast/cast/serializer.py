@@ -32,7 +32,8 @@ class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
             if policy not in valid_opts:
                 raise ValueError(f'invalid constraint policy: {policy!r}')
             policy = valid_opts[policy]
-
+        elif policy is None:
+            policy = ConstraintPolicy.strict
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
         self.policy = policy
 
