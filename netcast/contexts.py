@@ -21,53 +21,16 @@ from typing import (
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
 __all__ = (
-    'ALQContext',
-    'APQContext',
-    'AQContext',
-    'AsyncioLifoQueueContext',
-    'AsyncioPriorityQueueContext',
-    'AsyncioQueueContext',
-    'BAContext',
-    'BContext',
-    'BIOContext',
-    'ByteArrayContext',
-    'ByteContext',
-    'BytesIOContext',
-    'CT',
-    'CContext',
-    'ConstructContext',
-    'Context',
-    'ContextManagerPool',
-    'CounterContext',
-    'DContext',
-    'DQContext',
-    'DequeContext',
-    'DictContext',
-    'DoublyLinkedListContextMixin',
-    'FIOContext',
-    'FileIOContext',
-    'LContext',
-    'LQContext',
-    'LifoQueueContext',
-    'LinkedListContextMixin',
-    'ListContext',
-    'MDContext',
-    'MemoryDictContext',
-    'PQContext',
-    'PriorityQueueContext',
-    'QContext',
-    'QueueContext',
-    'RootedTreeContextMixin',
-    'SIOContext',
-    'SSLSockContext',
-    'SSLSocketContext',
-    'SinglyDownwardContextMixin',
-    'SockContext',
-    'SocketContext',
-    'StringIOContext',
-    'DownwardContextMixin',
-    'UpwardContextMixin',
-    'wrap_to_context'
+    'ALQContext', 'APQContext', 'AQContext', 'AsyncioLifoQueueContext',
+    'AsyncioPriorityQueueContext', 'AsyncioQueueContext', 'BAContext', 'BContext', 'BIOContext',
+    'ByteArrayContext', 'ByteContext', 'BytesIOContext', 'CT', 'CContext', 'ConstructContext',
+    'Context', 'ContextManagerPool','CounterContext', 'DContext', 'DQContext', 'DequeContext',
+    'DictContext', 'DoublyLinkedListContextMixin', 'FIOContext', 'FileIOContext', 'LContext',
+    'LQContext', 'LifoQueueContext', 'LinkedListContextMixin', 'ListContext', 'MDContext',
+    'MemoryDictContext', 'PQContext', 'PriorityQueueContext', 'QContext', 'QueueContext',
+    'RootedTreeContextMixin', 'SIOContext', 'SSLSockContext', 'SSLSocketContext',
+    'SinglyDownwardContextMixin', 'SockContext', 'SocketContext', 'StringIOContext',
+    'DownwardContextMixin', 'UpwardContextMixin', 'wrap_to_context'
 )
 
 
@@ -296,20 +259,21 @@ def wrap_method(
         )
 
     if inspect.iscoroutinefunction(func):
+
         async def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
             if callable(precede_hook):
-                precede_greenlet = precede_hook(self, bound_method, *args, **kwargs)
-                if inspect.isawaitable(precede_greenlet):
-                    await precede_greenlet
+                precede_coroutine = precede_hook(self, bound_method, *args, **kwargs)
+                if inspect.isawaitable(precede_coroutine):
+                    await precede_coroutine
             res = missing = object()
             try:
                 res = await func(self, *args, **kwargs)
             finally:
                 if callable(finalize_hook):
-                    finalize_greenlet = finalize_hook(self, bound_method, *args, **kwargs)
-                    if inspect.isawaitable(finalize_greenlet):
-                        await finalize_greenlet
+                    finalize_coroutine = finalize_hook(self, bound_method, *args, **kwargs)
+                    if inspect.isawaitable(finalize_coroutine):
+                        await finalize_coroutine
                 if res is missing:
                     raise
                 return res
@@ -364,9 +328,9 @@ def wrap_to_context(
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError('at least 1 base class is required')
-        cls = bases[0]
-        if len(bases) == 1:
+        if Context not in bases:  # for safety
             bases += (Context,)
+        cls = bases[0]
     else:
         cls = bases
         bases = (cls, Context)
