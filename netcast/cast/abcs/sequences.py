@@ -1,11 +1,12 @@
 import abc
+import collections.abc
 
 from netcast.cast.datatype import DataType
 
 
 class Sequence(DataType, abc.ABC):
     """Base class for all sequence types."""
-    __type_key__ = 'sequence'
+    __origin_type__ = collections.abc.Sequence
     new_context = True
 
 
@@ -26,17 +27,14 @@ class Tuple(Sequence, abc.ABC):
 
 class String(Sequence, abc.ABC):
     """Base class for all strings."""
-    __type_key__ = 'string'
     __origin_type__ = str
 
 
 class Bytes(Sequence, abc.ABC):
     """Base class for all byte strings."""
-    __type_key__ = 'bytestring'
     __origin_type__ = bytes
 
 
 class ByteArray(Sequence, abc.ABC):
-    """Base class for all byte strings."""
-    __type_key__ = 'bytearray'
+    """Base class for all byte arrays."""
     __origin_type__ = bytearray
