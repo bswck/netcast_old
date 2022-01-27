@@ -73,7 +73,7 @@ class TypeArrangement(ClassArrangement, config=True):
         if cls.__type_key__ == getattr(cls.__base__, '__type_key__', None):
             orig_type = cls.__origin_type__
             if orig_type is not None:
-                cls.__type_key__ = orig_type.__name__
+                cls.__type_key__ = orig_type
         return cls.__type_key__
 
 
