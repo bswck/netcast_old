@@ -4,16 +4,17 @@ import abc
 import collections
 import functools
 import math
-from typing import Type
+from typing import Type, Literal
 
 from netcast.cast.serializer import Serializer, Constraint, ConstraintError
 from netcast.toolkit import strings
 from netcast.toolkit.symbol import Symbol
+from netcast.toolkit.collections import classproperty
 
 bounds = collections.namedtuple('bounds', 'min_val max_val')
 
 
-class IntConstraint(Constraint):
+class RealNumberConstraint(Constraint):
     def validate_load(self, load):
         min_val, max_val = self.cfg.min_val, self.cfg.max_val
         if min_val <= load <= max_val:
@@ -33,28 +34,59 @@ class Primitive(Serializer, abc.ABC):
 
     new_context = True
 
+    @classproperty
+    def constraints(cls):
+        return ()
 
-class BaseInt(Primitive, abc.ABC):
-    """Base integer """
-    __load_type__ = int
+    # TODO(bswck): Is it worth it to implement the sizeof?
+    # @classmethod
+    # def sizeof(cls) -> int:
+    #     raise NotImplementedError
+
+
+class Real(Primitive, abc.ABC):
+    __load_type__ = Symbol('Real')
 
     bit_length = math.inf
     bounds = bounds(-math.inf, math.inf)
 
-    @classmethod
-    def sizeof(cls):
-        if math.inf in cls.bounds or -math.inf in cls.bounds:
-            return math.inf
-        return cls.bit_length // 8
+    @classproperty
+    def constraints(cls):
+        return RealNumberConstraint(**cls.bounds._asdict()),
+
+
+SignedReal = Real
+
+
+def _get_real_serializer_name(
+        size: int,
+        type_name: Literal['Int', 'Float'],
+        signed: bool = True
+) -> str:
+    name = 'Signed' if signed else ''
+    name += type_name
+    if size:
+        name += str(size)
+    return name
+
+
+class BaseInt(Real, abc.ABC):
+    """Base integer """
+    __load_type__ = int
+
+    # @classmethod
+    # def sizeof(cls):
+    #     if math.inf in cls.bounds or -math.inf in cls.bounds:
+    #         return math.inf
+    #     return cls.bit_length // 8
 
 
 class UnsignedBaseInt(BaseInt, abc.ABC):
     bounds = bounds(0, math.inf)
-    constraints = (IntConstraint(**bounds._asdict()),)
 
 
 @functools.lru_cache
-def _factorize_constraint(bit_length: int , signed: bool = True):
+def factorize_int_constraint(bit_length: int, signed: bool = True):
     if bit_length:
         pow2 = 2 ** bit_length
         if signed:
@@ -69,20 +101,12 @@ def _factorize_constraint(bit_length: int , signed: bool = True):
     else:
         constraint_bounds = UnsignedBaseInt.bounds
         bit_length = math.inf
-    return IntConstraint(bit_length=bit_length, **constraint_bounds._asdict())
-
-
-def _get_int_serializer_name(size: int, signed: bool = True) -> str:
-    name = 'Signed' if signed else ''
-    name += 'Int'
-    if size:
-        name += str(size)
-    return name
+    return RealNumberConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
 def int_serializer(bit_length, signed=True) -> Type[BaseInt] | type:
-    constraint = _factorize_constraint(bit_length, signed=signed)
-    name = _get_int_serializer_name(bit_length, signed=signed)
+    constraint = factorize_int_constraint(bit_length, signed=signed)
+    name = _get_real_serializer_name(bit_length, type_name='Int', signed=signed)
     serializer = type(name, (BaseInt, abc.ABC), {'constraints': (constraint,)})
     serializer.bounds = bounds(constraint.cfg.min_val, constraint.cfg.max_val)
     serializer.bit_length = constraint.cfg.bit_length
@@ -109,7 +133,7 @@ UnsignedInt128 = int_serializer(128, signed=False)
 UnsignedInt256 = int_serializer(256, signed=False)
 UnsignedInt512 = int_serializer(512, signed=False)
 
-# aliases
+# A few aliases for the easier implementation of serializers of C-like protocols.
 Byte = SignedByte = Char = SignedChar = SignedInt8
 UnsignedByte = UnsignedChar = UnsignedInt8
 
@@ -119,3 +143,12 @@ Signed = SignedInt = SignedLong = SignedLongInt = Int32
 Unsigned = UnsignedInt = UnsignedLong = UnsignedLongInt = UnsignedInt32
 LongLong = SignedLongLong = SignedLongLongInt = Int64
 UnsignedLongLong = UnsignedLongLongInt = UnsignedInt64
+
+
+class BaseFloat(Real, abc.ABC):
+    __load_type__ = float
+
+
+class UnsignedBaseFloat(Real, abc.ABC):
+    __load_type__ = float
+    bounds = bounds(0, math.inf)

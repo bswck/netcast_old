@@ -6,6 +6,7 @@ import enum
 from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
+from netcast.cast.plugin import Plugin, get_plugins
 from netcast.toolkit.collections import AttributeDict
 
 Load = TypeVar('Load')
@@ -93,17 +94,36 @@ class TypeArrangement(ClassArrangement, config=True):
 
 
 class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
-    """A base class for all serializers. A good serializer can dump and load stuff."""
+    """
+    A base class for all serializers. A good serializer can dump and load stuff.
+    """
 
     constraints: ClassVar[tuple[Constraint[Load, Dump], ...]] = ()
+    plugins: ClassVar[tuple[Plugin, ...]] = ()
 
     def __init__(self, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
+        self.plugged = (super(self, plug) for plug in self.plugins)
 
-    def __init_subclass__(cls, **kwargs):
-        """A subclass hook for DRY."""
+    def __init_subclass__(
+            cls,
+            **kwargs: Any
+    ):
+        plugins = ()
         if cls.__base__ is not Serializer and cls.new_context is None:
             cls.new_context = True
+            cls.plugins = plugins = get_plugins(cls)
+        for plugin in plugins:
+            for attr, feature in plugin.exported_features.items():
+                if attr in vars(Serializer):
+                    raise ValueError('exported feature attribute name is illegal')
+                if hasattr(cls, attr) and not feature.override:
+                    if not feature.skip_if_taken:
+                        raise ValueError(
+                            'feature has already been added. Set override=True to '
+                            'override all the features'
+                        )
+                setattr(cls, attr, feature)
         super().__init_subclass__(**kwargs)
 
     def copy(self, deep=False, **cfg: Any) -> Serializer:  # [Origin, Cast]:
@@ -118,20 +138,34 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         return new
 
     # @abc.abstractmethod
-    def _dump(self, load: Load) -> Dump:
+    def _default_cast(self, load_or_dump: Load | Dump) -> Load | Dump:
         raise NotImplementedError
 
+    _dump = _default_cast
+    _load = _default_cast
+
     # @abc.abstractmethod
-    def _load(self, dump: Dump) -> Load:
+    async def _default_cast_async(self, load_or_dump: Load | Dump) -> Load | Dump:
         raise NotImplementedError
+
+    _dump_async = _default_cast_async
+    _load_async = _default_cast_async
 
     def validate_dump(self, dump: Dump):
         for constraint in self.constraints:
             constraint.validate(dump, dump=True)
 
+    async def validate_dump_async(self, dump: Dump):
+        for constraint in self.constraints:
+            await constraint.validate(dump, dump=True)
+
     def validate_load(self, load: Load):
         for constraint in self.constraints:
             constraint.validate(load, load=True)
+
+    async def validate_load_async(self, load: Load):
+        for constraint in self.constraints:
+            await constraint.validate(load, load=True)
 
     def dump(self, loaded: Load) -> Dump:
         """Cast an origin value to the cast type."""
@@ -140,11 +174,25 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         self.validate_dump(dump)
         return dump
 
+    async def dump_async(self, loaded: Load) -> Dump:
+        """Cast an origin value to the cast type."""
+        await self.validate_load_async(loaded)
+        dump = await self._dump_async(loaded)
+        await self.validate_dump_async(dump)
+        return dump
+
     def load(self, dump: Dump) -> Load:
         """Cast an origin value to the cast type."""
         self.validate_dump(dump)
         loaded = self._load(dump)
         self.validate_load(loaded)
+        return loaded
+
+    async def load_async(self, dump: Dump) -> Load:
+        """Cast an origin value to the cast type."""
+        await self.validate_dump_async(dump)
+        loaded = await self._load_async(dump)
+        await self.validate_load_async(loaded)
         return loaded
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:

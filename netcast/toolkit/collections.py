@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import functools
 from typing import Callable
 
 from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
@@ -243,3 +244,12 @@ class ForwardDependency:
                 else self.dependent_class()
             )
         return self.cache[instance]
+
+
+class ClassProperty(classmethod):
+    def __get__(self, instance, owner=None):
+        return self.__func__(type(instance))
+
+
+# noinspection SpellCheckingInspection
+classproperty = ClassProperty
