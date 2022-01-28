@@ -8,12 +8,13 @@ class Symbol:
 
     __cache = {}
 
-    name: str = dataclasses.field(default='_')
+    __name_default = '_'
+    name: str = dataclasses.field(default=__name_default)
 
     def __post_init__(self):
         self.__cache[self.name] = self
 
-    def __new__(cls, name):
+    def __new__(cls, name=__name_default):
         name = sys.intern(name)
         if name in cls.__cache:
             return cls.__cache[name]
