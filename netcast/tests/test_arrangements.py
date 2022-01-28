@@ -131,11 +131,7 @@ class TestClassArrangement:
         from netcast.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
-            @classmethod
-            def prepare_context(cls, context):
-                for key, default in {'pings': 0, 'pongs': 0}.items():
-                    context.setdefault(key, default)
-                yield context
+            context_params = Params.from_args(pings=0, pongs=0)
 
             def ping(self):
                 self.context.pings += 1
