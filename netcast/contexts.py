@@ -18,6 +18,7 @@ from typing import (
     MutableSequence, Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
 )
 
+from netcast.toolkit.symbol import Symbol
 from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
 
 __all__ = (
