@@ -26,14 +26,12 @@ class ConstraintError(ValueError):
 
 
 class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
-    def __init__(self, policy: _Policies | ConstraintPolicy | None = 'strict', **cfg: Any):
+    def __init__(self, policy: _Policies | ConstraintPolicy = 'strict', **cfg: Any):
         if isinstance(policy, str):
             valid_opts = ConstraintPolicy._value2member_map_
             if policy not in valid_opts:
                 raise ValueError(f'invalid constraint policy: {policy!r}')
             policy = valid_opts[policy]
-        elif policy is None:
-            policy = ConstraintPolicy.strict
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
         self.policy = policy
 
@@ -129,7 +127,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
     def validate_dump(self, dump: Dump):
         for constraint in self.constraints:
-            dump = constraint.validate(dump, dump=True)
+            constraint.validate(dump, dump=True)
 
     def validate_load(self, load: Load):
         for constraint in self.constraints:

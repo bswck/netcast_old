@@ -30,14 +30,16 @@ class IntConstraint(Constraint):
 class Primitive(Serializer, abc.ABC):
     """Base class for all Python primitive types."""
     __load_type__ = Symbol('Primitive')
+
     new_context = True
 
 
 class BaseInt(Primitive, abc.ABC):
     """Base integer """
     __load_type__ = int
+
     bit_length = math.inf
-    bounds = (-math.inf, math.inf)
+    bounds = bounds(-math.inf, math.inf)
 
     @classmethod
     def sizeof(cls):
@@ -52,7 +54,7 @@ class UnsignedBaseInt(BaseInt, abc.ABC):
 
 
 @functools.lru_cache
-def _factorize_constraint(bit_length, signed=True):
+def _factorize_constraint(bit_length: int , signed: bool = True):
     if bit_length:
         pow2 = 2 ** bit_length
         if signed:
@@ -70,7 +72,7 @@ def _factorize_constraint(bit_length, signed=True):
     return IntConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
-def _get_int_serializer_name(size, signed=True) -> str:
+def _get_int_serializer_name(size: int, signed: bool = True) -> str:
     name = 'Signed' if signed else ''
     name += 'Int'
     if size:
