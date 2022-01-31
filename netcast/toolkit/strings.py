@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import sys
+
 
 def truncate(
         string: str,
         width: int = 20,
         placeholder: str = '...',
-        stats: str | None = ' (%d truncated)'
+        stats: str | None = ' (%d c. truncated)'
 ) -> str:
     """
     Truncate a string and put the given placeholder in the place of removed characters.
@@ -31,3 +33,19 @@ def truncate(
         if truncated:
             string += stats
     return string
+
+
+if sys.version_info[:2] >= (3, 10):
+    remove_prefix = str.removeprefix
+    remove_suffix = str.removesuffix
+else:
+    def remove_prefix(string, prefix):
+        if string.startswith(prefix):
+            return string[len(prefix):]
+        return string[:]
+
+    def remove_suffix(string, suffix):
+        if string.startswith(suffix):
+            return string[len(suffix):]
+        return string[:]
+

@@ -5,11 +5,12 @@ import functools
 import operator
 import ssl
 import threading
+import weakref
 from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
 
 from netcast.contexts import *
 from netcast.contexts import LocalHook  # noqa
-from netcast.toolkit.collections import MemoryDict, Params
+from netcast.toolkit.collections import IDLookupDictionary, Params
 
 
 __all__ = (
@@ -78,7 +79,7 @@ def bind_factory(
 
 
 class _BaseArrangement:
-    _super_registry: Final[ClassVar[MemoryDict]] = MemoryDict()
+    _super_registry: Final[ClassVar[IDLookupDictionary]] = IDLookupDictionary()
     """Helper dict for managing an arrangement's class attributes."""
 
     _factory_registry: Final[dict] = {}
@@ -254,7 +255,7 @@ class ClassArrangement(_BaseArrangement):
             context_class: Type[CT] | None = None,
             config: bool = False,
             non_arrangement: bool = False,
-            _generate: bool = True,
+            _preprocess: bool = True,
             _check_descent_type: bool = True,
     ):
         """When a new subclass is created, handle its access to the local context."""
@@ -294,13 +295,13 @@ class ClassArrangement(_BaseArrangement):
 
         cls.new_context = None
 
-        if _generate and not LocalHook.is_prepared(context):
+        if _preprocess and not LocalHook.is_preprocessed(context):
             context = cls.get_context()
             preprocess = cls.preprocess_context
             if not _is_classmethod(cls, cls.preprocess_context):
                 preprocess = functools.partial(preprocess, cls)
             cls._context = preprocess(context)
-            LocalHook.on_prepare(context)
+            LocalHook.preprocessed(context)
 
         if clear_init:
             cls.__init__ = arrangement_init
@@ -341,7 +342,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
             context_class: Type[CT] | None = None,
             config: bool = False,
             non_arrangement: bool = False,
-            _generate: bool = _generate,
+            _preprocess: bool = _generate,
             _check_descent_type: Literal[True] = True
     ):
         if non_arrangement:
@@ -356,12 +357,12 @@ class Arrangement(ClassArrangement, non_arrangement=True):
         super().__init_subclass__(
             descent=descent, clear_init=clear_init,
             context_class=MemoryDictContext, config=config, non_arrangement=non_arrangement,
-            _generate=False, _check_descent_type=False,
+            _preprocess=False, _check_descent_type=False,
         )
 
         cls.context_class = context_class
         cls._new_context = new_context
-        cls._generate = _generate
+        cls._generate = _preprocess
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -401,7 +402,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
         if cls._generate:
 
             with self._context_lock:
-                unprepared = not LocalHook.is_prepared(context)
+                unprepared = not LocalHook.is_preprocessed(context)
                 if unprepared:
                     preprocess = cls.preprocess_context
                     if (
@@ -412,7 +413,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
                     else:
                         preprocess = functools.partial(preprocess, self)
                     contexts[self] = context = preprocess(context)
-                    LocalHook.on_prepare(context)
+                    LocalHook.preprocessed(context)
 
         cls._connect_contexts(context)
         return self

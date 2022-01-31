@@ -131,7 +131,7 @@ class TestClassArrangement:
         from netcast.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
-            context_params = Params.from_args(pings=0, pongs=0)
+            context_params = Params.as_called(pings=0, pongs=0)
 
             def ping(self):
                 self.context.pings += 1
@@ -295,7 +295,7 @@ class TestArrangement:
         from netcast.arrangements import DictArrangement
 
         class DA1(DictArrangement):
-            context_params = Params.from_args(pings=0, pongs=0)
+            context_params = Params.as_called(pings=0, pongs=0)
 
             def clear(self):
                 self.context.update(**self.context_params.kwargs)

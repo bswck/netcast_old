@@ -18,20 +18,21 @@ from typing import (
     MutableSequence, Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
 )
 
+from netcast.toolkit import strings
 from netcast.toolkit.symbol import Symbol
-from netcast.toolkit.collections import AttributeDict, MemoryDict, MemoryList
+from netcast.toolkit.collections import AttributeDict, IDLookupDictionary, IDLookupList, Params
 
 __all__ = (
     'ALQContext', 'APQContext', 'AQContext', 'AsyncioLifoQueueContext',
     'AsyncioPriorityQueueContext', 'AsyncioQueueContext', 'BAContext', 'BContext', 'BIOContext',
     'ByteArrayContext', 'ByteContext', 'BytesIOContext', 'CT', 'CContext', 'ConstructContext',
-    'Context', 'ContextManagerPool','CounterContext', 'DContext', 'DQContext', 'DequeContext',
+    'Context', 'ContextManagerPool', 'CounterContext', 'DContext', 'DQContext', 'DequeContext',
     'DictContext', 'DoublyLinkedListContextMixin', 'FIOContext', 'FileIOContext', 'LContext',
     'LQContext', 'LifoQueueContext', 'LinkedListContextMixin', 'ListContext', 'MDContext',
     'MemoryDictContext', 'PQContext', 'PriorityQueueContext', 'QContext', 'QueueContext',
     'RootedTreeContextMixin', 'SIOContext', 'SSLSockContext', 'SSLSocketContext',
     'SinglyDownwardContextMixin', 'SockContext', 'SocketContext', 'StringIOContext',
-    'DownwardContextMixin', 'UpwardContextMixin', 'wrap_to_context'
+    'DownwardContextMixin', 'UpwardContextMixin', 'wrap_method', 'wrap_to_context'
 )
 
 
@@ -43,23 +44,23 @@ class ContextManagerPool:
     methods: list = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
-        self._class_cms = MemoryDict()
-        self._instance_cms = MemoryDict()
-        self._method_cms = MemoryDict()
+        self._class_cms = IDLookupDictionary()
+        self._instance_cms = IDLookupDictionary()
+        self._method_cms = IDLookupDictionary()
 
     def setup_context(self, context):
         for method in self.methods:
             self._method_cms.setdefault(context, {})
-            for cm in self.per_class_cms:  # noo way, that can't be O(n^2) you little bastard
+            for cm in self.per_class_cms:
                 self._method_cms[context].setdefault(method, [])
                 self._method_cms[context][method].append(cm())
         else:
             if self.per_instance_cms and context not in self._instance_cms:
-                for cm in self.per_class_cms:  # stop, ugh!
+                for cm in self.per_class_cms:
                     self._instance_cms.setdefault(context, [])
                     self._instance_cms[context].append(cm())
             elif self.per_class_cms and type(context) not in self._class_cms:
-                for cm in self.per_class_cms:  # ...no.
+                for cm in self.per_class_cms:
                     self._class_cms.setdefault(context, [])
                     self._class_cms[context].append(cm())
 
@@ -108,7 +109,7 @@ class ContextManagerPool:
         sequence = self.get_cms(context, method_name=method_name)
         results = []
 
-        def inner_exit(value, element):
+        def _bulk_exit(value, element):
             exit_value = None
             exc_values = value
             try:
@@ -119,61 +120,60 @@ class ContextManagerPool:
                 results.append(exit_value)
                 return exc_values
 
-        functools.reduce(inner_exit, sequence=sequence, initial=initial_exc_info)
+        functools.reduce(_bulk_exit, sequence=sequence, initial=initial_exc_info)
         return results
 
 
 @final
 class LocalHook:
-    prepared_contexts = MemoryList()
-    cm_pools = MemoryDict()
-    listeners = MemoryDict()
+    _listeners = IDLookupDictionary()
+    _pools = IDLookupDictionary()
+    _preprocessed = IDLookupList()
 
     # Class LocalHook is final, shouldn't those below be static methods?
     @classmethod
     def precede_hook(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified, this method is called."""
-        pool = cls.cm_pools.get(context)
-        if pool:
-            pool.enter(context, func, sys.exc_info())
+        pool = cls._pools.get(context)
+        pool and pool.enter(context, func, sys.exc_info())
 
     @classmethod
     def finalize_hook(cls, context, func, *args, **kwargs):
         """Anytime a context was modified, this method is called."""
-        pool = cls.cm_pools.get(context)
-        if pool:
-            pool.exit(context, func, sys.exc_info())
+        pool = cls._pools.get(context)
+        pool and pool.exit(context, func, sys.exc_info())
 
     @classmethod
     async def async_precede_hook(cls, context, func, *args, **kwargs):
         """Anytime a context is going to be modified asynchronously, this method is called."""
-        pool = cls.cm_pools.get(context)
-        if pool:
-            enter_values = pool.enter(context, func)
-            for enter_value in enter_values:
-                if inspect.isawaitable(enter_value):
-                    await enter_value
+        pool = cls._pools.get(context)
+        if not pool:
+            return
+        enter_values = pool.enter(context, func)
+        for enter_value in enter_values:
+            if inspect.isawaitable(enter_value):
+                await enter_value
 
     @classmethod
     async def async_finalize_hook(cls, context, func, *args, **kwargs):
         """Anytime a context was modified asynchronously, this method is called."""
-        pool = cls.cm_pools.get(context)
-        if pool:
-            exit_values = pool.exit(context, func)
-            for exit_value in exit_values:
-                if inspect.isawaitable(exit_value):
-                    await exit_value
+        pool = cls._pools.get(context)
+        if not pool:
+            return
+        exit_values = pool.exit(context, func)
+        for exit_value in exit_values:
+            if inspect.isawaitable(exit_value):
+                await exit_value
 
     @classmethod
-    def is_prepared(cls, context):
-        return context in cls.prepared_contexts
+    def is_preprocessed(cls, context):
+        return context in cls._preprocessed
 
     @classmethod
-    def on_prepare(cls, context):
-        cls.prepared_contexts.append(context)
-        lock_manager = cls.cm_pools.get(type(context))
-        if lock_manager:
-            lock_manager.setup_context(context)
+    def preprocessed(cls, context):
+        cls._preprocessed.append(context)
+        lock_manager = cls._pools.get(type(context))
+        lock_manager and lock_manager.setup_context(context)
 
 
 def extend_cm_pool(
@@ -189,7 +189,7 @@ def extend_cm_pool(
             per_instance_cms=per_instance_cms,
             methods=methods
         )
-    pool = LocalHook.cm_pools.get(context_class)
+    pool = LocalHook._pools.get(context_class)
     args = map(lambda arg: arg if arg else [], (per_class_cms, per_instance_cms, methods))
     if pool:
         per_class_cms, per_instance_cms, methods = args
@@ -206,7 +206,7 @@ def extend_cm_pool(
             per_instance_cms=per_instance_cms,
             methods=methods
         )
-        LocalHook.cm_pools[context_class] = pool
+        LocalHook._pools[context_class] = pool
     return context_class
 
 
@@ -243,18 +243,20 @@ class Context(metaclass=abc.ABCMeta):
         """Handle a subcontext. Handful for creating traversable context trees."""
 
 
-_WARN_ASYNC_HOOK = 'method must be async in order to invoke async hooks'
+_WARN_ASYNC_HOOK = 'method %s() must be async in order to invoke async hooks'
 
 
 def wrap_method(
         func: Callable,
         precede_hook: Union[Callable, None] = None,
         finalize_hook: Union[Callable, None] = None,
-        cls: type | None = None
+        cls: type | None = None,
+        pass_method: bool = True,
+        finalizer_takes_result: bool = False
 ):
     if func is None:
         raise TypeError(
-            f'method {func!r} '
+            f'method '
             f'{"of " + repr(cls) + " " if cls is not None else ""}'
             f'does not exist'
         )
@@ -263,16 +265,24 @@ def wrap_method(
 
         async def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
+            if pass_method:
+                hook_args = (self, bound_method, *args)
+            else:
+                hook_args = (self, *args)
+            params = Params(args=hook_args, kwargs=kwargs)
             if callable(precede_hook):
-                precede_coroutine = precede_hook(self, bound_method, *args, **kwargs)
+                precede_coroutine = precede_hook(*params.args, **params.kwargs)
                 if inspect.isawaitable(precede_coroutine):
                     await precede_coroutine
             res = missing = Symbol()
             try:
                 res = await func(self, *args, **kwargs)
             finally:
+                if finalizer_takes_result:
+                    hook_args = (self, res, *hook_args[1:])
+                    params = Params(args=hook_args, kwargs=kwargs)
                 if callable(finalize_hook):
-                    finalize_coroutine = finalize_hook(self, bound_method, *args, **kwargs)
+                    finalize_coroutine = finalize_hook(*params.args, **params.kwargs)
                     if inspect.isawaitable(finalize_coroutine):
                         await finalize_coroutine
                 if res is missing:
@@ -280,20 +290,28 @@ def wrap_method(
                 return res
     else:
         if inspect.iscoroutinefunction(precede_hook):
-            warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
+            warnings.warn(_WARN_ASYNC_HOOK % strings.truncate(func.__name__), stacklevel=2)
         if inspect.iscoroutinefunction(finalize_hook):
-            warnings.warn(_WARN_ASYNC_HOOK, stacklevel=2)
+            warnings.warn(_WARN_ASYNC_HOOK % strings.truncate(func.__name__), stacklevel=2)
 
         def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
+            if pass_method:
+                hook_args = (self, bound_method, *args)
+            else:
+                hook_args = (self, *args)
+            params = Params(args=hook_args, kwargs=kwargs)
             if callable(precede_hook):
-                precede_hook(self, bound_method, *args, **kwargs)
-            res = missing = object()
+                precede_hook(*params.args, **params.kwargs)
+            res = missing = Symbol()
             try:
                 res = func(self, *args, **kwargs)
             finally:
+                if finalizer_takes_result:
+                    hook_args = (self, res, *hook_args[1:])
+                    params = Params(args=hook_args, kwargs=kwargs)
                 if callable(finalize_hook):
-                    finalize_hook(self, bound_method, *args, **kwargs)
+                    finalize_hook(*params.args, **params.kwargs)
                 if res is missing:
                     raise
                 return res
@@ -453,7 +471,7 @@ _ = wrap_to_context
 
 ConstructContext = _((UpwardContextMixin, collections.OrderedDict, AttributeDict))
 ByteArrayContext = _(bytearray, _list_hooked_methods, name='ByteArrayContext')
-MemoryDictContext = _(MemoryDict, _dict_hooked_methods)
+MemoryDictContext = _(IDLookupDictionary, _dict_hooked_methods)
 QueueContext = _(queue.Queue, _queue_hooked_methods)
 PriorityQueueContext = _(queue.PriorityQueue, _queue_hooked_methods)
 LifoQueueContext = _(queue.LifoQueue, _queue_hooked_methods)

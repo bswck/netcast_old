@@ -41,26 +41,9 @@ class KeyTransformingDict(_KeyTransformingDict):
             d[k] = f[k]
 
 
-class MemoryDict(KeyTransformingDict):
+class IDLookupDictionary(KeyTransformingDict):
     """
-    A dictionary for storing information about Python objects without comparing themselves,
-    but their "Pythonic" ID.
-    Keys don't have to be hashable, because only their place in memory is stored.
-
-    Examples
-    --------
-    >>> memory_dict = MemoryDict()
-    >>> a = []
-    >>> b = []
-    >>> a == b
-    True
-    >>> memory_dict[a] = 0
-    >>> memory_dict[a]
-    0
-    >>> memory_dict[b]
-    Traceback (most recent call last):
-    ...
-    KeyError: ...
+    A dictionary that uses id() for storing and lookup.
     """
     transform_key = id
 
@@ -154,38 +137,15 @@ class ItemTransformingList(collections.UserList):
         return super().extend(other)
 
 
-class ItemTransformingSet(set):
-    """
-    A set that transforms each item before accepting it.
-    No back transformation.
-    """
-
-    @staticmethod
-    def transform_item(item):
-        return item
-
-    def add(self: set | "ItemTransformingSet", value):
-        value = self.transform_item(value)
-        set.add(self, value)
-
-    def discard(self: set | "ItemTransformingSet", value):
-        value = self.transform_item(value)
-        set.discard(self, value)
-
-
-class MemoryList(ItemTransformingList):
+class IDLookupList(ItemTransformingList):
     """A list for storing Python object ids."""
+    # TODO: use IDLookupSet instead
     transform_item = id
 
     def transform_items(self, items):
         if isinstance(items, type(self)):
             return items
         return super().transform_items(items)
-
-
-class MemorySet(ItemTransformingSet):
-    """A list for storing Python object ids."""
-    transform_item = id
 
 
 class Params:
@@ -203,7 +163,7 @@ class Params:
         yield from self_as_tuple
 
     @classmethod
-    def from_args(cls, *args, **kwargs):
+    def as_called(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
 
     @property
@@ -217,38 +177,38 @@ class Params:
 
 class ForwardDependency:
     def __init__(self, dependent_class=None, unbound=None):
-        self.dependent_class = None
-        self.cache = MemoryDict()
-        self.unbound = unbound
+        self.__dependent_class = None
+        self.__cache = IDLookupDictionary()
+        self.__unbound = unbound
 
         self.dependency(dependent_class)
 
     def dependency(self, dependent_class=None):
-        if self.dependent_class is not None:
+        if self.__dependent_class is not None:
             raise TypeError('dynamic dependency already bound')
-        self.dependent_class = dependent_class
+        self.__dependent_class = dependent_class
         return dependent_class
 
     def __get__(self, instance, owner):
         if instance is None:
             return self
-        if instance not in self.cache:
-            if self.unbound is None:
+        if instance not in self.__cache:
+            if self.__unbound is None:
                 from netcast.arrangements import Arrangement
                 unbound = issubclass(type(instance), Arrangement)
             else:
-                unbound = self.unbound
-            self.cache[instance] = (
-                self.dependent_class(instance)
+                unbound = self.__unbound
+            self.__cache[instance] = (
+                self.__dependent_class(instance)
                 if unbound
-                else self.dependent_class()
+                else self.__dependent_class()
             )
-        return self.cache[instance]
+        return self.__cache[instance]
 
 
 class ClassProperty(classmethod):
     def __get__(self, instance, owner=None):
-        return self.__func__(type(instance))
+        return self.__func__(type(instance) or owner)
 
 
 # noinspection SpellCheckingInspection
