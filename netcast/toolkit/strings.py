@@ -12,7 +12,7 @@ def truncate(
     """
     Truncate a string and put the given placeholder in the place of removed characters.
 
-    truncate(str(1 << 99), 10) -> '63382...88 (23 truncated)'
+    truncate(str(1 << 99), 10) -> '63382...88 (23 c. truncated)'
 
     truncate(str(1 << 99), 10, stats=None) -> '63382...88'  # fits 10 characters
     """
