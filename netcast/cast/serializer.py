@@ -83,7 +83,7 @@ class TypeArrangement(ClassArrangement, config=True):
 
     @classmethod
     def preprocess_context(cls, context):
-        context.impl = cls
+        context.num_impl = cls
         return context
 
     @classmethod
@@ -122,39 +122,41 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         for plugin in plugins:
             for attr, feature in plugin.__features__.items():
                 if feature.is_hook:
-                    hooked_method = precede_hook = finalize_hook = None
+                    hooks = []
 
                     if feature.before == feature.after:
-                        hooked_method = feature.before
-                        precede_hook = feature.func
-                        finalize_hook = feature.func
+                        hooks.append((feature.func, feature.func, feature.before))
 
                     else:
                         if feature.before:
-                            hooked_method = feature.before
-                            precede_hook = feature.func
+                            hooks.append((feature.func, None, feature.before))
+
                         if feature.after:
-                            hooked_method = feature.after
-                            precede_hook = feature.func
+                            hooks.append((None, feature.func, feature.after))
 
                     try:
-                        method = getattr(cls, hooked_method)  # LBYL
+                        hooked_methods = {  # LBYL
+                            method: getattr(cls, method) for _, _, method in hooks
+                        }
+
                     except AttributeError:
                         if not feature.dependent:
                             raise
                         continue
+
                     else:
-                        setattr(
-                            cls,
-                            hooked_method,
-                            wrap_method(
+                        for precede_hook, finalize_hook, method in hooks:
+                            setattr(
+                                cls,
                                 method,
-                                precede_hook=precede_hook,
-                                finalize_hook=finalize_hook,
-                                pass_method=feature.pass_method,
-                                finalizer_takes_result=feature.finalizer_takes_result
+                                wrap_method(
+                                    hooked_methods[method],
+                                    precede_hook=precede_hook,
+                                    finalize_hook=finalize_hook,
+                                    pass_method=feature.pass_method,
+                                    finalizer_takes_result=feature.finalizer_takes_result
+                                )
                             )
-                        )
 
                 export = feature.func or feature.default
 

@@ -25,11 +25,11 @@ class Constrained(Plugin):
             await constraint.validate(loaded, load=True)
 
     @hook(
-        before='dump_async',
-        after='load_async',
+        before='load_async',
+        after='dump_async',
         finalizer_takes_result=True,
         dependent=True
     )
-    async def validate_load_async(self, dumped):
+    async def validate_dump_async(self, dumped):
         for constraint in self.constraints:
             await constraint.validate(dumped, dump=True)

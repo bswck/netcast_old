@@ -307,7 +307,7 @@ def wrap_method(
                 res = func(self, *args, **kwargs)
             finally:
                 if finalizer_takes_result:
-                    hook_args = (self, res, *hook_args[1:])
+                    hook_args = (self, res, *hook_args[2:])
                     params = Params(args=hook_args, kwargs=kwargs)
                 if callable(finalize_hook):
                     finalize_hook(*params.args, **params.kwargs)
