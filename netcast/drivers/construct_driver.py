@@ -19,19 +19,29 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
         self.cfg.setdefault('big', True)
         self.cfg.setdefault('little', False)
         self.cfg.setdefault('native', False)
+
+        signed = self.bounds[0]
+
         type_name = 'Int' if self.__load_type__ is int else 'Float'
         type_name += str(self.bit_length)
-        type_name += ('s' if self.bounds[0] else 'u') if self.__load_type__ is int else ''
+        type_name += ('s' if signed else 'u') if self.__load_type__ is int else ''
 
-        if self.cfg.big:
-            type_name += 'b'
-        elif self.cfg.little:
-            type_name += 'l'
-        else:
-            type_name += 'n'
+        obj = missing = Symbol()
 
-        missing = Symbol()
-        obj = getattr(construct, type_name, missing)
+        if not any(map(callable, (self.cfg.big, self.cfg.little, self.cfg.native))):
+            if self.cfg.big:
+                type_name += 'b'
+            elif self.cfg.little:
+                type_name += 'l'
+            else:
+                type_name += 'n'
+            obj = getattr(construct, type_name, missing)
+
+        if obj is missing:
+            obj = construct.BytesInteger(
+                self.bit_length // 8, signed=signed, swapped=self.cfg.little
+            )
+
         if obj is missing:
             raise ImportError(f'construct does not support {type_name}')
         self._impl = obj
