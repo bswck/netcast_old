@@ -216,7 +216,12 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
             **kwargs
     ) -> Dump:
         """Cast an origin value to the cast type."""
-        return self._dump(loaded, context=context, **kwargs)
+        try:
+            dump = self._dump
+        except AttributeError:
+            raise NotImplementedError
+        else:
+            return dump(loaded, context=context, **kwargs)
 
     def load(
             self,
@@ -225,7 +230,12 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
             **kwargs
     ) -> Load:
         """Cast an origin value to the cast type."""
-        return self._load(dump, context=context, **kwargs)
+        try:
+            load = self._load
+        except AttributeError:
+            raise NotImplementedError
+        else:
+            return load(dump, context=context, **kwargs)
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         return self.copy(**cfg)
