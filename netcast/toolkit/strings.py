@@ -45,6 +45,6 @@ else:
 
     def remove_suffix(string, suffix):
         if string.startswith(suffix):
-            return string[len(suffix):]
+            return string[:-len(suffix)]
         return string[:]
 
