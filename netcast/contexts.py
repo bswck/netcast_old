@@ -23,16 +23,15 @@ from netcast.toolkit.symbol import Symbol
 from netcast.toolkit.collections import AttributeDict, IDLookupDictionary, IDLookupList, Params
 
 __all__ = (
-    'ALQContext', 'APQContext', 'AQContext', 'AsyncioLifoQueueContext',
-    'AsyncioPriorityQueueContext', 'AsyncioQueueContext', 'BAContext', 'BContext', 'BIOContext',
-    'ByteArrayContext', 'ByteContext', 'BytesIOContext', 'CT', 'CContext', 'ConstructContext',
-    'Context', 'ContextManagerPool', 'CounterContext', 'DContext', 'DQContext', 'DequeContext',
-    'DictContext', 'DoublyLinkedListContextMixin', 'FIOContext', 'FileIOContext', 'LContext',
-    'LQContext', 'LifoQueueContext', 'LinkedListContextMixin', 'ListContext', 'MDContext',
-    'MemoryDictContext', 'PQContext', 'PriorityQueueContext', 'QContext', 'QueueContext',
-    'RootedTreeContextMixin', 'SIOContext', 'SSLSockContext', 'SSLSocketContext',
-    'SinglyDownwardContextMixin', 'SockContext', 'SocketContext', 'StringIOContext',
-    'DownwardContextMixin', 'UpwardContextMixin', 'wrap_method', 'wrap_to_context'
+    'AsyncioLifoQueueContext', 'AsyncioPriorityQueueContext', 'AsyncioQueueContext',
+    'ByteArrayContext', 'BytesIOContext', 'CT', 'ConstructContext',
+    'Context', 'ContextManagerPool', 'CounterContext', 'DequeContext',
+    'DictContext', 'DoublyLinkedListContextMixin', 'FileIOContext',
+    'LifoQueueContext', 'LinkedListContextMixin', 'ListContext',
+    'MemoryDictContext', 'PriorityQueueContext', 'QueueContext',
+    'RootedTreeContextMixin', 'SSLSocketContext','SinglyDownwardContextMixin',
+    'SocketContext', 'StringIOContext','DownwardContextMixin', 'UpwardContextMixin',
+    'wrap_method', 'wrap_to_context'
 )
 
 
@@ -489,25 +488,6 @@ SocketContext = _(socket.socket, _socket_hooked_methods)
 
 SSLSocketContext = _(ssl.SSLSocket, _socket_hooked_methods)
 CounterContext = _(collections.Counter, _counter_hooked_methods)
-
-# shortcuts
-LContext = ListContext
-DQContext = DequeContext
-DContext = DictContext
-BContext = ByteContext = BAContext = ByteArrayContext
-MDContext = MemoryDictContext
-QContext = QueueContext
-PQContext = PriorityQueueContext
-LQContext = LifoQueueContext
-AQContext = AsyncioQueueContext
-APQContext = AsyncioPriorityQueueContext
-ALQContext = AsyncioLifoQueueContext
-FIOContext = FileIOContext
-BIOContext = BytesIOContext
-SIOContext = StringIOContext
-SockContext = SocketContext
-SSLSockContext = SocketContext
-CContext = CounterContext
 
 CT = TypeVar(
     'CT',

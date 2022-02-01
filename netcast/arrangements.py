@@ -5,54 +5,37 @@ import functools
 import operator
 import ssl
 import threading
-import weakref
 from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
 
 from netcast.contexts import *
 from netcast.contexts import LocalHook  # noqa
 from netcast.toolkit.collections import IDLookupDictionary, Params
 
-
 __all__ = (
-    'AT', 'ALQArrangement', 'APQArrangement', 'AQArrangement', 'Arrangement',
-    'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement', 'AsyncioQueueArrangement', 
-    'BAArrangement', 'BIOArrangement', 'ByteArrangement', 'ByteArrayArrangement', 
-    'BytesIOArrangement', 'CT', 'CALQArrangement', 'CAPQArrangement', 'CAQArrangement', 
-    'CArrangement', 'CBAArrangement', 'CBIOArrangement', 'CByteArrangement',
-    'CDArrangement', 'CDQArrangement', 'CFIOArrangement', 'CLArrangement', 'CLQArrangement',
-    'CPQArrangement', 'CQArrangement', 'CSArrangement', 'CSIOArrangement',
-    'CSSLSockArrangement', 'ClassArrangement', 'ClassAsyncioLifoQueueArrangement',
-    'ClassAsyncioPriorityQueueArrangement', 'ClassAsyncioQueueArrangement',
-    'ClassByteArrayArrangement', 'ClassBytesIOArrangement', 'ClassConstructArrangement',
-    'ClassCounterArrangement', 'ClassDequeArrangement', 'ClassDictArrangement',
-    'ClassFileIOArrangement', 'ClassLifoQueueArrangement', 'ClassListArrangement',
-    'ClassPriorityQueueArrangement', 'ClassQueueArrangement', 'ClassSSLSocketArrangement',
-    'ClassSocketArrangement', 'ClassStringIOArrangement', 'ConstructArrangement',
-    'CounterArrangement', 'CT_DEFAULT', 'DArrangement', 'DQArrangement', 'DequeArrangement',
-    'DictArrangement', 'FIOArrangement', 'FileIOArrangement', 'LArrangement', 'LQArrangement',
-    'LifoQueueArrangement', 'ListArrangement', 'PQArrangement', 'PriorityQueueArrangement',
-    'QArrangement', 'QueueArrangement', 'SArrangement', 'SIOArrangement', 'SSLSockArrangement',
-    'SSLSocketArrangement', 'SocketArrangement', 'StringIOArrangement', '_BaseArrangement',
-    'arrangement_init', 'ALQArrangement', 'APQArrangement', 'AQArrangement', 'Arrangement',
+    'AT', 'Arrangement', 'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement',
+    'AsyncioQueueArrangement', 'ByteArrayArrangement', 'BytesIOArrangement', 'CT',
+    'ClassArrangement', 'ClassAsyncioLifoQueueArrangement', 'ClassAsyncioPriorityQueueArrangement',
+    'ClassAsyncioQueueArrangement', 'ClassByteArrayArrangement', 'ClassBytesIOArrangement',
+    'ClassConstructArrangement', 'ClassCounterArrangement', 'ClassDequeArrangement',
+    'ClassDictArrangement', 'ClassFileIOArrangement', 'ClassLifoQueueArrangement',
+    'ClassListArrangement', 'ClassPriorityQueueArrangement', 'ClassQueueArrangement',
+    'ClassSSLSocketArrangement', 'ClassSocketArrangement', 'ClassStringIOArrangement',
+    'ConstructArrangement', 'CounterArrangement', 'CT_DEFAULT', 'DequeArrangement',
+    'DictArrangement', 'FileIOArrangement', 'LifoQueueArrangement', 'ListArrangement',
+    'PriorityQueueArrangement', 'QueueArrangement', 'SSLSocketArrangement', 'SocketArrangement',
+    'StringIOArrangement', '_BaseArrangement', 'arrangement_init', 'Arrangement',
     'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement', 'AsyncioQueueArrangement',
-    'BAArrangement', 'BIOArrangement', 'ByteArrangement', 'ByteArrayArrangement',
-    'BytesIOArrangement', 'CALQArrangement', 'CAPQArrangement', 'CAQArrangement', 'CArrangement',
-    'CBAArrangement', 'CBIOArrangement', 'CByteArrangement', 'CDArrangement', 'CDQArrangement',
-    'CFIOArrangement', 'CLArrangement', 'CLQArrangement', 'CPQArrangement', 'CQArrangement',
-    'CSArrangement', 'CSIOArrangement', 'CSSLSockArrangement', 'ClassArrangement',
+    'ByteArrayArrangement', 'BytesIOArrangement', 'ClassArrangement',
     'ClassAsyncioLifoQueueArrangement', 'ClassAsyncioPriorityQueueArrangement',
     'ClassAsyncioQueueArrangement', 'ClassByteArrayArrangement', 'ClassBytesIOArrangement',
     'ClassCounterArrangement', 'ClassDequeArrangement', 'ClassDictArrangement',
     'ClassFileIOArrangement', 'ClassLifoQueueArrangement', 'ClassListArrangement',
     'ClassPriorityQueueArrangement', 'ClassQueueArrangement', 'ClassSSLSocketArrangement',
-    'ClassSocketArrangement', 'ClassStringIOArrangement', 'CounterArrangement', 'DArrangement',
-    'DQArrangement', 'DequeArrangement', 'DictArrangement', 'FIOArrangement', 'FileIOArrangement',
-    'LArrangement', 'LQArrangement', 'LifoQueueArrangement', 'ListArrangement', 'PQArrangement',
-    'PriorityQueueArrangement', 'QArrangement', 'QueueArrangement', 'SArrangement',
-    'SIOArrangement', 'SSLSockArrangement', 'SSLSocketArrangement', 'SocketArrangement',
+    'ClassSocketArrangement', 'ClassStringIOArrangement', 'CounterArrangement', 'DequeArrangement',
+    'DictArrangement', 'FileIOArrangement', 'LifoQueueArrangement', 'ListArrangement',
+    'PriorityQueueArrangement', 'QueueArrangement', 'SSLSocketArrangement', 'SocketArrangement',
     'StringIOArrangement', 'arrangement_init', 'wrap_to_arrangement'
 )
-
 
 AT = TypeVar('AT', bound='ClassArrangement')
 CT_DEFAULT = ConstructContext
@@ -120,9 +103,9 @@ class _BaseArrangement:
 
     @classmethod
     def _set_supercontext(
-            cls, 
-            context: Context, 
-            supercontext: Context | None, 
+            cls,
+            context: Context,
+            supercontext: Context | None,
             connect: bool = False
     ):
         if context is supercontext:
@@ -132,8 +115,8 @@ class _BaseArrangement:
 
     @classmethod
     def _connect_contexts(
-            cls, 
-            context: Context, 
+            cls,
+            context: Context,
             supercontext: Context | None = None,
             self=None
     ):
@@ -539,37 +522,3 @@ SocketArrangement = _('SocketArrangement', SocketContext)
 SSLSocketArrangement = _('SSLSocketArrangement', SSLSocketContext)
 CounterArrangement = _('CounterArrangement', CounterContext)
 ConstructArrangement = _('ConstructArrangement', ConstructContext)
-
-# shortcuts
-CArrangement = ClassArrangement
-CDArrangement = ClassDictArrangement
-CBAArrangement = CByteArrangement = ClassByteArrayArrangement
-CLArrangement = ClassListArrangement
-CDQArrangement = ClassDequeArrangement
-CQArrangement = ClassQueueArrangement
-CLQArrangement = ClassLifoQueueArrangement
-CPQArrangement = ClassPriorityQueueArrangement
-CAQArrangement = ClassAsyncioQueueArrangement
-CALQArrangement = ClassAsyncioLifoQueueArrangement
-CAPQArrangement = ClassAsyncioPriorityQueueArrangement
-CBIOArrangement = ClassBytesIOArrangement
-CSIOArrangement = ClassStringIOArrangement
-CFIOArrangement = ClassFileIOArrangement
-CSArrangement = ClassSocketArrangement
-CSSLSockArrangement = ClassSSLSocketArrangement
-
-DArrangement = DictArrangement
-LArrangement = ListArrangement
-BAArrangement = ByteArrangement = ByteArrayArrangement
-DQArrangement = DequeArrangement
-QArrangement = QueueArrangement
-LQArrangement = LifoQueueArrangement
-PQArrangement = PriorityQueueArrangement
-AQArrangement = AsyncioQueueArrangement
-ALQArrangement = AsyncioLifoQueueContext
-APQArrangement = AsyncioPriorityQueueContext
-BIOArrangement = BytesIOArrangement
-SIOArrangement = StringIOArrangement
-FIOArrangement = FileIOArrangement
-SArrangement = SocketArrangement
-SSLSockArrangement = SSLSocketArrangement
