@@ -93,6 +93,3 @@ class ConstructDriver(netcast.Driver):
     Float16 = number_serializer(netcast.Float16)
     Float32 = number_serializer(netcast.Float32)
     Float64 = number_serializer(netcast.Float64)
-
-
-ConstructDriver.UnsignedInt8._get_context()
