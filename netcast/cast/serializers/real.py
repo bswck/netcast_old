@@ -15,7 +15,7 @@ from netcast.toolkit.collections import classproperty
 bounds = collections.namedtuple('bounds', 'min_val max_val')
 
 
-class RealNumberConstraint(Constraint):
+class MinMaxConstraint(Constraint):
     def validate_load(self, load):
         min_val, max_val = self.cfg.min_val, self.cfg.max_val
         if min_val <= load <= max_val:
@@ -44,7 +44,7 @@ class Real(Primitive, Constrained, abc.ABC):
 
     @classproperty
     def constraints(self):
-        return RealNumberConstraint(**self.bounds._asdict()),
+        return MinMaxConstraint(**self.bounds._asdict()),
 
 
 SignedReal = Real
@@ -96,7 +96,7 @@ def factorize_int_constraint(bit_length: int, signed: bool = True):
         constraint_bounds = BaseInt.bounds
     else:
         constraint_bounds = UnsignedBaseInt.bounds
-    return RealNumberConstraint(bit_length=bit_length, **constraint_bounds._asdict())
+    return MinMaxConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
 def int_serializer(bit_length, signed=True) -> Type[BaseInt] | type:
