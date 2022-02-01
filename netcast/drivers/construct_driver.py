@@ -6,7 +6,6 @@ import io
 import construct
 import netcast
 
-from netcast.cast.serializers.real import _Float
 from netcast.toolkit.symbol import Symbol
 
 
