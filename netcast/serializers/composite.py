@@ -1,13 +1,10 @@
 import abc
 
 from netcast.serializer import Serializer
-from netcast.tools.symbol import Symbol
 
 
 class Composite(Serializer, abc.ABC):
     """Base class for all sequence types."""
-    __load_type__ = Symbol('Composite')
-
     new_context = True
 
 
