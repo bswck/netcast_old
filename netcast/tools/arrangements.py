@@ -303,7 +303,7 @@ class ClassArrangement(_BaseArrangement):
     def subcontexts(self) -> tuple[Context, ...] | None:
         return self._get_subcontexts()
 
-    @property
+    @classproperty
     def has_new_context(self) -> bool:
         return self.new_context
 
