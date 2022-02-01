@@ -309,11 +309,9 @@ class ClassArrangement(_BaseArrangement):
 
 
 class Arrangement(ClassArrangement, non_arrangement=True):
-    # TODO: context wrappers fail
-
     descent: Arrangement | None
     _new_context: bool = True
-    _generate: bool = True
+    _preprocess: bool = True
 
     def __init__(self, descent: Arrangement | None = None):
         arrangement_init(self, descent)
@@ -325,7 +323,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
             context_class: Type[CT] | None = None,
             config: bool = False,
             non_arrangement: bool = False,
-            _preprocess: bool = _generate,
+            _preprocess: bool = _preprocess,
             _check_descent_type: Literal[True] = True
     ):
         if non_arrangement:
@@ -345,7 +343,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
 
         cls.context_class = context_class
         cls._new_context = new_context
-        cls._generate = _preprocess
+        cls._preprocess = _preprocess
 
     def __new__(cls, *args, **kwargs):
         if args:
@@ -382,21 +380,19 @@ class Arrangement(ClassArrangement, non_arrangement=True):
 
         context = contexts[self]
 
-        if cls._generate:
+        if cls._preprocess:
 
             with self._context_lock:
-                unprepared = not LocalHook.is_preprocessed(context)
-                if unprepared:
-                    preprocess = cls.preprocess_context
-                    if (
-                            _is_classmethod(cls, preprocess)
-                            or isinstance(preprocess, staticmethod)
-                    ):
-                        preprocess = functools.partial(preprocess)
-                    else:
-                        preprocess = functools.partial(preprocess, self)
-                    contexts[self] = context = preprocess(context)
-                    LocalHook.preprocessed(context)
+                preprocess = cls.preprocess_context
+                if (
+                        _is_classmethod(cls, preprocess)
+                        or isinstance(preprocess, staticmethod)
+                ):
+                    preprocess = functools.partial(preprocess)
+                else:
+                    preprocess = functools.partial(preprocess, self)
+                contexts[self] = context = preprocess(context)
+                LocalHook.preprocessed(context)
 
         cls._connect_contexts(context)
         return self
