@@ -1,11 +1,11 @@
 import sys
 
-from netcast import Arrangement
 from netcast.driver import Driver
+from netcast.tools import Arrangement
 
 
 class Engine(Arrangement):
-    def __init__(self, descent=None, key=None):
+    def __init__(self, descent=None):
         super().__init__(descent)
         self.data = {}
         self.drivers = Driver.__drivers_registry__

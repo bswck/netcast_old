@@ -2,6 +2,7 @@ import inspect
 import sys
 
 from netcast.plugin import Plugin
+from netcast.state import State
 from netcast.tools.collections import AttributeDict
 
 
@@ -16,13 +17,18 @@ class Driver:
             raise ValueError('driver name is required')
         return sys.intern(driver_name)
 
-    def __init_subclass__(cls, driver_name=None):
+    def __init_subclass__(cls, driver_name=None, config=False):
+        if config:
+            return
         if driver_name is None:
             driver_name = cls._inspect_driver_name(stack_level=2)
         if driver_name in Driver.__drivers_registry__:
             raise ValueError(f'{driver_name!r} driver has already been implemented')
         cls.__drivers_registry__[driver_name] = cls
         cls.name = driver_name
+
+    def __new__(cls, model, engine=None):
+        return State(_model=model, _driver=cls, _engine=engine)
 
 
 def serializer_impl(serializer_class, adapter):
