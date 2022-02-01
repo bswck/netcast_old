@@ -3,9 +3,8 @@ from __future__ import annotations
 import abc
 import copy
 import enum
-import io
 import sys
-from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, TYPE_CHECKING
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
 from netcast.cast.plugin import Plugin, get_plugins
@@ -83,7 +82,7 @@ class TypeArrangement(ClassArrangement, config=True):
 
     @classmethod
     def preprocess_context(cls, context):
-        context.num_impl = cls
+        context.impl = cls
         return context
 
     @classmethod
