@@ -1,4 +1,4 @@
-from netcast.cast.plugin import default, feature, Plugin
+from netcast.cast.plugin import default, export, Plugin
 
 
 class AsyncSerializer(Plugin):
@@ -8,12 +8,12 @@ class AsyncSerializer(Plugin):
     _dump_async = default(_default_cast_async)
     _load_async = default(_default_cast_async)
 
-    @feature
+    @export
     async def load_async(self, dumped, **kwargs):
         """Cast an origin value to the cast type."""
         return await self._load_async(dumped, **kwargs)
 
-    @feature
+    @export
     async def dump_async(self, loaded, **kwargs):
         """Cast an origin value to the cast type."""
         return await self._dump_async(loaded, **kwargs)

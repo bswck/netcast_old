@@ -41,3 +41,9 @@ class DriverSerializer(Plugin):
     @property
     def impl(self):
         raise NotImplementedError
+
+    def _dump(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def _load(self, *args, **kwargs):
+        raise NotImplementedError

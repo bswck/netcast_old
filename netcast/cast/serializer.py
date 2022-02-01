@@ -7,7 +7,7 @@ import sys
 from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, TYPE_CHECKING
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
-from netcast.cast.plugin import Plugin, get_plugins
+from netcast.cast.plugin import Plugin
 from netcast.toolkit.contexts import wrap_method
 from netcast.toolkit import strings
 from netcast.toolkit.symbol import Symbol
@@ -116,7 +116,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
         if cls.__base__ is not Serializer and cls.new_context is None:
             cls.new_context = True
-            cls.plugins = plugins = get_plugins(cls)
+            cls.plugins = plugins = Plugin.get_plugins(cls)
 
         for plugin in plugins:
             for attr, feature in plugin.__features__.items():
@@ -191,24 +191,6 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         new = type(self)(**new_cfg)
         return new
 
-    if TYPE_CHECKING:
-        # @abc.abstractmethod
-        def _dump(
-                self,
-                load: Load,
-                context: Context | None = None,
-                **kwargs
-        ) -> Dump:
-            raise NotImplementedError
-
-        # @abc.abstractmethod
-        def _load(
-                self, dump: Dump,
-                context: Context | None = None,
-                **kwargs
-        ) -> Load:
-            raise NotImplementedError
-
     def dump(
             self,
             loaded: Load,
@@ -217,7 +199,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
     ) -> Dump:
         """Cast an origin value to the cast type."""
         try:
-            dump = self._dump
+            dump = getattr(self, '_dump')
         except AttributeError:
             raise NotImplementedError
         else:
@@ -231,7 +213,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
     ) -> Load:
         """Cast an origin value to the cast type."""
         try:
-            load = self._load
+            load = getattr(self, '_load')
         except AttributeError:
             raise NotImplementedError
         else:

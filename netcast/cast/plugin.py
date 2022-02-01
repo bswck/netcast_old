@@ -13,31 +13,31 @@ if TYPE_CHECKING:
 class Plugin:
     """Plugin is a serializer mix-in."""
     __features__: ClassVar[dict[str, Callable]] = {}
-    dependents_count = 0
+    total_dependents = 0
 
     def __init__(self: Plugin | Serializer, **cfg):
         """Save your options here"""
 
     def __init_subclass__(cls, **kwargs):
-        independents, dependents = {}, {}
-        for attr, feature_obj in inspect.getmembers(cls, predicate=feature_check):
-            if feature_obj.dependent:
-                dependents[attr] = feature_obj
+        independent, dependent = {}, {}
+        for attr, feature in inspect.getmembers(cls, predicate=cls._feature_predicate):
+            if feature.dependent:
+                dependent[attr] = feature
             else:
-                independents[attr] = feature_obj
-            cls.dependents_count = len(dependents)
-        cls.__features__.update(**independents, **dependents)
+                independent[attr] = feature
+            cls.total_dependents = len(dependent)
+        cls.__features__.update(**independent, **dependent)
 
+    @staticmethod
+    def _feature_predicate(obj):
+        return isinstance(obj, _Feature) and not obj.disabled
 
-def feature_check(obj):
-    return isinstance(obj, _Feature) and not obj.disabled
-
-
-def get_plugins(cls):
-    return tuple(sorted(
-        filter(lambda base: base in Plugin.__subclasses__(), cls.__bases__),
-        key=operator.attrgetter('dependents_count')
-    ))
+    @classmethod
+    def get_plugins(cls, serializer_class):
+        return tuple(sorted(
+            filter(lambda base: base in cls.__subclasses__(), serializer_class.__bases__),
+            key=operator.attrgetter('total_dependents')
+        ))
 
 
 @dataclasses.dataclass
@@ -68,10 +68,10 @@ def default(value=None):
     return _Feature(default=value)
 
 
-def _decorator(func=None, **kwargs) -> functools.partial[_Feature] | _Feature:
+def feature_or_hook(func=None, **kwargs) -> functools.partial[_Feature] | _Feature:
     if func is None:
-        return functools.partial(feature, **kwargs)
+        return functools.partial(export, **kwargs)
     return _Feature(func, **kwargs)
 
 
-feature = hook = _decorator
+export = hook = feature_or_hook

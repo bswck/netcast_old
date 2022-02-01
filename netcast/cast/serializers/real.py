@@ -166,7 +166,7 @@ def int_serializer(bit_length, signed=True) -> Type[_Int] | type:
     constraint, = constraints = factorize_int_constraint(bit_length, signed=signed),
     name = _get_class_name(bit_length or math.inf, type_name='Int', signed=signed)
     bases = (_SignedInt if signed else _UnsignedInt, Constrained, abc.ABC)
-    serializer = type(name, bases, {'constraints': constraints})
+    serializer = type(name, bases, {'constraints': constraints, '__module__': __name__})
     serializer.bounds = bounds(constraint.cfg.min_val, constraint.cfg.max_val)
     serializer.bit_length = constraint.cfg.bit_length
     return serializer
