@@ -22,9 +22,8 @@ def truncate(
         width -= len(placeholder)
         stop = width // 2 + 1
         start = stop + length - width
-        segments = (string[:stop], string[start:])
         truncated = start - stop
-        string = placeholder.join(segments)
+        string = placeholder.join((string[:stop], string[start:]))
     if stats is None:
         stats = ''
     if stats:
