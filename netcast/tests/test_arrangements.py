@@ -68,17 +68,17 @@ class TestClassArrangement:
         class CA2(CA1):
             def test(self):
                 assert self.descent_type is CA1
-                assert self.context is CA1.get_context()
+                assert self.context is CA1.context
 
         class CA3(CA1, descent=CA2):  # this one's interesting.
             def test(self):
                 assert self.descent_type is CA2
-                assert self.context is CA1.get_context()
+                assert self.context is CA1.context
 
         class CA4(injected_class_arrangement, descent=CA1):
             def test(self):
                 assert self.descent_type is CA1
-                assert self.context is CA2.get_context()
+                assert self.context is CA2.context
 
         CA2().test()
         CA3().test()
@@ -93,21 +93,21 @@ class TestClassArrangement:
             new_context = True
 
             def test(self):
-                assert self.supercontext is CA1.get_context()
-                assert self.context is CA2.get_context()
+                assert self.supercontext is CA1.context
+                assert self.context is CA2.context
 
         class CA3(injected_class_arrangement, descent=CA1):
             new_context = None  # default one
 
             def test(self):
-                assert self.context is CA1.get_context()
+                assert self.context is CA1.context
 
         class CA4(injected_class_arrangement, descent=CA3):
             new_context = True
 
             def test(self):
-                assert self.supercontext is CA3.get_context() is CA1.get_context()
-                assert self.context is CA4.get_context()
+                assert self.supercontext is CA3.context is CA1.context
+                assert self.context is CA4.context
 
         class CA5(injected_class_arrangement, descent=CA4):
             def test(self):
@@ -117,8 +117,8 @@ class TestClassArrangement:
             new_context = True
 
             def test(self):
-                assert self.supercontext is CA5.get_context()
-                assert self.context is CA6.get_context()
+                assert self.supercontext is CA5.context
+                assert self.context is CA6.context
 
         CA1().test()
         CA2().test()
@@ -145,7 +145,7 @@ class TestClassArrangement:
         ca2 = CA2()
         ca2.pong()
 
-        assert CA1.get_context() is CA2.get_context()
+        assert CA1.context is CA2.context
         assert ca1.context is ca2.context
         assert ca1.context == {'pings': 1, 'pongs': 1}
 

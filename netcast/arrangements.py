@@ -85,14 +85,14 @@ class _BaseArrangement:
 
     @classmethod
     def _get_supercontext(cls):
-        return _BaseArrangement._super_registry.get(cls.get_context())
+        return _BaseArrangement._super_registry.get(cls._get_context())
 
     @classmethod
     def _get_subcontexts(cls, self=None):
         registry = _BaseArrangement._super_registry
         subcontexts = []
         if self is None:
-            context = cls.get_context()
+            context = cls._get_context()
         else:
             context = self.context
         for subcontext, supercontext in registry.items():
@@ -151,7 +151,7 @@ class _BaseArrangement:
         return context
 
     @classmethod
-    def get_context(cls, *args, **kwargs) -> CT | None:
+    def _get_context(cls, *args, **kwargs) -> CT | None:
         """Get the current context."""
         return getattr(cls, '_context', None)
 
@@ -265,7 +265,7 @@ class ClassArrangement(_BaseArrangement):
         if config:
             return
 
-        context = descent.get_context()
+        context = descent._get_context()
         null_context = context is None
 
         if null_context:
@@ -279,7 +279,7 @@ class ClassArrangement(_BaseArrangement):
         cls.new_context = None
 
         if _preprocess:
-            context = cls.get_context()
+            context = cls._get_context()
             preprocess = cls.preprocess_context
             if not _is_classmethod(cls, cls.preprocess_context):
                 preprocess = functools.partial(preprocess, cls)
@@ -292,7 +292,7 @@ class ClassArrangement(_BaseArrangement):
     @classproperty
     def context(self) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
-        return self.get_context()
+        return self._get_context()
 
     @classproperty
     def supercontext(self) -> Context | None:
@@ -363,7 +363,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
                     'and the fixed descent type are not equal'
                 )
 
-        contexts = cls.get_context()
+        contexts = cls._get_context()
         self = object.__new__(cls)
         arrangement_init(self, descent)
 
@@ -405,9 +405,9 @@ class Arrangement(ClassArrangement, non_arrangement=True):
         return context
 
     @classmethod
-    def get_context(cls, self: Arrangement | None = None) -> CT:
+    def _get_context(cls, self: Arrangement | None = None) -> CT:
         """Get the current context."""
-        contexts = super().get_context()
+        contexts = super()._get_context()
 
         if self is None:
             return contexts
@@ -420,12 +420,12 @@ class Arrangement(ClassArrangement, non_arrangement=True):
         if self is None:
             return super()._get_supercontext()
 
-        return _BaseArrangement._super_registry.get(cls.get_context(self))
+        return _BaseArrangement._super_registry.get(cls._get_context(self))
 
     @property
     def context(self: Arrangement) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
-        return self.get_context(self)
+        return self._get_context(self)
 
     @property
     def supercontext(self: Arrangement) -> Context | None:

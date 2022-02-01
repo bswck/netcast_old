@@ -72,24 +72,27 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
 ST = TypeVar('ST')
 
 
-def num_impl(serializer: ST) -> ST:
+def number_serializer(serializer: ST) -> ST:
     return netcast.serializer_impl(serializer, adapter=NumberSerializer)
 
 
 class ConstructDriver(netcast.Driver):
-    SignedInt8 = num_impl(netcast.SignedInt8)
-    SignedInt16 = num_impl(netcast.SignedInt16)
-    SignedInt32 = num_impl(netcast.SignedInt32)
-    SignedInt64 = num_impl(netcast.SignedInt64)
-    SignedInt128 = num_impl(netcast.SignedInt128)
-    SignedInt256 = num_impl(netcast.SignedInt256)
-    SignedInt512 = num_impl(netcast.SignedInt512)
-    UnsignedInt8 = num_impl(netcast.UnsignedInt8)
-    UnsignedInt16 = num_impl(netcast.UnsignedInt16)
-    UnsignedInt32 = num_impl(netcast.UnsignedInt32)
-    UnsignedInt64 = num_impl(netcast.UnsignedInt64)
-    UnsignedInt128 = num_impl(netcast.UnsignedInt128)
-    UnsignedInt256 = num_impl(netcast.UnsignedInt256)
-    Float16 = num_impl(netcast.Float16)
-    Float32 = num_impl(netcast.Float32)
-    Float64 = num_impl(netcast.Float64)
+    SignedInt8 = number_serializer(netcast.SignedInt8)
+    SignedInt16 = number_serializer(netcast.SignedInt16)
+    SignedInt32 = number_serializer(netcast.SignedInt32)
+    SignedInt64 = number_serializer(netcast.SignedInt64)
+    SignedInt128 = number_serializer(netcast.SignedInt128)
+    SignedInt256 = number_serializer(netcast.SignedInt256)
+    SignedInt512 = number_serializer(netcast.SignedInt512)
+    UnsignedInt8 = number_serializer(netcast.UnsignedInt8)
+    UnsignedInt16 = number_serializer(netcast.UnsignedInt16)
+    UnsignedInt32 = number_serializer(netcast.UnsignedInt32)
+    UnsignedInt64 = number_serializer(netcast.UnsignedInt64)
+    UnsignedInt128 = number_serializer(netcast.UnsignedInt128)
+    UnsignedInt256 = number_serializer(netcast.UnsignedInt256)
+    Float16 = number_serializer(netcast.Float16)
+    Float32 = number_serializer(netcast.Float32)
+    Float64 = number_serializer(netcast.Float64)
+
+
+ConstructDriver.UnsignedInt8._get_context()
