@@ -14,7 +14,7 @@ def truncate(
 
     truncate(str(1 << 99), 10) -> '63382...88 (23 truncated)'
 
-    truncate(str(1 << 99), 10, stats=None) -> '63382...88'  # fits 20 characters
+    truncate(str(1 << 99), 10, stats=None) -> '63382...88'  # fits 10 characters
     """
     length = len(string)
     truncated = 0
