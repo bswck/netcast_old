@@ -19,16 +19,22 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
         self.cfg.setdefault('big', True)
         self.cfg.setdefault('little', False)
         self.cfg.setdefault('native', False)
+        self.cfg.setdefault('use_ff', True)
 
         signed = self.bounds[0]
-
-        type_name = 'Int' if self.__load_type__ is int else 'Float'
-        type_name += str(self.bit_length)
-        type_name += ('s' if signed else 'u') if self.__load_type__ is int else ''
-
         obj = missing = Symbol()
 
-        if not any(map(callable, (self.cfg.big, self.cfg.little, self.cfg.native))):
+        if (
+            self.cfg.use_ff
+            and any(map(callable, (self.cfg.big, self.cfg.little, self.cfg.native)))
+        ):
+            self.cfg.use_ff = False
+
+        if self.cfg.use_ff:
+            type_name = 'Int' if self.__load_type__ is int else 'Float'
+            type_name += str(self.bit_length)
+            type_name += ('s' if signed else 'u') if self.__load_type__ is int else ''
+
             if self.cfg.big:
                 type_name += 'b'
             elif self.cfg.little:
@@ -38,12 +44,12 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
             obj = getattr(construct, type_name, missing)
 
         if obj is missing:
-            obj = construct.BytesInteger(
-                self.bit_length // 8, signed=signed, swapped=self.cfg.little
-            )
+            length = self.bit_length // 8
+            obj = construct.BytesInteger(length, signed=signed, swapped=self.cfg.little)
 
         if obj is missing:
-            raise ImportError(f'construct does not support {type_name}')
+            raise ImportError(f'construct does not support {self.__visit_key__}')
+
         self._impl = obj
 
     @property
