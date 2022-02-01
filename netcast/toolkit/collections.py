@@ -208,7 +208,11 @@ class ForwardDependency:
 
 class ClassProperty(classmethod):
     def __get__(self, instance, owner=None):
-        return self.__func__(type(instance) or owner)
+        if instance is None:
+            cls = owner
+        else:
+            cls = type(instance)
+        return self.__func__(cls)
 
 
 # noinspection SpellCheckingInspection

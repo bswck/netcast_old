@@ -3,7 +3,9 @@ from __future__ import annotations
 import abc
 import copy
 import enum
-from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal
+import io
+import sys
+from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, Optional, TYPE_CHECKING
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
 from netcast.cast.plugin import Plugin, get_plugins
@@ -79,10 +81,9 @@ class TypeArrangement(ClassArrangement, config=True):
 
     context_class: Type[Context] = DataTypeRegistry
 
-    def preprocess_context(self, context):
-        context.me = self
-        if type(self) is not TypeArrangement:
-            context.category = self.__base__.subcontext_key()  # type: ignore
+    @classmethod
+    def preprocess_context(cls, context):
+        context.impl = cls
         return context
 
     @classmethod
@@ -90,9 +91,7 @@ class TypeArrangement(ClassArrangement, config=True):
     def subcontext_key(cls, *__related_contexts):
         """Return the key for all the subcontexts."""
         if cls.__visit_key__ == getattr(cls.__base__, '__visit_key__', None):
-            orig_type = cls.__load_type__
-            if orig_type is not None:
-                cls.__visit_key__ = orig_type
+            cls.__visit_key__ = sys.intern(cls.__name__)
         return cls.__visit_key__
 
 
@@ -191,22 +190,41 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         new = type(self)(**new_cfg)
         return new
 
-    # @abc.abstractmethod
-    def _default_cast(self, load_or_dump: Load | Dump, context=None) -> Load | Dump:
-        raise NotImplementedError
+    if TYPE_CHECKING:
+        # @abc.abstractmethod
+        def _dump(
+                self,
+                load: Load,
+                context: Context | None = None,
+                **kwargs
+        ) -> Dump:
+            raise NotImplementedError
 
-    _dump = _default_cast
-    _load = _default_cast
+        # @abc.abstractmethod
+        def _load(
+                self, dump: Dump,
+                context: Context | None = None,
+                **kwargs
+        ) -> Load:
+            raise NotImplementedError
 
-    def dump(self, loaded: Load, context: Context | None = None) -> Dump:
+    def dump(
+            self,
+            loaded: Load,
+            context: Context | None = None,
+            **kwargs
+    ) -> Dump:
         """Cast an origin value to the cast type."""
-        dump = self._dump(loaded, context)
-        return dump
+        return self._dump(loaded, context=context, **kwargs)
 
-    def load(self, dump: Dump, context: Context | None = None) -> Load:
+    def load(
+            self,
+            dump: Dump,
+            context: Context | None = None,
+            **kwargs
+    ) -> Load:
         """Cast an origin value to the cast type."""
-        loaded = self._load(dump, context)
-        return loaded
+        return self._load(dump, context=context, **kwargs)
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         return self.copy(**cfg)

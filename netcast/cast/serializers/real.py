@@ -9,7 +9,6 @@ from typing import Type, Literal
 from netcast.cast.serializer import Serializer, Constraint, ConstraintError
 from netcast.cast.plugins.constrained import Constrained
 from netcast.toolkit import strings
-from netcast.toolkit.symbol import Symbol
 from netcast.toolkit.collections import classproperty
 
 
@@ -101,14 +100,10 @@ class MinMaxConstraint(Constraint):
 
 class Primitive(Serializer, abc.ABC):
     """Base class for all Python primitive types."""
-    __load_type__ = Symbol('Primitive')
-
     new_context = True
 
 
 class Real(Primitive, Constrained, abc.ABC):
-    __load_type__ = Symbol('Real')
-
     bit_length = math.inf
     bounds = bounds(-math.inf, math.inf)
 
@@ -121,8 +116,6 @@ SignedReal = Real
 
 
 class UnsignedReal(Real, abc.ABC):
-    __load_type__ = Symbol('UnsignedReal')
-
     new_context = False
     bounds = bounds(0, math.inf)
 
@@ -211,13 +204,18 @@ LongLong = SignedLongLong = SignedLongLongInt = Int64
 UnsignedLongLong = UnsignedLongLongInt = UnsignedInt64
 
 
-class _Float(Real, abc.ABC):
+class _Float(Real, metaclass=abc.ABCMeta):
     __load_type__ = float
 
 
 def float_serializer(bit_length, constraints=()):
     name = _get_class_name(bit_length, type_name='Float')
-    serializer = type(name, (_Float, abc.ABC), {'constraints': constraints})
+    env = {
+        '__module__': __name__,
+        'constraints': constraints,
+        'bit_length': bit_length
+    }
+    serializer = type(name, (_Float, abc.ABC), env)
     return serializer
 
 

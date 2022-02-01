@@ -9,7 +9,7 @@ from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generat
 
 from netcast.contexts import *
 from netcast.contexts import LocalHook  # noqa
-from netcast.toolkit.collections import IDLookupDictionary, Params
+from netcast.toolkit.collections import IDLookupDictionary, Params, classproperty
 
 __all__ = (
     'AT', 'Arrangement', 'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement',
@@ -278,7 +278,7 @@ class ClassArrangement(_BaseArrangement):
 
         cls.new_context = None
 
-        if _preprocess and not LocalHook.is_preprocessed(context):
+        if _preprocess:
             context = cls.get_context()
             preprocess = cls.preprocess_context
             if not _is_classmethod(cls, cls.preprocess_context):
@@ -289,17 +289,17 @@ class ClassArrangement(_BaseArrangement):
         if clear_init:
             cls.__init__ = arrangement_init
 
-    @property
+    @classproperty
     def context(self) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self.get_context()
 
-    @property
+    @classproperty
     def supercontext(self) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext()
 
-    @property
+    @classproperty
     def subcontexts(self) -> tuple[Context, ...] | None:
         return self._get_subcontexts()
 

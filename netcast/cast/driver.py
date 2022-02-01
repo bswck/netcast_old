@@ -25,7 +25,12 @@ class Driver:
 
 
 def serializer_impl(serializer_class, adapter):
-    return type(serializer_class.__name__, (serializer_class, adapter), {})
+    module = inspect.stack()[1][0].f_globals['__name__']
+    return type(
+        serializer_class.__name__,
+        (serializer_class, adapter),
+        {'__module__': module}
+    )
 
 
 class DriverSerializer(Plugin):

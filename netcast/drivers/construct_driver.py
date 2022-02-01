@@ -6,21 +6,24 @@ import io
 import construct
 import netcast
 
+from netcast.cast.serializers.real import _Float
+from netcast.toolkit.symbol import Symbol
+
 
 __driver_name__ = 'construct'
 
 
-class RealSerializer(netcast.DriverSerializer):
+class NumberSerializer(netcast.DriverSerializer):
     def setup(self):
         self.cfg.setdefault('big', True)
         self.cfg.setdefault('little', False)
         self.cfg.setdefault('native', False)
 
     @property
-    def impl(self: netcast.Real) -> construct.Construct:
+    def impl(self: netcast.Real) -> construct.Construct | construct.FormatField:
         type_name = 'Int' if self.__load_type__ is int else 'Float'
         type_name += str(self.bit_length)
-        type_name += 's' if self.bounds[0] else 'u'
+        type_name += ('s' if self.bounds[0] else 'u') if self.__load_type__ is int else ''
 
         if self.cfg.big:
             type_name += 'b'
@@ -29,7 +32,7 @@ class RealSerializer(netcast.DriverSerializer):
         else:
             type_name += 'n'
 
-        missing = netcast.Symbol()
+        missing = Symbol()
         obj = getattr(construct, type_name, missing)
         if obj is missing:
             raise ImportError(f'construct does not support {type_name}')
@@ -39,18 +42,32 @@ class RealSerializer(netcast.DriverSerializer):
     def ensure_stream(dumped):
         if isinstance(dumped, io.BytesIO):
             return dumped
-        return io.BytesIO(dumped)
+        if dumped:
+            return io.BytesIO(dumped)
+        return io.BytesIO()
 
-    def load(self, dumped, context=None):
-        return self.impl._parse(self.ensure_stream(dumped), context=context, path='(parsing)')
+    def _load(self, dumped, context=None):
+        return self.impl._parse(
+            stream=self.ensure_stream(dumped),
+            context=context,
+            path=f'(loading {type(self).__name__} using netcast)'
+        )
 
-    def dump(self, loaded, context=None, stream=None):
-        if stream is None:
-            stream = io.BytesIO()
-        return self.impl._build(loaded, stream, context=context, path='(building)')
+    def _dump(self, loaded, context=None, stream=None):
+        stream = self.ensure_stream(stream)
+        self.impl._build(
+            obj=loaded,
+            stream=stream,
+            context=context,
+            path=f'(dumping {type(self).__name__} using netcast)'
+        )
+        offset = stream.tell() - self.impl.length
+        stream.seek(offset)
+        dumped = stream.read()
+        return dumped
 
 
-impl = functools.partial(netcast.serializer_impl, adapter=RealSerializer)
+impl = functools.partial(netcast.serializer_impl, adapter=NumberSerializer)
 
 
 class ConstructDriver(netcast.Driver):

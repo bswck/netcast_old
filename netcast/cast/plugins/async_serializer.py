@@ -9,9 +9,9 @@ class AsyncSerializer(Plugin):
     _load_async = default(_default_cast_async)
 
     @feature
-    async def load_async(self, dumped):
+    async def load_async(self, dumped, context=None):
         """Cast an origin value to the cast type."""
-        return await self._load_async(dumped)
+        return await self._load_async(dumped, context=None)
 
     @feature
     async def dump_async(self, loaded):
