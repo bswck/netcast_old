@@ -105,6 +105,10 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
     def __init__(self, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
+        self.setup()
+
+    def setup(self):
+        """Simple setup callback. Does nothing by default."""
 
     def __init_subclass__(
             cls,
@@ -188,20 +192,20 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         return new
 
     # @abc.abstractmethod
-    def _default_cast(self, load_or_dump: Load | Dump) -> Load | Dump:
+    def _default_cast(self, load_or_dump: Load | Dump, context=None) -> Load | Dump:
         raise NotImplementedError
 
     _dump = _default_cast
     _load = _default_cast
 
-    def dump(self, loaded: Load) -> Dump:
+    def dump(self, loaded: Load, context: Context | None = None) -> Dump:
         """Cast an origin value to the cast type."""
-        dump = self._dump(loaded)
+        dump = self._dump(loaded, context)
         return dump
 
-    def load(self, dump: Dump) -> Load:
+    def load(self, dump: Dump, context: Context | None = None) -> Load:
         """Cast an origin value to the cast type."""
-        loaded = self._load(dump)
+        loaded = self._load(dump, context)
         return loaded
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:

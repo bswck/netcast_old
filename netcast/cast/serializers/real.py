@@ -12,14 +12,84 @@ from netcast.toolkit import strings
 from netcast.toolkit.symbol import Symbol
 from netcast.toolkit.collections import classproperty
 
+
+__all__ = (
+    'Bit',
+    'Bool',
+    'Byte',
+    'Char',
+    'Float16',
+    'Float32',
+    'Float64',
+    'Half',
+    'HalfByte',
+    'Int',
+    'Int128',
+    'Int16',
+    'Int256',
+    'Int32',
+    'Int512',
+    'Int64',
+    'Int8',
+    'Long',
+    'LongInt',
+    'LongLong',
+    'MinMaxConstraint',
+    'Nibble',
+    'Primitive',
+    'Real',
+    'Short',
+    'ShortInt',
+    'Signed',
+    'SignedByte',
+    'SignedChar',
+    'SignedInt',
+    'SignedInt128',
+    'SignedInt16',
+    'SignedInt256',
+    'SignedInt32',
+    'SignedInt512',
+    'SignedInt64',
+    'SignedInt8',
+    'SignedLong',
+    'SignedLongInt',
+    'SignedLongLong',
+    'SignedLongLongInt',
+    'SignedReal',
+    'Tetrade',
+    'Unsigned',
+    'UnsignedByte',
+    'UnsignedChar',
+    'UnsignedInt',
+    'UnsignedInt128',
+    'UnsignedInt16',
+    'UnsignedInt256',
+    'UnsignedInt32',
+    'UnsignedInt512',
+    'UnsignedInt64',
+    'UnsignedInt8',
+    'UnsignedLong',
+    'UnsignedLongInt',
+    'UnsignedLongLong',
+    'UnsignedLongLongInt',
+    'UnsignedReal',
+    'bounds',
+    'factorize_int_constraint',
+    'int_serializer'
+)
+
+
 bounds = collections.namedtuple('bounds', 'min_val max_val')
 
 
 class MinMaxConstraint(Constraint):
     def validate_load(self, load):
         min_val, max_val = self.cfg.min_val, self.cfg.max_val
-        if min_val <= load <= max_val:
+        allow_inf = self.cfg.get('allow_inf', False)
+
+        if min_val <= load <= max_val or allow_inf:
             return load
+
         min_val, max_val = map(
             functools.partial(strings.truncate, stats=None),
             map(str, (min_val, max_val))
@@ -62,22 +132,22 @@ def _get_class_name(
         type_name: Literal['Int', 'Float'],
         signed: bool = True
 ) -> str:
-    name = 'Signed' if signed else 'Unsigned'
+    name = ('Signed' if signed else 'Unsigned') if type_name != 'Float' else ''
     name += type_name
     if size:
         name += str(size)
     return name
 
 
-class BaseInt(Real, abc.ABC):
+class _Int(Real, abc.ABC):
     """Base integer type."""
     __load_type__ = int
 
 
-SignedBaseInt = BaseInt
+_SignedInt = _Int
 
 
-class UnsignedBaseInt(UnsignedReal, abc.ABC):
+class _UnsignedInt(UnsignedReal, abc.ABC):
     """Base unsigned integer type."""
     __load_type__ = int
 
@@ -93,16 +163,16 @@ def factorize_int_constraint(bit_length: int, signed: bool = True):
             min_val, max_val = 0, pow2 - 1
         constraint_bounds = bounds(min_val, max_val)
     elif signed:
-        constraint_bounds = BaseInt.bounds
+        constraint_bounds = _Int.bounds
     else:
-        constraint_bounds = UnsignedBaseInt.bounds
+        constraint_bounds = _UnsignedInt.bounds
     return MinMaxConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
-def int_serializer(bit_length, signed=True) -> Type[BaseInt] | type:
+def int_serializer(bit_length, signed=True) -> Type[_Int] | type:
     constraint, = constraints = factorize_int_constraint(bit_length, signed=signed),
     name = _get_class_name(bit_length or math.inf, type_name='Int', signed=signed)
-    bases = (SignedBaseInt if signed else UnsignedBaseInt, Constrained, abc.ABC)
+    bases = (_SignedInt if signed else _UnsignedInt, Constrained, abc.ABC)
     serializer = type(name, bases, {'constraints': constraints})
     serializer.bounds = bounds(constraint.cfg.min_val, constraint.cfg.max_val)
     serializer.bit_length = constraint.cfg.bit_length
@@ -141,12 +211,21 @@ LongLong = SignedLongLong = SignedLongLongInt = Int64
 UnsignedLongLong = UnsignedLongLongInt = UnsignedInt64
 
 
-class BaseFloat(Real, abc.ABC):
+class _Float(Real, abc.ABC):
     __load_type__ = float
 
 
-SignedBaseFloat = BaseFloat
+def float_serializer(bit_length, constraints=()):
+    name = _get_class_name(bit_length, type_name='Float')
+    serializer = type(name, (_Float, abc.ABC), {'constraints': constraints})
+    return serializer
 
 
-class UnsignedBaseFloat(UnsignedReal, abc.ABC):
-    __load_type__ = float
+Float16 = float_serializer(16)
+Float32 = float_serializer(32)
+Float64 = float_serializer(64)
+
+# Aliases
+Half = Float16
+Single = Float32
+Double = Float64

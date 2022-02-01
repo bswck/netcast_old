@@ -20,13 +20,17 @@ class Plugin:
 
     def __init_subclass__(cls, **kwargs):
         independents, dependents = {}, {}
-        for attr, feature_obj in inspect.getmembers(cls, predicate=_Feature.__instancecheck__):
+        for attr, feature_obj in inspect.getmembers(cls, predicate=feature_check):
             if feature_obj.dependent:
                 dependents[attr] = feature_obj
             else:
                 independents[attr] = feature_obj
             cls.dependents_count = len(dependents)
         cls.__features__.update(**independents, **dependents)
+
+
+def feature_check(obj):
+    return isinstance(obj, _Feature) and not obj.disabled
 
 
 def get_plugins(cls):
