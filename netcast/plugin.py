@@ -7,7 +7,7 @@ import operator
 from typing import Callable, ClassVar, TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from netcast.cast.serializer import Serializer
+    from netcast.serializer import Serializer
 
 
 class Plugin:

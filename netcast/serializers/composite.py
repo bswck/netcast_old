@@ -1,7 +1,7 @@
 import abc
 
-from netcast.cast.serializer import Serializer
-from netcast.toolkit.symbol import Symbol
+from netcast.serializer import Serializer
+from netcast.tools.symbol import Symbol
 
 
 class Composite(Serializer, abc.ABC):

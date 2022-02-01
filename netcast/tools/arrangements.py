@@ -7,9 +7,9 @@ import ssl
 import threading
 from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
 
-from netcast.toolkit.contexts import *
-from netcast.toolkit.contexts import LocalHook  # noqa
-from netcast.toolkit.collections import IDLookupDictionary, Params, classproperty
+from netcast.tools.contexts import *
+from netcast.tools.contexts import LocalHook  # noqa
+from netcast.tools.collections import IDLookupDictionary, Params, classproperty
 
 __all__ = (
     'AT', 'Arrangement', 'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement',

@@ -1,4 +1,4 @@
-from netcast.cast.plugin import Plugin, hook, default
+from netcast.plugin import Plugin, hook, default
 
 
 class Constrained(Plugin):

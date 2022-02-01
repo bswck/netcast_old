@@ -1,12 +1,12 @@
 import inspect
 import sys
 
-from netcast.cast.plugin import Plugin
-from netcast.toolkit.collections import AttributeDict
+from netcast.plugin import Plugin
+from netcast.tools.collections import AttributeDict
 
 
 class Driver:
-    _drivers = {}
+    __drivers_registry__ = {}
 
     @staticmethod
     def _inspect_driver_name(stack_level=1):
@@ -19,9 +19,10 @@ class Driver:
     def __init_subclass__(cls, driver_name=None):
         if driver_name is None:
             driver_name = cls._inspect_driver_name(stack_level=2)
-        if driver_name in Driver._drivers:
+        if driver_name in Driver.__drivers_registry__:
             raise ValueError(f'{driver_name!r} driver has already been implemented')
-        Driver._drivers[driver_name] = cls
+        cls.__drivers_registry__[driver_name] = cls
+        cls.name = driver_name
 
 
 def serializer_impl(serializer_class, adapter):

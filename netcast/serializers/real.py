@@ -6,10 +6,10 @@ import functools
 import math
 from typing import Type, Literal
 
-from netcast.cast.serializer import Serializer, Constraint, ConstraintError
-from netcast.cast.plugins.constrained import Constrained
-from netcast.toolkit import strings
-from netcast.toolkit.collections import classproperty
+from netcast.serializer import Serializer, Constraint, ConstraintError
+from netcast.plugins.constrained import Constrained
+from netcast.tools import strings
+from netcast.tools.collections import classproperty
 
 
 __all__ = (

@@ -6,7 +6,7 @@ from typing import TypeVar
 import construct
 import netcast
 
-from netcast.toolkit.symbol import Symbol
+from netcast.tools.symbol import Symbol
 
 
 __driver_name__ = 'construct'
@@ -14,6 +14,10 @@ __driver_name__ = 'construct'
 
 class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
     _impl: construct.Construct
+
+    @property
+    def impl(self):
+        return self._impl
 
     def setup(self):
         self.cfg.setdefault('big', True)
@@ -52,10 +56,6 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
 
         self._impl = obj
 
-    @property
-    def impl(self):
-        return self._impl
-
     @staticmethod
     def ensure_stream(dumped):
         if isinstance(dumped, io.BytesIO):
@@ -64,14 +64,14 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
             return io.BytesIO(dumped)
         return io.BytesIO()
 
-    def _load(self, dumped, context=None, **kwargs):
+    def _load(self, dumped, context=None, **_kwargs):
         return self.impl._parse(
             stream=self.ensure_stream(dumped),
             context=context,
             path=f'(parsing {type(self).__name__} using a netcast driver)'
         )
 
-    def _dump(self, loaded, context=None, stream=None, **kwargs):
+    def _dump(self, loaded, context=None, stream=None, **_kwargs):
         stream = self.ensure_stream(stream)
         self.impl._build(
             obj=loaded,
@@ -88,24 +88,27 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
 ST = TypeVar('ST')
 
 
-def cs_int_serializer(serializer: ST) -> ST:
+def number(serializer: ST) -> ST:
     return netcast.serializer_impl(serializer, adapter=NumberSerializer)
 
 
 class ConstructDriver(netcast.Driver):
-    SignedInt8 = cs_int_serializer(netcast.SignedInt8)
-    SignedInt16 = cs_int_serializer(netcast.SignedInt16)
-    SignedInt32 = cs_int_serializer(netcast.SignedInt32)
-    SignedInt64 = cs_int_serializer(netcast.SignedInt64)
-    SignedInt128 = cs_int_serializer(netcast.SignedInt128)
-    SignedInt256 = cs_int_serializer(netcast.SignedInt256)
-    SignedInt512 = cs_int_serializer(netcast.SignedInt512)
-    UnsignedInt8 = cs_int_serializer(netcast.UnsignedInt8)
-    UnsignedInt16 = cs_int_serializer(netcast.UnsignedInt16)
-    UnsignedInt32 = cs_int_serializer(netcast.UnsignedInt32)
-    UnsignedInt64 = cs_int_serializer(netcast.UnsignedInt64)
-    UnsignedInt128 = cs_int_serializer(netcast.UnsignedInt128)
-    UnsignedInt256 = cs_int_serializer(netcast.UnsignedInt256)
-    Float16 = cs_int_serializer(netcast.Float16)
-    Float32 = cs_int_serializer(netcast.Float32)
-    Float64 = cs_int_serializer(netcast.Float64)
+    SignedInt8 = number(netcast.SignedInt8)
+    SignedInt16 = number(netcast.SignedInt16)
+    SignedInt32 = number(netcast.SignedInt32)
+    SignedInt64 = number(netcast.SignedInt64)
+    SignedInt128 = number(netcast.SignedInt128)
+    SignedInt256 = number(netcast.SignedInt256)
+    SignedInt512 = number(netcast.SignedInt512)
+    UnsignedInt8 = number(netcast.UnsignedInt8)
+    UnsignedInt16 = number(netcast.UnsignedInt16)
+    UnsignedInt32 = number(netcast.UnsignedInt32)
+    UnsignedInt64 = number(netcast.UnsignedInt64)
+    UnsignedInt128 = number(netcast.UnsignedInt128)
+    UnsignedInt256 = number(netcast.UnsignedInt256)
+    Float16 = number(netcast.Float16)
+    Float32 = number(netcast.Float32)
+    Float64 = number(netcast.Float64)
+
+    # Class-level boilerplate gens accessors
+    number = staticmethod(number)

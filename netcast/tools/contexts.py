@@ -18,9 +18,9 @@ from typing import (
     MutableSequence, Sequence, final, TypeVar, Iterable, Any, Callable, Union, Type, Tuple
 )
 
-from netcast.toolkit import strings
-from netcast.toolkit.symbol import Symbol
-from netcast.toolkit.collections import AttributeDict, IDLookupDictionary, IDLookupList, Params
+from netcast.tools import strings
+from netcast.tools.symbol import Symbol
+from netcast.tools.collections import AttributeDict, IDLookupDictionary, IDLookupList, Params
 
 __all__ = (
     'AsyncioLifoQueueContext', 'AsyncioPriorityQueueContext', 'AsyncioQueueContext',
