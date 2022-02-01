@@ -1,7 +1,7 @@
 import pytest
 
-from netcast.arrangements import AT
-from netcast.arrangements import (
+from netcast.toolkit.arrangements import AT
+from netcast.toolkit.arrangements import (
     ClassArrangement, ClassFileIOArrangement,
     Arrangement, FileIOArrangement,
     ClassSSLSocketArrangement, SSLSocketArrangement

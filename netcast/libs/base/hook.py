@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Any, ClassVar
 
-from netcast.arrangements import Arrangement
-from netcast.contexts import DictContext
+from netcast.toolkit.arrangements import Arrangement
+from netcast.toolkit.contexts import DictContext
 
 
 class Hook(Arrangement, config=True):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import collections
-import functools
 from typing import Callable
 
 from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
@@ -194,7 +193,7 @@ class ForwardDependency:
             return self
         if instance not in self.__cache:
             if self.__unbound is None:
-                from netcast.arrangements import Arrangement
+                from netcast.toolkit.arrangements import Arrangement
                 unbound = issubclass(type(instance), Arrangement)
             else:
                 unbound = self.__unbound

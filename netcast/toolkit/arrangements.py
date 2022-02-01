@@ -7,8 +7,8 @@ import ssl
 import threading
 from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
 
-from netcast.contexts import *
-from netcast.contexts import LocalHook  # noqa
+from netcast.toolkit.contexts import *
+from netcast.toolkit.contexts import LocalHook  # noqa
 from netcast.toolkit.collections import IDLookupDictionary, Params, classproperty
 
 __all__ = (

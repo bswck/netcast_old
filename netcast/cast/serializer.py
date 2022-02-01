@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal, TYPE_C
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
 from netcast.cast.plugin import Plugin, get_plugins
-from netcast.contexts import wrap_method
+from netcast.toolkit.contexts import wrap_method
 from netcast.toolkit import strings
 from netcast.toolkit.symbol import Symbol
 from netcast.toolkit.collections import AttributeDict
