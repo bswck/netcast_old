@@ -4,17 +4,14 @@ import abc
 import copy
 import enum
 import sys
-from typing import Any, ClassVar, Generic, TypeVar, final, Type, Literal
+from typing import Any, ClassVar, final, Type, Literal
 
 from netcast import ClassArrangement, Context, DoublyLinkedListContextMixin
 from netcast.plugin import Plugin
-from netcast.tools.contexts import wrap_method
 from netcast.tools import strings
+from netcast.tools.contexts import wrap_method
 from netcast.tools.symbol import Symbol
 from netcast.tools.collections import AttributeDict
-
-Load = TypeVar('Load')
-Dump = TypeVar('Dump')
 
 
 class ConstraintPolicy(enum.Enum):
@@ -30,7 +27,7 @@ class ConstraintError(ValueError):
     """A constraint failed."""
 
 
-class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
+class Constraint(metaclass=abc.ABCMeta):
     def __init__(self, policy: _Policies | ConstraintPolicy = 'strict', **cfg: Any):
         if isinstance(policy, str):
             valid_opts = ConstraintPolicy._value2member_map_
@@ -45,20 +42,20 @@ class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
         """Constraint setup."""
 
     @staticmethod
-    def _validate_default(obj: Load | Dump):
+    def _validate_default(obj):
         return obj or True
 
     validate_dump = _validate_default
     validate_load = _validate_default
 
     @staticmethod
-    def _reshape_default(obj: Load | Dump):
+    def _reshape_default(obj):
         return obj
 
     reshape_load = _reshape_default
     reshape_dump = _reshape_default
 
-    def validate(self, obj: Load | Dump, **dump_xor_load):
+    def validate(self, obj, **dump_xor_load):
         """Validate an object and return it."""
         if len(set(dump_xor_load).intersection(('load', 'dump'))) != 1:
             raise ValueError('load=True xor dump=True must be set')
@@ -167,10 +164,10 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
                     raise ValueError('exported feature attribute name is illegal')
 
                 missing = Symbol()
-                read_attr = getattr(cls, attr, missing)
+                read = getattr(cls, attr, missing)
 
                 if export is feature.func:
-                    if read_attr not in (feature, export, missing):
+                    if read not in (feature, export, missing):
                         raise ValueError(
                             f'feature {strings.truncate(attr)}() '
                             'has already been added. Set override=True on it to '
@@ -178,7 +175,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
                         )
 
                 else:
-                    if read_attr is not missing:
+                    if read is not missing:
                         continue
 
                 setattr(cls, attr, export)
@@ -197,10 +194,10 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
     def dump(
             self,
-            loaded: Load,
+            loaded,
             context: Context | None = None,
             **kwargs
-    ) -> Dump:
+    ):
         """Cast an origin value to the cast type."""
         try:
             dump = getattr(self, '_dump')
@@ -211,17 +208,17 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
     def load(
             self,
-            dump: Dump,
+            dumped,
             context: Context | None = None,
             **kwargs
-    ) -> Load:
+    ):
         """Cast an origin value to the cast type."""
         try:
             load = getattr(self, '_load')
         except AttributeError:
             raise NotImplementedError
         else:
-            return load(dump, context=context, **kwargs)
+            return load(dumped, context=context, **kwargs)
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         return self.copy(**cfg)
