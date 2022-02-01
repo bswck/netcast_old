@@ -1,7 +1,7 @@
 import inspect
 import sys
 
-from netcast.cast.plugin import Plugin, default
+from netcast.cast.plugin import Plugin
 from netcast.toolkit.collections import AttributeDict
 
 
@@ -36,14 +36,4 @@ def serializer_impl(serializer_class, adapter):
 class DriverSerializer(Plugin):
     _impls = {}
     cfg: AttributeDict  # as in the Serializer
-
-    @default
-    @property
-    def impl(self):
-        raise NotImplementedError
-
-    def _dump(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def _load(self, *args, **kwargs):
-        raise NotImplementedError
+    impl: property

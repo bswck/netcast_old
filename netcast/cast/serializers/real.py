@@ -82,9 +82,14 @@ bounds = collections.namedtuple('bounds', 'min_val max_val')
 
 
 class MinMaxConstraint(Constraint):
+    def setup(self):
+        if self.cfg.min_val > self.cfg.max_val:
+            raise ValueError('minimal value cannot be less than maximal value')
+        self.cfg.setdefault('allow_inf', False)
+
     def validate_load(self, load):
         min_val, max_val = self.cfg.min_val, self.cfg.max_val
-        allow_inf = self.cfg.get('allow_inf', False)
+        allow_inf = self.cfg.allow_inf
 
         if min_val <= load <= max_val or allow_inf:
             return load
@@ -145,7 +150,6 @@ class _UnsignedInt(UnsignedReal, abc.ABC):
     __load_type__ = int
 
 
-@functools.lru_cache
 def factorize_int_constraint(bit_length: int, signed: bool = True):
     if bit_length:
         pow2 = 2 ** bit_length
@@ -162,6 +166,7 @@ def factorize_int_constraint(bit_length: int, signed: bool = True):
     return MinMaxConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
+@functools.lru_cache
 def int_serializer(bit_length, signed=True) -> Type[_Int] | type:
     constraint, = constraints = factorize_int_constraint(bit_length, signed=signed),
     name = _get_class_name(bit_length or math.inf, type_name='Int', signed=signed)

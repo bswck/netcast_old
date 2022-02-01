@@ -39,6 +39,10 @@ class Constraint(Generic[Load, Dump], metaclass=abc.ABCMeta):
             policy = valid_opts[policy]
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
         self.policy = policy
+        self.setup()
+
+    def setup(self):
+        """Constraint setup."""
 
     @staticmethod
     def _validate_default(obj: Load | Dump):

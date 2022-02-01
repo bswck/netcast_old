@@ -68,7 +68,7 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
         return self.impl._parse(
             stream=self.ensure_stream(dumped),
             context=context,
-            path=f'(loading {type(self).__name__} using netcast)'
+            path=f'(parsing {type(self).__name__} using a netcast driver)'
         )
 
     def _dump(self, loaded, context=None, stream=None, **kwargs):
@@ -77,7 +77,7 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
             obj=loaded,
             stream=stream,
             context=context,
-            path=f'(dumping {type(self).__name__} using netcast)'
+            path=f'(building {type(self).__name__} using a netcast driver)'
         )
         offset = stream.tell() - self.impl.length  # noqa
         stream.seek(offset)
@@ -88,24 +88,24 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
 ST = TypeVar('ST')
 
 
-def number_serializer(serializer: ST) -> ST:
+def cs_int_serializer(serializer: ST) -> ST:
     return netcast.serializer_impl(serializer, adapter=NumberSerializer)
 
 
 class ConstructDriver(netcast.Driver):
-    SignedInt8 = number_serializer(netcast.SignedInt8)
-    SignedInt16 = number_serializer(netcast.SignedInt16)
-    SignedInt32 = number_serializer(netcast.SignedInt32)
-    SignedInt64 = number_serializer(netcast.SignedInt64)
-    SignedInt128 = number_serializer(netcast.SignedInt128)
-    SignedInt256 = number_serializer(netcast.SignedInt256)
-    SignedInt512 = number_serializer(netcast.SignedInt512)
-    UnsignedInt8 = number_serializer(netcast.UnsignedInt8)
-    UnsignedInt16 = number_serializer(netcast.UnsignedInt16)
-    UnsignedInt32 = number_serializer(netcast.UnsignedInt32)
-    UnsignedInt64 = number_serializer(netcast.UnsignedInt64)
-    UnsignedInt128 = number_serializer(netcast.UnsignedInt128)
-    UnsignedInt256 = number_serializer(netcast.UnsignedInt256)
-    Float16 = number_serializer(netcast.Float16)
-    Float32 = number_serializer(netcast.Float32)
-    Float64 = number_serializer(netcast.Float64)
+    SignedInt8 = cs_int_serializer(netcast.SignedInt8)
+    SignedInt16 = cs_int_serializer(netcast.SignedInt16)
+    SignedInt32 = cs_int_serializer(netcast.SignedInt32)
+    SignedInt64 = cs_int_serializer(netcast.SignedInt64)
+    SignedInt128 = cs_int_serializer(netcast.SignedInt128)
+    SignedInt256 = cs_int_serializer(netcast.SignedInt256)
+    SignedInt512 = cs_int_serializer(netcast.SignedInt512)
+    UnsignedInt8 = cs_int_serializer(netcast.UnsignedInt8)
+    UnsignedInt16 = cs_int_serializer(netcast.UnsignedInt16)
+    UnsignedInt32 = cs_int_serializer(netcast.UnsignedInt32)
+    UnsignedInt64 = cs_int_serializer(netcast.UnsignedInt64)
+    UnsignedInt128 = cs_int_serializer(netcast.UnsignedInt128)
+    UnsignedInt256 = cs_int_serializer(netcast.UnsignedInt256)
+    Float16 = cs_int_serializer(netcast.Float16)
+    Float32 = cs_int_serializer(netcast.Float32)
+    Float64 = cs_int_serializer(netcast.Float64)
