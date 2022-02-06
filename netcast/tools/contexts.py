@@ -211,7 +211,7 @@ async def _call_observer_async(observer, context, params):
 
 def _call_observer(observer, context, params):
     try:
-        observer(context, *params.args, **params.kwargs)
+        params.call(observer, context)
     except Exception as e:
         raise NetcastError('observer failed') from e
 
@@ -366,7 +366,7 @@ def wrap_method(
                 params = Params.pack(bound_method, *params.args, **params.kwargs)
 
             if callable(precede_hook):
-                trigger = reshaped = params.partial(precede_hook)(self)
+                trigger = reshaped = params.call(precede_hook, self)
 
                 if inspect.isawaitable(trigger):
                     reshaped = await trigger
@@ -385,7 +385,7 @@ def wrap_method(
                     params = Params.pack(res, *params.args, **params.kwargs)
 
                 if callable(finalize_hook):
-                    trigger = params.partial(finalize_hook)(self)
+                    trigger = params.call(finalize_hook, self)
                     if inspect.isawaitable(trigger):
                         await trigger
 
@@ -413,7 +413,7 @@ def wrap_method(
                 params = Params.pack(bound_method, *params.args, **params.kwargs)
 
             if callable(precede_hook):
-                reshaped = params.partial(precede_hook)(self)
+                reshaped = params.call(precede_hook, self)
 
                 if precedential_reshaping and isinstance(reshaped, Params):
                     args = (*reshaped.args,)
@@ -429,7 +429,7 @@ def wrap_method(
                     params = Params.pack(res, *params.args, **params.kwargs)
 
                 if callable(finalize_hook):
-                    params.partial(finalize_hook)(self)
+                    params.call(finalize_hook, self)
 
                 if res is MISSING:
                     raise  # pylint: disable=E0704
@@ -439,7 +439,7 @@ def wrap_method(
     return functools.update_wrapper(wrapper, func)
 
 
-def _prepare_context_name(cls: type) -> str:
+def _supply_context_name(cls: type) -> str:
     class_name = cls.__name__
     suffix = "Context"
     if class_name:
@@ -486,7 +486,7 @@ def wrap_to_context(
             method, precede_hook=precede_hook, finalize_hook=finalize_hook, cls=cls
         )
     if name is None:
-        name = _prepare_context_name(cls)
+        name = _supply_context_name(cls)
     if init_subclass is None:
         init_subclass = {}
     return type(name, bases, env, **init_subclass)

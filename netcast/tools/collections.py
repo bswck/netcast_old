@@ -87,8 +87,8 @@ class Params:
     def pack(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
 
-    def call(self, fn):
-        return fn(*self.args, **self.kwargs)
+    def call(self, fn, *args, **kwargs):
+        return type(self)(args, kwargs).partial(fn)(*self.args, **self.kwargs)
 
     def partial(self, fn):
         return functools.partial(fn, *self.args, **self.kwargs)

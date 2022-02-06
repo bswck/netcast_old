@@ -203,9 +203,12 @@ class _BaseArrangement:
             context_class = cls.context_class
 
         context = create_context(
-            context_class, cls if self is None else self, cls.context_params
+            context_class=context_class,
+            cls_or_self=cls if self is None else self,
+            params=cls.context_params
         )
         cls._set_supercontext(context, supercontext, bind=bind)
+
         return context
 
     @classmethod
@@ -606,7 +609,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return self._new_context
 
 
-def create_context(context_class: Type[CT], cls_or_self, params=Params()) -> CT:
+def create_context(*, context_class: Type[CT], cls_or_self, params=Params()) -> CT:
     args, kwargs = params
 
     if callable(args):
