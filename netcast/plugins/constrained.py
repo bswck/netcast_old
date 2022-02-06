@@ -17,7 +17,7 @@ class Constrained(Plugin):
     def validate_load(self, loaded):
         for constraint in self.constraints:
             loaded = constraint.validate(loaded, load=True)
-        return Params.frame(loaded)
+        return Params.pack(loaded)
 
     @hook(
         call_before="load",
@@ -28,7 +28,7 @@ class Constrained(Plugin):
     def validate_dump(self, dumped):
         for constraint in self.constraints:
             dumped = constraint.validate(dumped, dump=True)
-        return Params.frame(dumped)
+        return Params.pack(dumped)
 
     @hook(
         call_before="dump_async",
@@ -40,7 +40,7 @@ class Constrained(Plugin):
     async def validate_load_async(self, loaded):
         for constraint in self.constraints:
             loaded = await constraint.validate(loaded, load=True)
-        return Params.frame(loaded)
+        return Params.pack(loaded)
 
     @hook(
         call_before="load_async",
@@ -52,4 +52,4 @@ class Constrained(Plugin):
     async def validate_dump_async(self, dumped):
         for constraint in self.constraints:
             dumped = await constraint.validate(dumped, dump=True)
-        return Params.frame(dumped)
+        return Params.pack(dumped)

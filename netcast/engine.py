@@ -10,6 +10,13 @@ class Engine(Arrangement):
         self.data = {}
         self.drivers = Driver.__drivers_registry__
 
-    def get_driver(self, name):
+    def get_driver(self, name) -> Driver:
         name = sys.intern(name)
         return self.drivers.get(name)
+
+
+__global_engine = Engine()
+
+
+def get_global_engine():
+    return __global_engine

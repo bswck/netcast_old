@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from typing import Callable
 
 from jaraco.collections import (
@@ -73,9 +74,24 @@ class Params:
     def __iter__(self):
         yield from (self.args, self.kwargs)
 
+    def __repr_args__(self):
+        return ', '.join(map(repr, self.args))
+
+    def __repr_kwargs__(self):
+        return ', '.join(map(lambda key, value: f'{key}={value!r}', self.kwargs.items()))
+
+    def __repr__(self):
+        return ', '.join((self.__repr_args__(), self.__repr_kwargs__()))
+
     @classmethod
-    def frame(cls, *args, **kwargs):
+    def pack(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
+
+    def call(self, fn):
+        return fn(*self.args, **self.kwargs)
+
+    def partial(self, fn):
+        return functools.partial(fn, *self.args, **self.kwargs)
 
     @property
     def args(self) -> tuple | Callable:

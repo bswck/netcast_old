@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import asyncio
 import collections.abc
-import dataclasses
 import functools
 import inspect
 import io
@@ -13,11 +12,9 @@ import ssl
 import sys
 import threading
 import warnings
-from types import FunctionType, MethodType
 from typing import (
     MutableSequence,
     Sequence,
-    final,
     TypeVar,
     Iterable,
     Any,
@@ -28,6 +25,7 @@ from typing import (
 )
 
 from netcast.constants import MISSING
+from netcast.exceptions import NetcastError
 from netcast.tools import strings
 from netcast.tools.collections import AttributeDict, IDLookupDictionary, Params
 
@@ -41,7 +39,7 @@ __all__ = (
     "CT",
     "ConstructContext",
     "Context",
-    "ContextManagerPool",
+    "ExitPool",
     "CounterContext",
     "DequeContext",
     "DictContext",
@@ -65,15 +63,19 @@ __all__ = (
 )
 
 
-@dataclasses.dataclass
-class ContextManagerPool:
+class ExitPool:
     """Literally a context-manager pool."""
 
-    per_class_cms: list[type]
-    per_instance_cms: list = dataclasses.field(default_factory=list)
-    methods: list = dataclasses.field(default_factory=list)
+    def __init__(self, per_class_cms, per_instance_cms=None, methods=None):
+        if per_instance_cms is None:
+            per_instance_cms = []
+        if methods is None:
+            methods = []
 
-    def __post_init__(self):
+        self.per_class_cms = per_class_cms
+        self.per_instance_cms = per_instance_cms
+        self.methods = methods
+
         self._class_cms = IDLookupDictionary()
         self._instance_cms = IDLookupDictionary()
         self._method_cms = IDLookupDictionary()
@@ -83,17 +85,17 @@ class ContextManagerPool:
             for method in self.methods:
                 self._method_cms.setdefault(context, {})
                 for context_mgr in self.per_class_cms:
-                    self._method_cms[context].setdefault(method, [])
-                    self._method_cms[context][method].append(context_mgr())
+                    cms = self._method_cms[context].setdefault(method, [])
+                    cms.append(context_mgr())
         else:
             if self.per_instance_cms and context not in self._instance_cms:
                 for context_mgr in self.per_class_cms:
-                    self._instance_cms.setdefault(context, [])
-                    self._instance_cms[context].append(context_mgr())
+                    cms = self._instance_cms.setdefault(context, [])
+                    cms.append(context_mgr())
             elif self.per_class_cms and type(context) not in self._class_cms:
                 for context_mgr in self.per_class_cms:
-                    self._class_cms.setdefault(context, [])
-                    self._class_cms[context].append(context_mgr())
+                    cms = self._class_cms.setdefault(context, [])
+                    cms.append(context_mgr())
 
     def _get_cms(self, context):
         if self.per_instance_cms:
@@ -104,7 +106,7 @@ class ContextManagerPool:
         if method_name is None:
             return self._get_cms(context)
 
-        if isinstance(method_name, (FunctionType, MethodType)):
+        if hasattr(method_name, '__name__'):
             method_name = method_name.__name__
 
         if context in self._method_cms:
@@ -114,102 +116,172 @@ class ContextManagerPool:
 
         return self._get_cms(context)
 
-    @staticmethod
-    def _enter(cm):
-        enter_value = None
-        if cm is not None:
-            enter_cm = getattr(cm, "__enter__", getattr(cm, "__aenter__", None))
-            if callable(enter_cm):
-                enter_value = enter_cm()
-        return enter_value
-
-    def enter(self, context, method_name=None):
+    def enter(self, context, method_name=None, async_=False):
         cms = self.get_cms(context, method_name=method_name)
-        return list(map(self._enter, cms))
 
-    @staticmethod
-    def _exit(cm, exc_info=(None, None, None)):
-        exit_value = None
-        if cm is not None:
-            exit_cm = getattr(cm, "__exit__", getattr(cm, "__aexit__", None))
-            if callable(exit_cm):
-                exit_value = exit_cm(*exc_info)
-        return exit_value
+        if async_:
+            async def _bulk_enter():
+                for cm in cms:
+                    enter_result = _enter(cm)
+                    if inspect.isawaitable(enter_result):
+                        await enter_result
+        else:
+            def _bulk_enter():
+                for cm in cms:
+                    _enter(cm)
 
-    def exit(self, context, method_name=None, initial_exc_info=(None, None, None)):
-        sequence = self.get_cms(context, method_name=method_name)
-        results = []
+        return _bulk_enter()
 
-        def _bulk_exit(value, element):
-            exit_value = None
-            exc_values = value
-            try:
-                exit_value = self._exit(
-                    cm=element, exc_info=value
-                )  # but it might be a coro!
-            except Exception:
-                exc_values = sys.exc_info()
-            finally:
-                results.append(exit_value)
-                return exc_values
+    def exit(
+            self,
+            context,
+            method_name=None,
+            exc_info=None,
+            async_=False
+    ):
+        cms = self.get_cms(context, method_name=method_name)
+        cms.reverse()
 
-        functools.reduce(_bulk_exit, sequence, initial_exc_info)
-        return results
+        if exc_info is None:
+            exc_info = sys.exc_info()
+
+        if async_:
+            async def _call_exit(_exc_info, cm):
+                try:
+                    trigger = _exit(cm=cm, exc_info=_exc_info)
+                    if inspect.isawaitable(trigger):
+                        await trigger
+                except Exception:
+                    _exc_info = sys.exc_info()
+                finally:
+                    return _exc_info
+
+            async def _bulk_exit(_exc_info):
+                for cm in cms:
+                    _exc_info = await _call_exit(_exc_info, cm)
+
+        else:
+            def _call_exit(_exc_info, cm):
+                try:
+                    _exit(cm=cm, exc_info=_exc_info)
+                except Exception:
+                    _exc_info = sys.exc_info()
+                finally:
+                    return _exc_info
+
+            def _bulk_exit(_exc_info):
+                for cm in cms:
+                    _exc_info = _call_exit(_exc_info, cm)
+
+        return _bulk_exit(exc_info)
 
 
-@final
-class Node:
-    _listeners = IDLookupDictionary()
-    _pools = IDLookupDictionary()
+def _enter(cm):
+    enter_result = None
+    call_enter = getattr(cm, "__exit__", getattr(cm, "__aexit__", None))
 
-    @classmethod
-    def precede_hook(cls, context, func, *args, **kwargs):
-        """Anytime a context is going to be modified, this method is called."""
-        pool = cls._pools.get(context)
+    if callable(call_enter):
+        enter_result = call_enter()
+
+    return enter_result
+
+
+def _exit(cm, exc_info=None):
+    exit_result = None
+
+    if exc_info is None:
+        exc_info = sys.exc_info()
+
+    call_exit = getattr(cm, "__exit__", getattr(cm, "__aexit__", None))
+
+    if callable(call_exit):
+        exit_result = call_exit(*exc_info)
+
+    return exit_result
+
+
+async def _call_observer_async(observer, context, params):
+    try:
+        trigger = observer(context, *params.args, **params.kwargs)
+        if inspect.isawaitable(trigger):
+            await trigger
+    except Exception as e:
+        raise NetcastError('(async?) observer failed') from e
+
+
+def _call_observer(observer, context, params):
+    try:
+        observer(context, *params.args, **params.kwargs)
+    except Exception as e:
+        raise NetcastError('observer failed') from e
+
+
+class _HookCaller:
+    pools = IDLookupDictionary()
+    observers = IDLookupDictionary()
+
+    def call_observers(self, context, params, async_=False):
+        observers = self.observers.setdefault(context, [])
+        trigger = None
+
+        if async_:
+            trigger = asyncio.gather(*(
+                _call_observer_async(observer, context, params)
+                for observer in observers
+            ))
+        else:
+            for observer in observers:
+                try:
+                    _call_observer(observer, context, params)
+                finally:
+                    continue
+        return trigger
+
+    def precede_hook(self, context, func, params):
+        """Anytime a context is on the verge of being modified, this method is called."""
+        pool = self.pools.get(context)
         if pool:
             pool.enter(context, func, sys.exc_info())
+        self.call_observers(context, params)
 
-    @classmethod
-    def finalize_hook(cls, context, func, *args, **kwargs):
+    def finalize_hook(self, context, func, params):
         """Anytime a context was modified, this method is called."""
-        pool = cls._pools.get(context)
+        pool = self.pools.get(context)
         if pool:
             pool.exit(context, func, sys.exc_info())
+        self.call_observers(context, params)
 
-    @classmethod
-    async def precede_hook_async(cls, context, func, *args, **kwargs):
+    async def precede_hook_async(self, context, func, params):
         """Anytime a context is going to be modified asynchronously, this method is called."""
-        pool = cls._pools.get(context)
+        pool = self.pools.get(context)
         if not pool:
             return
-        enter_values = pool.enter(context, func)
-        for enter_value in enter_values:
-            if inspect.isawaitable(enter_value):
-                await enter_value
+        await pool.enter(context, func, async_=True)
+        await self.call_observers(context, params, async_=True)
 
-    @classmethod
-    async def finalize_hook_async(cls, context, func, *args, **kwargs):
+    async def finalize_hook_async(self, context, func, params):
         """Anytime a context was modified asynchronously, this method is called."""
-        pool = cls._pools.get(context)
+        pool = self.pools.get(context)
         if not pool:
             return
-        exit_values = pool.exit(context, func)
-        for exit_value in exit_values:
-            if inspect.isawaitable(exit_value):
-                await exit_value
+        await pool.exit(context, func, async_=True)
+        await self.call_observers(context, params, async_=True)
 
 
-def extend_cm_pool(
+hook_caller = _HookCaller()
+
+
+def extend_exit_pool(
     context_class=None, *, per_class_cms=None, per_instance_cms=None, methods=None
 ):
     if context_class is None:
         return functools.partial(
-            extend_cm_pool,
+            extend_exit_pool,
             per_class_cms=per_class_cms,
             per_instance_cms=per_instance_cms,
             methods=methods,
         )
-    pool = Node._pools.get(context_class)
+    pool = hook_caller.pools.get(context_class)
     args = map(
         lambda arg: arg if arg else [], (per_class_cms, per_instance_cms, methods)
     )
@@ -222,16 +294,16 @@ def extend_cm_pool(
         per_class_cms, per_instance_cms, methods = map(
             lambda arg: arg if isinstance(arg, list) else list(arg), args
         )
-        pool = ContextManagerPool(
+        pool = ExitPool(
             per_class_cms=per_class_cms,
             per_instance_cms=per_instance_cms,
             methods=methods,
         )
-        Node._pools[context_class] = pool
+        hook_caller.pools[context_class] = pool
     return context_class
 
 
-def append_cm_pool(context_class, cm_class, per_instance=True, methods=None, name=None):
+def append_exit_pool(context_class, cm_class, per_instance=True, methods=None, name=None):
     if name is None:
         name = "CM" + context_class.__name__
     kwds = {}
@@ -241,20 +313,20 @@ def append_cm_pool(context_class, cm_class, per_instance=True, methods=None, nam
         kwds.update(per_instance_cms=[cm_class])
     else:
         kwds.update(per_class_cms=[cm_class])
-    return extend_cm_pool(type(name, (context_class,), {}), **kwds)
+    return extend_exit_pool(type(name, (context_class,), {}), **kwds)
 
 
-thread_safe = functools.partial(append_cm_pool, cm_class=threading.RLock)
-async_safe = functools.partial(append_cm_pool, cm_class=asyncio.Lock)
+thread_safe = functools.partial(append_exit_pool, cm_class=threading.RLock)
+async_safe = functools.partial(append_exit_pool, cm_class=asyncio.Lock)
 
 
 class Context(metaclass=abc.ABCMeta):
     """
     All context classes must derive from this class.
 
-    If subclassing, remember to call :class:`ModifyHandle` in all modification methods
-    in order to make modification hooks work
-    (or use a built-in boilerplate saver, :func:`wrap_to_context`).
+    If subclassing, remember to call :var:`hook_caller` gathering hooks in all modification methods
+    in order to make modification hooks work (or use a built-in boilerplate reducer,
+    :func:`wrap_to_context`).
     """
 
     def _bind_supercontext(self, supercontext: Context, final_key: Any | None = None):
@@ -287,33 +359,39 @@ def wrap_method(
 
         async def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
+
+            params = Params.pack(Params.pack(args=args, kwargs=kwargs))
+
             if hook_takes_method:
-                hook_args = (self, bound_method, *args)
-            else:
-                hook_args = (self, *args)
-            params = Params(args=hook_args, kwargs=kwargs)
+                params = Params.pack(bound_method, *params.args, **params.kwargs)
+
             if callable(precede_hook):
-                precede_coroutine = returned_value = precede_hook(
-                    *params.args, **params.kwargs
-                )
-                if inspect.isawaitable(precede_coroutine):
-                    returned_value = await precede_coroutine
-                if precedential_reshaping:
-                    args = (self, *returned_value.args)
-                    kwargs = {**returned_value.kwargs}
+                trigger = reshaped = params.partial(precede_hook)(self)
+
+                if inspect.isawaitable(trigger):
+                    reshaped = await trigger
+
+                if precedential_reshaping and isinstance(reshaped, Params):
+                    args = (self, *reshaped.args)
+                    kwargs = {**reshaped.kwargs}
+
             res = MISSING
+
             try:
                 res = await func(self, *args, **kwargs)
+
             finally:
                 if finalizer_takes_result:
-                    hook_args = (self, res, *hook_args[1:])
-                    params = Params(args=hook_args, kwargs=kwargs)
+                    params = Params.pack(res, *params.args, **params.kwargs)
+
                 if callable(finalize_hook):
-                    finalize_coroutine = finalize_hook(*params.args, **params.kwargs)
-                    if inspect.isawaitable(finalize_coroutine):
-                        await finalize_coroutine
+                    trigger = params.partial(finalize_hook)(self)
+                    if inspect.isawaitable(trigger):
+                        await trigger
+
                 if res is MISSING:
                     raise  # pylint: disable=E0704
+
                 return res  # pylint: disable=WO150
 
     else:
@@ -328,27 +406,34 @@ def wrap_method(
 
         def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
+
+            params = Params.pack(Params.pack(args=args, kwargs=kwargs))
+
             if hook_takes_method:
-                hook_args = (self, bound_method, *args)
-            else:
-                hook_args = (self, *args)
-            params = Params(args=hook_args, kwargs=kwargs)
+                params = Params.pack(bound_method, *params.args, **params.kwargs)
+
             if callable(precede_hook):
-                returned_value = precede_hook(*params.args, **params.kwargs)
-                if precedential_reshaping:
-                    args = (*returned_value.args,)
-                    kwargs = {**returned_value.kwargs}
+                reshaped = params.partial(precede_hook)(self)
+
+                if precedential_reshaping and isinstance(reshaped, Params):
+                    args = (*reshaped.args,)
+                    kwargs = {**reshaped.kwargs}
+
             res = MISSING
+
             try:
                 res = func(self, *args, **kwargs)
+
             finally:
                 if finalizer_takes_result:
-                    hook_args = (self, res, *hook_args[2:])
-                    params = Params(args=hook_args, kwargs=kwargs)
+                    params = Params.pack(res, *params.args, **params.kwargs)
+
                 if callable(finalize_hook):
-                    finalize_hook(*params.args, **params.kwargs)
+                    params.partial(finalize_hook)(self)
+
                 if res is MISSING:
                     raise  # pylint: disable=E0704
+
                 return res  # pylint: disable=WO150
 
     return functools.update_wrapper(wrapper, func)
@@ -392,11 +477,11 @@ def wrap_to_context(
     for method in hooked_methods:
         method = getattr(cls, method, None) if isinstance(method, str) else method
         if inspect.iscoroutinefunction(method):
-            precede_hook = Node.precede_hook_async
-            finalize_hook = Node.finalize_hook_async
+            precede_hook = hook_caller.precede_hook_async
+            finalize_hook = hook_caller.finalize_hook_async
         else:
-            precede_hook = Node.precede_hook
-            finalize_hook = Node.finalize_hook
+            precede_hook = hook_caller.precede_hook
+            finalize_hook = hook_caller.finalize_hook
         env[method.__name__] = wrap_method(
             method, precede_hook=precede_hook, finalize_hook=finalize_hook, cls=cls
         )

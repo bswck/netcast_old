@@ -69,8 +69,8 @@ class _Feature:
     def is_hook(self):
         return any((self.call_before, self.call_after))
 
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+    def __call__(self, params):
+        return params.call(self.func)
 
 
 def default(value=None):
