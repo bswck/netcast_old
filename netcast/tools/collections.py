@@ -81,7 +81,7 @@ class Params:
         return ', '.join(map(lambda key, value: f'{key}={value!r}', self.kwargs.items()))
 
     def __repr__(self):
-        return ', '.join((self.__repr_args__(), self.__repr_kwargs__()))
+        return ', '.join(filter(None, (self.__repr_args__(), self.__repr_kwargs__())))
 
     @classmethod
     def pack(cls, *args, **kwargs):

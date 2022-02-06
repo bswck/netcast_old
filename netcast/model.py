@@ -5,6 +5,7 @@ import threading
 import typing
 
 from netcast.engine import get_global_engine
+from netcast.tools import Params
 
 if typing.TYPE_CHECKING:
     from netcast import Driver
@@ -28,8 +29,10 @@ class ComponentStack:
     def transform_item(self, component, cfg=None, default_name=None):
         if isinstance(component, type) and issubclass(component, Model):
             component = self.transform_submodel(component)
+        if cfg is None:
+            cfg = {}
         cfg.setdefault('name', default_name)
-        if isinstance(component, type):
+        if isinstance(component, type) and not issubclass(component, Model):
             component = component(**cfg)
         else:
             component = self.transform_component(component, cfg)
@@ -47,9 +50,9 @@ class ComponentStack:
         with self._mutex:
             self._components.append(item)
 
-    def pop(self, index):
+    def pop(self, index=-1):
         with self._mutex:
-            self._components.pop(index)
+            return self._components.pop(index)
 
     def clear(self):
         with self._mutex:
@@ -58,6 +61,9 @@ class ComponentStack:
     @property
     def size(self):
         return len(self._components)
+
+    def __repr__(self):
+        return f'<{type(self).__name__}({Params.pack(self._components)})>'
 
 
 class Model:
