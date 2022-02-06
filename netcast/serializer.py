@@ -103,16 +103,15 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
                     "has already been added. Set override=True on it to "
                     "override all the features"
                 )
+            return True
 
-        else:
-            if taken is not MISSING:
-                return
+        return taken is MISSING
 
     @classmethod
     def _get_feature_export(cls, *, attr, feature):
         export = feature.func or feature.default
-        cls._check_feature_export(attr=attr, feature=feature, export=export)
-        return export
+        ok = cls._check_feature_export(attr=attr, feature=feature, export=export)
+        return export if ok else None
 
     @classmethod
     def _setup_feature(cls, attr, feature):
@@ -125,7 +124,8 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
             )
 
         export = cls._get_feature_export(attr=attr, feature=feature)
-        setattr(cls, attr, export)
+        if export is not None:
+            setattr(cls, attr, export)
 
     def __init_subclass__(cls, **kwargs: Any):
         plugins = ()

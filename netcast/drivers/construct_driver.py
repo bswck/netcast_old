@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from typing import TypeVar
 
 import construct
 import netcast
@@ -84,28 +83,22 @@ class NumberAdapter(netcast.Adapter, netcast.Real, config=True):
         return dumped
 
 
-ST = TypeVar("ST")
-
-
-number = netcast.serializer_factory(NumberAdapter)
-
-
 class ConstructDriver(netcast.Driver):
-    SignedInt8 = number(netcast.SignedInt8)
-    SignedInt16 = number(netcast.SignedInt16)
-    SignedInt32 = number(netcast.SignedInt32)
-    SignedInt64 = number(netcast.SignedInt64)
-    SignedInt128 = number(netcast.SignedInt128)
-    SignedInt256 = number(netcast.SignedInt256)
-    SignedInt512 = number(netcast.SignedInt512)
-    UnsignedInt8 = number(netcast.UnsignedInt8)
-    UnsignedInt16 = number(netcast.UnsignedInt16)
-    UnsignedInt32 = number(netcast.UnsignedInt32)
-    UnsignedInt64 = number(netcast.UnsignedInt64)
-    UnsignedInt128 = number(netcast.UnsignedInt128)
-    UnsignedInt256 = number(netcast.UnsignedInt256)
-    Float16 = number(netcast.Float16)
-    Float32 = number(netcast.Float32)
-    Float64 = number(netcast.Float64)
+    real = netcast.serializer_factory(NumberAdapter)
 
-    number = staticmethod(number)
+    SignedInt8 = real(netcast.SignedInt8)
+    SignedInt16 = real(netcast.SignedInt16)
+    SignedInt32 = real(netcast.SignedInt32)
+    SignedInt64 = real(netcast.SignedInt64)
+    SignedInt128 = real(netcast.SignedInt128)
+    SignedInt256 = real(netcast.SignedInt256)
+    SignedInt512 = real(netcast.SignedInt512)
+    UnsignedInt8 = real(netcast.UnsignedInt8)
+    UnsignedInt16 = real(netcast.UnsignedInt16)
+    UnsignedInt32 = real(netcast.UnsignedInt32)
+    UnsignedInt64 = real(netcast.UnsignedInt64)
+    UnsignedInt128 = real(netcast.UnsignedInt128)
+    UnsignedInt256 = real(netcast.UnsignedInt256)
+    Float16 = real(netcast.Float16)
+    Float32 = real(netcast.Float32)
+    Float64 = real(netcast.Float64)

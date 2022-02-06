@@ -153,7 +153,7 @@ class ContextManagerPool:
                 results.append(exit_value)
                 return exc_values
 
-        functools.reduce(_bulk_exit, sequence=sequence, initial=initial_exc_info)
+        functools.reduce(_bulk_exit, sequence, initial_exc_info)
         return results
 
 
@@ -336,7 +336,7 @@ def wrap_method(
             if callable(precede_hook):
                 returned_value = precede_hook(*params.args, **params.kwargs)
                 if precedential_reshaping:
-                    args = (self, *returned_value.args)
+                    args = (*returned_value.args,)
                     kwargs = {**returned_value.kwargs}
             res = MISSING
             try:

@@ -9,7 +9,15 @@ from netcast.state import State
 from netcast.tools.collections import AttributeDict
 
 
-class Driver:
+class DriverMeta(type):
+    def __getattr__(self, item):
+        alias = getattr(serializers, item, None)
+        if alias is None or not issubclass(alias, Serializer) or item == alias.__name__:
+            raise AttributeError(item)
+        return object.__getattribute__(self, alias.__name__)
+
+
+class Driver(metaclass=DriverMeta):
     __drivers_registry__ = {}
 
     @staticmethod
@@ -30,14 +38,8 @@ class Driver:
         cls.__drivers_registry__[driver_name] = cls
         cls.name = driver_name
 
-    def __new__(cls, model, engine=None):
-        return State(_model=model, _driver=cls, _engine=engine)
-
-    def __getattr__(self, item):
-        alias = getattr(serializers, item, None)
-        if alias is None or not issubclass(alias, Serializer) or item == alias.__name__:
-            raise AttributeError(item)
-        return object.__getattribute__(self, alias.__name__)
+    def __new__(cls, _model, _engine=None):
+        return State(model=_model, driver=cls, engine=_engine)
 
 
 def adapted_serializer(serializer_class, adapter, stack_level=1):

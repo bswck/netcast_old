@@ -33,6 +33,7 @@ __all__ = (
     "Long",
     "LongInt",
     "LongLong",
+    "LongLongInt",
     "Nibble",
     "Primitive",
     "Real",
@@ -115,16 +116,16 @@ def _get_class_name(
     return name
 
 
-class _Int(Real, abc.ABC):
+class AnyInt(Real, abc.ABC):
     """Base integer type."""
 
     __load_type__ = int
 
 
-_SignedInt = _Int
+AnySignedInt = AnyInt
 
 
-class _UnsignedInt(UnsignedReal, abc.ABC):
+class AnyUnsignedInt(UnsignedReal, abc.ABC):
     """Base unsigned integer type."""
 
     __load_type__ = int
@@ -140,17 +141,17 @@ def factorize_int_constraint(bit_length: int, signed: bool = True):
             min_val, max_val = 0, pow2 - 1
         constraint_bounds = Bounds(min_val, max_val)
     elif signed:
-        constraint_bounds = _Int.bounds
+        constraint_bounds = AnySignedInt.bounds
     else:
-        constraint_bounds = _UnsignedInt.bounds
+        constraint_bounds = AnyUnsignedInt.bounds
     return RangeConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
 @functools.lru_cache
-def int_type(bit_length, signed=True) -> Type[_Int] | type:
+def int_type(bit_length, signed=True) -> Type[AnyInt] | type:
     (constraint,) = constraints = (factorize_int_constraint(bit_length, signed=signed),)
     name = _get_class_name(bit_length or math.inf, type_name="Int", signed=signed)
-    bases = (_SignedInt if signed else _UnsignedInt, Constrained, abc.ABC)
+    bases = (AnySignedInt if signed else AnyUnsignedInt, Constrained, abc.ABC)
     serializer = type(name, bases, {"constraints": constraints, "__module__": __name__})
     serializer.bounds = Bounds(constraint.cfg.min, constraint.cfg.max)
     serializer.bit_length = constraint.cfg.bit_length
@@ -185,7 +186,7 @@ Short = ShortInt = Int16
 Int = Long = LongInt = Int32
 Signed = SignedInt = SignedLong = SignedLongInt = Int32
 Unsigned = UnsignedInt = UnsignedLong = UnsignedLongInt = UnsignedInt32
-LongLong = SignedLongLong = SignedLongLongInt = Int64
+LongLong = LongLongInt = SignedLongLong = SignedLongLongInt = Int64
 UnsignedLongLong = UnsignedLongLongInt = UnsignedInt64
 
 

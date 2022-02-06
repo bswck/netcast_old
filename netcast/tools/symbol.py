@@ -1,5 +1,6 @@
 import dataclasses
 import sys
+import threading
 
 
 @dataclasses.dataclass(frozen=True)
@@ -8,11 +9,13 @@ class Symbol:
 
     __cache = {}
     __name_default = "_"
+    __mutex = threading.RLock()
 
     name: str = dataclasses.field(default=__name_default)
 
     def __post_init__(self):
-        self.__cache[self.name] = self
+        with self.__mutex:
+            self.__cache[self.name] = self
 
     def __new__(cls, name=__name_default):
         name = sys.intern(name)

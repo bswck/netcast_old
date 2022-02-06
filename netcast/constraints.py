@@ -65,7 +65,6 @@ class Constraint(metaclass=abc.ABCMeta):
                 raise
             if self.policy is ConstraintPolicy.RESHAPE:
                 obj = self.reshape_load(obj) if load else self.reshape_dump(obj)
-
         return obj
 
 
@@ -89,3 +88,8 @@ class RangeConstraint(Constraint):
         raise ConstraintError(
             f"loaded object is out of serialization bounds [{min_val}, {max_val}]"
         )
+
+    def reshape_load(self, load):
+        if load < self.cfg.min:
+            return self.cfg.min
+        return self.cfg.max

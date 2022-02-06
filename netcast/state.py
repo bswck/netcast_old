@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import typing
 
-from netcast.tools import Symbol
 
+from netcast.constants import MISSING
 
 if typing.TYPE_CHECKING:
     from typing import Any
@@ -12,11 +13,12 @@ if typing.TYPE_CHECKING:
 
 
 class _StateTraversible:
+    @functools.lru_cache
     def __getitem__(self, item):
         return BranchState(
-            _model=self._model[item],
-            _owner=self,
-            _driver=self._driver
+            model=self._model[item],
+            owner=self,
+            driver=self._driver
         )
 
     def __getattr__(self, item):
@@ -25,21 +27,21 @@ class _StateTraversible:
 
 @dataclasses.dataclass
 class State(_StateTraversible):
-    _model: Model  # noqa
-    _engine: Engine
-    _driver: typing.Type[Driver]
+    model: Model  # noqa
+    engine: Engine
+    driver: typing.Type[Driver]
 
 
 @dataclasses.dataclass
 class BranchState(_StateTraversible):
-    _model: Model  # noqa
-    _driver: typing.Type[Driver]
-    _owner: _StateTraversible
-    _value: Any = Symbol("undefined")
+    model: Model  # noqa
+    driver: typing.Type[Driver]
+    owner: _StateTraversible
+    _value: Any = MISSING
 
     def set_driver(self, driver=None):
-        self._driver = self._owner._engine.get_driver(driver)
+        self.driver = self.owner._engine.get_driver(driver)
 
     def __call__(self, value):
         self._value = value
-        return self._owner
+        return self.owner
