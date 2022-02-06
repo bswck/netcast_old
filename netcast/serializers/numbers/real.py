@@ -73,7 +73,7 @@ __all__ = (
     "UnsignedLongLongInt",
     "UnsignedReal",
     "Bounds",
-    "factorize_int_constraint",
+    "sized_int_constraint",
     "int_type",
 )
 
@@ -131,7 +131,7 @@ class AnyUnsignedInt(UnsignedReal, abc.ABC):
     __load_type__ = int
 
 
-def factorize_int_constraint(bit_length: int, signed: bool = True):
+def sized_int_constraint(bit_length: int, signed: bool = True):
     if bit_length:
         combinations = 2 ** bit_length
         if signed:
@@ -149,7 +149,7 @@ def factorize_int_constraint(bit_length: int, signed: bool = True):
 
 @functools.lru_cache
 def int_type(bit_length, signed=True) -> Type[AnyInt] | type:
-    (constraint,) = constraints = (factorize_int_constraint(bit_length, signed=signed),)
+    (constraint,) = constraints = (sized_int_constraint(bit_length, signed=signed),)
     name = _get_class_name(bit_length or math.inf, type_name="Int", signed=signed)
     bases = (AnySignedInt if signed else AnyUnsignedInt, Constrained, abc.ABC)
     serializer = type(name, bases, {"constraints": constraints, "__module__": __name__})
