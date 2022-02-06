@@ -158,7 +158,7 @@ class _BaseArrangement:
 
         for subcontext, supercontext in registry.items():
             if supercontext is context:
-                subcontexts.append(ctypes.cast(subcontext, ctypes.py_object).value)
+                subcontexts.append(registry.restore_key(subcontext))
 
         return tuple(subcontexts)
 
@@ -170,7 +170,8 @@ class _BaseArrangement:
             raise ValueError("no context can be a supercontext of itself")
 
         cls._super_registry[context] = supercontext
-        bind and cls._bind_contexts(context, supercontext)
+        if bind:
+            cls._bind_contexts(context, supercontext)
 
     @classmethod
     def _bind_contexts(

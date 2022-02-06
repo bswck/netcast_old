@@ -26,8 +26,15 @@ class IDLookupDictionary(KeyTransformingDict):
     """
     A dictionary that uses id() for storing and lookup.
     """
+    _ref = {}
 
-    transform_key = id
+    def restore_key(self, key):
+        return self._ref.pop(key)
+
+    def transform_key(self, key):
+        id_of_key = id(key)
+        self._ref[id_of_key] = key
+        return id_of_key
 
 
 class OrOperatorDict(dict):

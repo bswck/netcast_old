@@ -13,7 +13,11 @@ if typing.TYPE_CHECKING:
 
 class _StateTraversible:
     def __getitem__(self, item):
-        return BranchState(_model=self._model[item], _owner=self, _driver=self._driver)
+        return BranchState(
+            _model=self._model[item],
+            _owner=self,
+            _driver=self._driver
+        )
 
     def __getattr__(self, item):
         return self[item]
