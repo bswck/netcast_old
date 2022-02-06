@@ -35,19 +35,21 @@ class Constraint(metaclass=abc.ABCMeta):
     def setup(self):
         """Constraint setup."""
 
-    @staticmethod
-    def _validate_default(obj):
+    @classmethod
+    def validate_dump(cls, obj):
         return obj or True
 
-    validate_dump = _validate_default
-    validate_load = _validate_default
+    @classmethod
+    def validate_load(cls, obj):
+        return True
 
-    @staticmethod
-    def _reshape_default(obj):
+    @classmethod
+    def reshape_load(cls, obj):
         return obj
 
-    reshape_load = _reshape_default
-    reshape_dump = _reshape_default
+    @classmethod
+    def reshape_dump(cls, obj):
+        return obj
 
     def validate(self, obj, **dump_or_load):
         """Validate an object and return it."""
@@ -71,7 +73,7 @@ class Constraint(metaclass=abc.ABCMeta):
 class RangeConstraint(Constraint):
     def setup(self):
         if self.cfg.min > self.cfg.max:
-            raise ValueError("minimal value cannot be less than maximal value")
+            raise ValueError("the minimal value cannot be less than the maximal value")
         self.cfg.setdefault("allow_inf", False)
 
     def validate_load(self, load):

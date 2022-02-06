@@ -133,12 +133,12 @@ class AnyUnsignedInt(UnsignedReal, abc.ABC):
 
 def factorize_int_constraint(bit_length: int, signed: bool = True):
     if bit_length:
-        pow2 = 2 ** bit_length
+        combinations = 2 ** bit_length
         if signed:
-            pow2 //= 2
-            min_val, max_val = -pow2, pow2 - 1
+            combinations //= 2
+            min_val, max_val = -combinations, combinations - 1
         else:
-            min_val, max_val = 0, pow2 - 1
+            min_val, max_val = 0, combinations - 1
         constraint_bounds = Bounds(min_val, max_val)
     elif signed:
         constraint_bounds = AnySignedInt.bounds
