@@ -7,7 +7,7 @@ class Symbol:
     """An initializer-dependent singleton. Used as a mark or a sentinel."""
 
     __cache = {}
-    __name_default = '_'
+    __name_default = "_"
 
     name: str = dataclasses.field(default=__name_default)
 

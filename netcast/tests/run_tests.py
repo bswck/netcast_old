@@ -1,1 +1,1 @@
-__import__('pytest').main()
+__import__("pytest").main()

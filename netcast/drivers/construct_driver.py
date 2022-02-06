@@ -6,55 +6,54 @@ from typing import TypeVar
 import construct
 import netcast
 
-from netcast.tools.symbol import Symbol
+
+__driver_name__ = "construct"
 
 
-__driver_name__ = 'construct'
+class NumberAdapter(netcast.Adapter, netcast.Real, config=True):
+    def _get_bi(self, *, signed):
+        length = self.bit_length // 8
+        return construct.BytesInteger(length, signed=signed, swapped=self.cfg.little)
 
+    def _get_ff(self, *, signed):
+        type_name = "Int" if self.__load_type__ is int else "Float"
+        type_name += str(self.bit_length)
+        type_name += ("s" if signed else "u") if self.__load_type__ is int else ""
 
-class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
-    _impl: construct.Construct
-
-    @property
-    def impl(self):
-        return self._impl
+        if self.cfg.big:
+            type_name += "b"
+        elif self.cfg.little:
+            type_name += "l"
+        else:
+            type_name += "n"
+        obj = getattr(construct, type_name, None)
+        return obj
 
     def setup(self):
-        self.cfg.setdefault('big', True)
-        self.cfg.setdefault('little', False)
-        self.cfg.setdefault('native', False)
-        self.cfg.setdefault('use_ff', True)
+        obj = self.cfg.get("impl")
 
+        if obj is not None:
+            return
+
+        big = self.cfg.setdefault("big", True)
+        little = self.cfg.setdefault("little", False)
+        native = self.cfg.setdefault("native", False)
+        cpu_sized = self.cfg.setdefault("cpu_sized", True)
         signed = self.bounds[0]
-        obj = missing = Symbol()
 
-        if (
-            self.cfg.use_ff
-            and any(map(callable, (self.cfg.big, self.cfg.little, self.cfg.native)))
-        ):
-            self.cfg.use_ff = False
+        if cpu_sized and any(map(callable, (big, little, native))):
+            self.cfg.cpu_sized = cpu_sized = False
 
-        if self.cfg.use_ff:
-            type_name = 'Int' if self.__load_type__ is int else 'Float'
-            type_name += str(self.bit_length)
-            type_name += ('s' if signed else 'u') if self.__load_type__ is int else ''
+        if cpu_sized:
+            obj = self._get_ff(signed=signed)
 
-            if self.cfg.big:
-                type_name += 'b'
-            elif self.cfg.little:
-                type_name += 'l'
-            else:
-                type_name += 'n'
-            obj = getattr(construct, type_name, missing)
+        if obj is None:
+            obj = self._get_bi(signed=signed)
 
-        if obj is missing:
-            length = self.bit_length // 8
-            obj = construct.BytesInteger(length, signed=signed, swapped=self.cfg.little)
+        if obj is None:
+            raise ImportError(f"construct does not support {self.__visit_key__}")
 
-        if obj is missing:
-            raise ImportError(f'construct does not support {self.__visit_key__}')
-
-        self._impl = obj
+        self.cfg.impl = obj
 
     @staticmethod
     def ensure_stream(dumped):
@@ -68,7 +67,7 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
         return self.impl._parse(
             stream=self.ensure_stream(dumped),
             context=context,
-            path=f'(parsing {type(self).__name__} using a netcast driver)'
+            path=f"(parsing {type(self).__name__} using a netcast driver)",
         )
 
     def _dump(self, loaded, context=None, stream=None, **_kwargs):
@@ -77,7 +76,7 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
             obj=loaded,
             stream=stream,
             context=context,
-            path=f'(building {type(self).__name__} using a netcast driver)'
+            path=f"(building {type(self).__name__} using a netcast driver)",
         )
         offset = stream.tell() - self.impl.length  # noqa
         stream.seek(offset)
@@ -85,11 +84,10 @@ class NumberSerializer(netcast.DriverSerializer, netcast.Real, config=True):
         return dumped
 
 
-ST = TypeVar('ST')
+ST = TypeVar("ST")
 
 
-def number(serializer: ST) -> ST:
-    return netcast.serializer_impl(serializer, adapter=NumberSerializer)
+number = netcast.serializer_factory(NumberAdapter)
 
 
 class ConstructDriver(netcast.Driver):
@@ -110,5 +108,4 @@ class ConstructDriver(netcast.Driver):
     Float32 = number(netcast.Float32)
     Float64 = number(netcast.Float64)
 
-    # Class-level boilerplate gens accessors
     number = staticmethod(number)

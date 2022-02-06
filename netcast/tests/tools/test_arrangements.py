@@ -3,6 +3,7 @@ from typing import ClassVar, Type
 
 import pytest
 
+from netcast import ArrangementConstructionError
 from netcast.tools.arrangements import CT_DEFAULT, AT
 from netcast.tools.arrangements import ClassArrangement
 from netcast.tools.contexts import CT
@@ -44,7 +45,8 @@ class TestClassArrangement:
 
         from netcast.tools.contexts import QueueContext as SomeOtherContext
 
-        with pytest.raises(TypeError):
+        with pytest.raises(ArrangementConstructionError):
+
             class E(ClassArrangement, descent=F):
                 context_class = SomeOtherContext
 
@@ -131,7 +133,7 @@ class TestClassArrangement:
         from netcast.tools.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
-            context_params = Params.as_called(pings=0, pongs=0)
+            context_params = Params.frame(pings=0, pongs=0)
 
             def ping(self):
                 self.context.pings += 1
@@ -147,16 +149,16 @@ class TestClassArrangement:
 
         assert CA1.context is CA2.context
         assert ca1.context is ca2.context
-        assert ca1.context == {'pings': 1, 'pongs': 1}
+        assert ca1.context == {"pings": 1, "pongs": 1}
 
         ca1.ping()
         ca2.pong()
 
-        assert ca1.context == {'pings': 2, 'pongs': 2}
+        assert ca1.context == {"pings": 2, "pongs": 2}
 
         ca2.ping()
 
-        assert ca1.context == {'pings': 3, 'pongs': 2}
+        assert ca1.context == {"pings": 3, "pongs": 2}
 
     def test_class_list_arrangement(self):
         from netcast.tools.arrangements import ClassListArrangement
@@ -295,7 +297,7 @@ class TestArrangement:
         from netcast.tools.arrangements import DictArrangement
 
         class DA1(DictArrangement):
-            context_params = Params.as_called(pings=0, pongs=0)
+            context_params = Params.frame(pings=0, pongs=0)
 
             def clear(self):
                 self.context.update(**self.context_params.kwargs)
@@ -402,12 +404,12 @@ class TestArrangement:
         assert isinstance(sa.write, AW)
         assert sa.context is sa.read.context
         assert sa.read.context is sa.write.context
-        assert sa.read() == ''
+        assert sa.read() == ""
 
-        sa.write('hello')
+        sa.write("hello")
         sa.seek(0)
         content = sa.read()
-        assert content == 'hello'
+        assert content == "hello"
 
         sa_offset = sa.seek(1)
         assert sa.read() == content[sa_offset:]
@@ -445,7 +447,9 @@ class TestArrangement:
         from netcast.tools.contexts import ConstructContext
         from netcast.tools.arrangements import wrap_to_arrangement
 
-        ConstructArrangement = wrap_to_arrangement('ConstructArrangement', ConstructContext)
+        ConstructArrangement = wrap_to_arrangement(
+            "ConstructArrangement", ConstructContext
+        )
 
         class CSA1(ConstructArrangement):
             pass
@@ -461,7 +465,7 @@ class TestArrangement:
         assert csa2.supercontext is csa1.context
 
         # Now, test the underlying conditions
-        assert csa2.context == {'_': csa2.supercontext}
+        assert csa2.context == {"_": csa2.supercontext}
         assert csa2.context._ == {}
 
         test_val = 1

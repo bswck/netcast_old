@@ -1,7 +1,7 @@
 import sys
 
 from netcast.driver import Driver
-from netcast.tools import Arrangement
+from netcast.tools.arrangements import Arrangement
 
 
 class Engine(Arrangement):

@@ -2,63 +2,122 @@ from __future__ import annotations
 
 import ctypes
 import functools
-import operator
 import ssl
 import threading
-from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Generator, Literal
-
-from netcast.tools.contexts import *
-from netcast.tools.contexts import LocalHook  # noqa
-from netcast.tools.collections import IDLookupDictionary, Params, classproperty
-
-__all__ = (
-    'AT', 'Arrangement', 'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement',
-    'AsyncioQueueArrangement', 'ByteArrayArrangement', 'BytesIOArrangement', 'CT',
-    'ClassArrangement', 'ClassAsyncioLifoQueueArrangement', 'ClassAsyncioPriorityQueueArrangement',
-    'ClassAsyncioQueueArrangement', 'ClassByteArrayArrangement', 'ClassBytesIOArrangement',
-    'ClassConstructArrangement', 'ClassCounterArrangement', 'ClassDequeArrangement',
-    'ClassDictArrangement', 'ClassFileIOArrangement', 'ClassLifoQueueArrangement',
-    'ClassListArrangement', 'ClassPriorityQueueArrangement', 'ClassQueueArrangement',
-    'ClassSSLSocketArrangement', 'ClassSocketArrangement', 'ClassStringIOArrangement',
-    'ConstructArrangement', 'CounterArrangement', 'CT_DEFAULT', 'DequeArrangement',
-    'DictArrangement', 'FileIOArrangement', 'LifoQueueArrangement', 'ListArrangement',
-    'PriorityQueueArrangement', 'QueueArrangement', 'SSLSocketArrangement', 'SocketArrangement',
-    'StringIOArrangement', '_BaseArrangement', 'arrangement_init', 'Arrangement',
-    'AsyncioLifoQueueArrangement', 'AsyncioPriorityQueueArrangement', 'AsyncioQueueArrangement',
-    'ByteArrayArrangement', 'BytesIOArrangement', 'ClassArrangement',
-    'ClassAsyncioLifoQueueArrangement', 'ClassAsyncioPriorityQueueArrangement',
-    'ClassAsyncioQueueArrangement', 'ClassByteArrayArrangement', 'ClassBytesIOArrangement',
-    'ClassCounterArrangement', 'ClassDequeArrangement', 'ClassDictArrangement',
-    'ClassFileIOArrangement', 'ClassLifoQueueArrangement', 'ClassListArrangement',
-    'ClassPriorityQueueArrangement', 'ClassQueueArrangement', 'ClassSSLSocketArrangement',
-    'ClassSocketArrangement', 'ClassStringIOArrangement', 'CounterArrangement', 'DequeArrangement',
-    'DictArrangement', 'FileIOArrangement', 'LifoQueueArrangement', 'ListArrangement',
-    'PriorityQueueArrangement', 'QueueArrangement', 'SSLSocketArrangement', 'SocketArrangement',
-    'StringIOArrangement', 'arrangement_init', 'wrap_to_arrangement'
+from typing import (
+    Any,
+    ClassVar,
+    Type,
+    Callable,
+    Final,
+    Union,
+    TypeVar,
+    Generator,
+    Literal,
+    cast,
 )
 
-AT = TypeVar('AT', bound='ClassArrangement')
+from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError
+from netcast.tools.collections import IDLookupDictionary, Params, classproperty
+from netcast.tools.contexts import *
+from netcast.tools.inspection import is_classmethod
+
+__all__ = (
+    "AT",
+    "Arrangement",
+    "AsyncioLifoQueueArrangement",
+    "AsyncioPriorityQueueArrangement",
+    "AsyncioQueueArrangement",
+    "ByteArrayArrangement",
+    "BytesIOArrangement",
+    "CT",
+    "ClassArrangement",
+    "ClassAsyncioLifoQueueArrangement",
+    "ClassAsyncioPriorityQueueArrangement",
+    "ClassAsyncioQueueArrangement",
+    "ClassByteArrayArrangement",
+    "ClassBytesIOArrangement",
+    "ClassConstructArrangement",
+    "ClassCounterArrangement",
+    "ClassDequeArrangement",
+    "ClassDictArrangement",
+    "ClassFileIOArrangement",
+    "ClassLifoQueueArrangement",
+    "ClassListArrangement",
+    "ClassPriorityQueueArrangement",
+    "ClassQueueArrangement",
+    "ClassSSLSocketArrangement",
+    "ClassSocketArrangement",
+    "ClassStringIOArrangement",
+    "ConstructArrangement",
+    "CounterArrangement",
+    "CT_DEFAULT",
+    "DequeArrangement",
+    "DictArrangement",
+    "FileIOArrangement",
+    "LifoQueueArrangement",
+    "ListArrangement",
+    "PriorityQueueArrangement",
+    "QueueArrangement",
+    "SSLSocketArrangement",
+    "SocketArrangement",
+    "StringIOArrangement",
+    "_BaseArrangement",
+    "_init",
+    "Arrangement",
+    "AsyncioLifoQueueArrangement",
+    "AsyncioPriorityQueueArrangement",
+    "AsyncioQueueArrangement",
+    "ByteArrayArrangement",
+    "BytesIOArrangement",
+    "ClassArrangement",
+    "ClassAsyncioLifoQueueArrangement",
+    "ClassAsyncioPriorityQueueArrangement",
+    "ClassAsyncioQueueArrangement",
+    "ClassByteArrayArrangement",
+    "ClassBytesIOArrangement",
+    "ClassCounterArrangement",
+    "ClassDequeArrangement",
+    "ClassDictArrangement",
+    "ClassFileIOArrangement",
+    "ClassLifoQueueArrangement",
+    "ClassListArrangement",
+    "ClassPriorityQueueArrangement",
+    "ClassQueueArrangement",
+    "ClassSSLSocketArrangement",
+    "ClassSocketArrangement",
+    "ClassStringIOArrangement",
+    "CounterArrangement",
+    "DequeArrangement",
+    "DictArrangement",
+    "FileIOArrangement",
+    "LifoQueueArrangement",
+    "ListArrangement",
+    "PriorityQueueArrangement",
+    "QueueArrangement",
+    "SSLSocketArrangement",
+    "SocketArrangement",
+    "StringIOArrangement",
+    "_init",
+    "wrap_to_arrangement",
+)
+
+AT = TypeVar("AT", bound="ClassArrangement")
 CT_DEFAULT = ConstructContext
 
 
-def _is_classmethod(cls, method):
-    return getattr(method, '__self__', None) is cls
-
-
-def arrangement_init(self, descent=None):
-    self.descent = descent
-
-
-def bind_factory(
-        context_class: CT = None,
-        *, factory: Union[Callable, None] = None
-):
+def bind_factory(context_class: CT = None, *, factory: Union[Callable, None] = None):
     if context_class is not None:
         if not callable(factory):
-            raise ValueError('factory must be a callable')
+            raise ValueError("factory must be a callable")
         _BaseArrangement._factory_registry[context_class] = factory
         return context_class
     return functools.partial(bind_factory, factory=factory)
+
+
+def _init(self, descent=None):
+    """Default arrangement constructor."""
+    self.descent = descent
 
 
 class _BaseArrangement:
@@ -85,75 +144,74 @@ class _BaseArrangement:
 
     @classmethod
     def _get_supercontext(cls):
-        return _BaseArrangement._super_registry.get(cls._get_context())
+        return cls._super_registry.get(cls._get_context())
 
     @classmethod
     def _get_subcontexts(cls, self=None):
-        registry = _BaseArrangement._super_registry
+        registry = cls._super_registry
         subcontexts = []
+
         if self is None:
             context = cls._get_context()
         else:
             context = self.context
+
         for subcontext, supercontext in registry.items():
             if supercontext is context:
-                # TODO: is it safe?
                 subcontexts.append(ctypes.cast(subcontext, ctypes.py_object).value)
+
         return tuple(subcontexts)
 
     @classmethod
     def _set_supercontext(
-            cls,
-            context: Context,
-            supercontext: Context | None,
-            connect: bool = False
+        cls, context: Context, supercontext: Context | None, bind: bool = False
     ):
         if context is supercontext:
-            raise ValueError('no context can be a supercontext of itself')
-        _BaseArrangement._super_registry[context] = supercontext
-        connect and cls._connect_contexts(context, supercontext)
+            raise ValueError("no context can be a supercontext of itself")
+
+        cls._super_registry[context] = supercontext
+        bind and cls._bind_contexts(context, supercontext)
 
     @classmethod
-    def _connect_contexts(
-            cls,
-            context: Context,
-            supercontext: Context | None = None,
-            self=None
+    def _bind_contexts(
+        cls, context: Context, supercontext: Context | None = None, self=None
     ):
         if supercontext is None:
-            supercontext = _BaseArrangement._super_registry.get(context)
+            supercontext = cls._super_registry.get(context)
+
         if self is None:
             self = cls
+
         if supercontext is not None:
-            supercontext_key = getattr(self, 'supercontext_key', None)
+            supercontext_key = getattr(self, "supercontext_key", None)
             if callable(supercontext_key):
                 supercontext_key = supercontext_key(context, supercontext)
-            subcontext_key = getattr(self, 'subcontext_key', None)
+
+            subcontext_key = getattr(self, "subcontext_key", None)
             if callable(subcontext_key):
                 subcontext_key = subcontext_key(context, supercontext)
-            context._connect_supercontext(supercontext, final_key=supercontext_key)
-            supercontext._connect_subcontext(context, final_key=subcontext_key)
+
+            context._bind_supercontext(supercontext, final_key=supercontext_key)
+            supercontext._bind_subcontext(context, final_key=subcontext_key)
 
     @classmethod
     def _create_context(
-            cls,
-            supercontext=None,
-            context_class=None,
-            self=None,
-            connect=False
+        cls, supercontext=None, context_class=None, self=None, bind=False
     ) -> CT:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
 
-        context = create_context(context_class, cls if self is None else self, cls.context_params)
-        cls._set_supercontext(context, supercontext, connect=connect)
+        context = create_context(
+            context_class, cls if self is None else self, cls.context_params
+        )
+        cls._set_supercontext(context, supercontext, bind=bind)
         return context
 
     @classmethod
     def _get_context(cls, *args, **kwargs) -> CT | None:
         """Get the current context."""
-        return getattr(cls, '_context', None)
+        return getattr(cls, "_context", None)
 
 
 class ClassArrangement(_BaseArrangement):
@@ -171,6 +229,7 @@ class ClassArrangement(_BaseArrangement):
     however you may use :class:`Arrangement` for instance-context arrangements.
     Instances that participate in an instance arrangement must be given their descent.
     """
+
     _default_context_class = True
 
     descent_type: Type[ClassArrangement] | None
@@ -178,226 +237,316 @@ class ClassArrangement(_BaseArrangement):
     subcontext_key: Any
 
     @classmethod
-    def _get_new_context(cls) -> bool:
+    def _get_descent_type(cls):
+        return getattr(cls, "descent_type", None)
+
+    @classmethod
+    def _get_new_context_flag(cls) -> bool:
         if cls.new_context is None:
             return False
 
         return cls.new_context
 
     @classmethod
-    def _get_context_class(
-            cls,
-            context_class: Type[CT] | None = None,
-            new_context=None,
-            descent=None
+    def _setup_context_class(
+        cls, *, check_descent_type, context_class, new_context, config, descent=None
+    ):
+        if descent is None:
+            descent = cls._get_descent_type()
+
+        if check_descent_type:
+            context_class = cls._resolve_context_class(
+                context_class=context_class,
+                new_context=new_context or config,
+                descent=descent,
+            )
+        else:
+            context_class = cls._resolve_context_class(context_class=context_class)
+
+        assert issubclass(context_class, Context)
+        return context_class
+
+    @classmethod
+    def _resolve_context_class(
+        cls, *, context_class: Type[CT] | None = None, new_context=None, descent=None
     ) -> Type[CT]:
-        args = (context_class, cls.context_class)
+        if (
+            context_class is not cls.context_class
+            and context_class is not None
+            and cls.context_class is not None
+        ):
+            raise ArrangementConstructionError(
+                "context_class= set both when subclassing and in a subclass"
+            )
 
-        if None not in args and operator.is_not(*args):
-            raise ValueError('context_class= set both when subclassing and in a subclass')
+        descent_context_class = getattr(descent, "context_class", context_class)
 
-        descent_context_class = getattr(descent, 'context_class', context_class)
-
-        if any(args):
-            context_class, = filter(None, args)
+        if any((context_class, cls.context_class)):
+            (context_class,) = filter(None, (context_class, cls.context_class))
 
         if context_class is None and descent_context_class is None:
             context_class = CT_DEFAULT
-
-        processed_context_class: type | None = context_class
 
         if context_class is None:
             context_class = descent_context_class
             cls._default_context_class = False
 
-        new_context = (False if new_context is None else new_context)
-        if (
-                descent is not None
-                and not new_context
-                and None not in (processed_context_class, descent_context_class)
-        ):
-            processed_context_class: Type[Context]
-            descent_context_class: Type[Context]
-            if not issubclass(processed_context_class, descent_context_class):
-                raise TypeError(
-                    'context_class is different for descent and this class '
-                    '(new_context = True may fix this error)'
-                )
+        processed_context_class = context_class
+
+        cls._check_context_class(
+            processed_context_class=processed_context_class,
+            descent_context_class=descent_context_class,
+            descent=descent,
+            new_context=new_context,
+        )
 
         cls.context_class = context_class
         return context_class
 
     @classmethod
-    def preprocess_context(cls, context) -> Generator[CT]:
+    def _check_context_class(
+        cls,
+        *,
+        processed_context_class,
+        descent_context_class,
+        descent=None,
+        new_context=None
+    ):
+        if descent is None:
+            descent = cls._get_descent_type()
+
+        if new_context is None:
+            new_context = False
+
+        if (
+            descent is not None
+            and not new_context
+            and processed_context_class is not None
+            and descent_context_class is not None
+        ):
+            if not issubclass(processed_context_class, descent_context_class):
+                raise ArrangementConstructionError(
+                    "context_class is different for descent and this class "
+                    "(new_context = True may fix this error)"
+                )
+
+    @classmethod
+    def _setup_context_access(cls, *, new_context, setup_context, descent=None):
+        if descent is None:
+            descent = cls._get_descent_type()
+
+        context = descent._get_context()
+        was_none = context is None
+
+        if was_none:
+            context = cls._create_context()
+
+        if was_none or not new_context:
+            cls._context = context
+        else:
+            cls._context = cls._create_context(context, bind=True)
+
+        cls.new_context = None
+
+        if setup_context:
+            context = cls._call_setup_context()
+
         return context
 
-    def __init_subclass__(
-            cls,
-            descent: AT | None = None,
-            clear_init: bool = False,
-            context_class: Type[CT] | None = None,
-            config: bool = False,
-            non_arrangement: bool = False,
-            _preprocess: bool = True,
-            _check_descent_type: bool = True,
-    ):
-        """When a new subclass is created, handle its access to the local context."""
-        if getattr(cls, '_context_lock', None) is None:
-            cls._context_lock = threading.RLock()
+    @classmethod
+    def _call_setup_context(cls):
+        context = cls._get_context()
+        setup = cls.setup_context
 
-        if non_arrangement:
-            return
+        if not is_classmethod(cls, cls.setup_context):
+            setup = functools.partial(setup, cls)
 
+        cls._context = context = setup(context)
+        return context
+
+    @classmethod
+    def _setup_context_lock(cls):
+        lock = getattr(cls, "_context_lock", None)
+        if lock is None:
+            cls._context_lock = lock = threading.RLock()
+        return lock
+
+    @classmethod
+    def _setup_descent_type(cls, *, descent=None):
         if descent is None:
             descent = cls.__base__
 
         cls.descent_type = descent
+        return descent
 
-        new_context = cls._get_new_context()
+    @classmethod
+    def setup_context(cls, context) -> Generator[CT]:
+        return context
 
-        if _check_descent_type:
-            context_class = cls._get_context_class(context_class, new_context or config, descent)
-        else:
-            context_class = cls._get_context_class(context_class)
+    def __init_subclass__(
+        cls,
+        descent: AT | None = None,
+        context_class: Type[CT] | None = None,
+        config: bool = False,
+        no_subclasshook: bool = False,
+        setup_context: bool = True,
+        check_descent_type: bool = True,
+        clear_init: bool = False,
+    ):
+        """When a new subclass is created, handle its access to the local context."""
+        if no_subclasshook:
+            return
 
-        assert issubclass(context_class, Context)
+        new_context = cls._get_new_context_flag()
+
+        cls._setup_descent_type(descent=descent)
+        cls._setup_context_lock()
+        cls._setup_context_class(
+            check_descent_type=check_descent_type,
+            context_class=context_class,
+            new_context=new_context,
+            config=config,
+        )
 
         if config:
             return
 
-        context = descent._get_context()
-        null_context = context is None
-
-        if null_context:
-            context = cls._create_context()
-
-        if null_context or not new_context:
-            cls._context = context
-        else:
-            cls._context = cls._create_context(context, connect=True)
-
-        cls.new_context = None
-
-        if _preprocess:
-            context = cls._get_context()
-            preprocess = cls.preprocess_context
-            if not _is_classmethod(cls, cls.preprocess_context):
-                preprocess = functools.partial(preprocess, cls)
-            cls._context = preprocess(context)
-            LocalHook.preprocessed(context)
+        cls._setup_context_access(new_context=new_context, setup_context=setup_context)
 
         if clear_init:
-            cls.__init__ = arrangement_init
+            cls.__init__ = _init
 
     @classproperty
-    def context(self) -> CT | None:
+    def context(cls) -> CT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
-        return self._get_context()
+        return cls._get_context()
 
     @classproperty
-    def supercontext(self) -> Context | None:
+    def supercontext(cls) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
-        return self._get_supercontext()
+        return cls._get_supercontext()
 
     @classproperty
-    def subcontexts(self) -> tuple[Context, ...] | None:
-        return self._get_subcontexts()
+    def subcontexts(cls) -> tuple[Context, ...] | None:
+        return cls._get_subcontexts()
 
     @classproperty
-    def has_new_context(self) -> bool:
-        return self.new_context
+    def has_new_context(cls) -> bool:
+        return cls.new_context
 
 
-class Arrangement(ClassArrangement, non_arrangement=True):
+class Arrangement(ClassArrangement, no_subclasshook=True):
     descent: Arrangement | None
     _new_context: bool = True
-    _preprocess: bool = True
+    _setup_context: bool = True
 
     def __init__(self, descent: Arrangement | None = None):
-        arrangement_init(self, descent)
+        _init(self, descent)
 
     def __init_subclass__(
-            cls,
-            descent: Arrangement | None = None,
-            clear_init: bool = False,
-            context_class: Type[CT] | None = None,
-            config: bool = False,
-            non_arrangement: bool = False,
-            _preprocess: bool = _preprocess,
-            _check_descent_type: Literal[True] = True
+        cls,
+        descent: Arrangement | None = None,
+        clear_init: bool = False,
+        context_class: Type[CT] | None = None,
+        config: bool = False,
+        no_subclasshook: bool = False,
+        setup_context: bool = _setup_context,
+        check_descent_type: Literal[True] = True,
     ):
-        if non_arrangement:
+        if no_subclasshook:
             return
 
-        context_class = cls._get_context_class(context_class)
-        new_context = cls._get_new_context()
+        context_class = cls._resolve_context_class(context_class=context_class)
+        new_context = cls._get_new_context_flag()
 
         cls.context_class = None
         cls.new_context = False
 
         super().__init_subclass__(
-            descent=descent, clear_init=clear_init,
-            context_class=MemoryDictContext, config=config, non_arrangement=non_arrangement,
-            _preprocess=False, _check_descent_type=False,
+            descent=descent,
+            clear_init=clear_init,
+            context_class=MemoryDictContext,
+            config=config,
+            no_subclasshook=no_subclasshook,
+            setup_context=False,
+            check_descent_type=False,
         )
 
         cls.context_class = context_class
         cls._new_context = new_context
-        cls._preprocess = _preprocess
+        cls._setup_context = setup_context
 
-    def __new__(cls, *args, **kwargs):
+    @classmethod
+    def _resolve_descent(cls, args):
         if args:
             descent, *args = args
         else:
             descent = None
+        return descent
 
-        new_context = cls._new_context
+    @classmethod
+    def _get_descent(cls, args=(), validate_type=True):
+        descent = cls._resolve_descent(args)
+        expected_type = cls._get_descent_type()
 
-        fixed_type = getattr(cls, 'descent_type', None)
-        if None not in (descent, fixed_type):
-            if not isinstance(descent, fixed_type):  # soft-check descent type
-                raise TypeError(
-                    'passed descent\'s type '
-                    'and the fixed descent type are not equal'
+        if validate_type and descent is not None and expected_type is not None:
+            if not isinstance(descent, expected_type):
+                raise ArrangementTypeError(
+                    "passed descent's type " "and the fixed descent type are not equal"
                 )
 
-        contexts = cls._get_context()
-        self = object.__new__(cls)
-        arrangement_init(self, descent)
+        return descent
 
-        if contexts is None:
-            raise TypeError('abstract class')
+    @classmethod
+    def _setup_instance_context_access(cls, *, descent, contexts, self):
+        new_context = cls._new_context
 
-        if not new_context and descent is not None:
+        if descent is not None and not new_context:
             context = contexts.get(descent)
             if context is None:
                 context = descent.get_context()[descent]
             contexts[self] = context
+
         elif descent is not None:
             contexts[self] = cls._create_context(contexts[descent], self=self)
+
         else:
             contexts[self] = cls._create_context(self=self)
 
         context = contexts[self]
 
-        if cls._preprocess:
+        if cls._setup_context:
+            cls._instance_call_setup_context(
+                context=context, contexts=contexts, self=self
+            )
+        cls._bind_contexts(context)
 
-            with self._context_lock:
-                preprocess = cls.preprocess_context
-                if (
-                        _is_classmethod(cls, preprocess)
-                        or isinstance(preprocess, staticmethod)
-                ):
-                    preprocess = functools.partial(preprocess)
-                else:
-                    preprocess = functools.partial(preprocess, self)
-                contexts[self] = context = preprocess(context)
-                LocalHook.preprocessed(context)
+    @classmethod
+    def _instance_call_setup_context(cls, *, context, contexts, self):
+        with self._context_lock:
+            setup = cls.setup_context
+            if is_classmethod(cls, setup) or isinstance(setup, staticmethod):
+                setup = functools.partial(setup)
+            else:
+                setup = functools.partial(setup, self)
+            contexts[self] = setup(context)
 
-        cls._connect_contexts(context)
+    def __new__(cls, *args, **kwargs):
+        descent = cls._get_descent(args)
+
+        self = object.__new__(cls)
+        _init(self, descent)
+
+        contexts = cls._get_context()
+        if contexts is None:
+            raise ArrangementTypeError("abstract class")
+
+        cls._setup_instance_context_access(
+            descent=descent, contexts=contexts, self=self
+        )
         return self
 
-    def preprocess_context(self, context: CT) -> Generator[CT]:
+    def setup_context(self, context: CT) -> Generator[CT]:
         return context
 
     @classmethod
@@ -437,11 +586,7 @@ class Arrangement(ClassArrangement, non_arrangement=True):
         return self._new_context
 
 
-def create_context(
-        context_class: Type[CT],
-        cls_or_self,
-        params=Params()
-) -> CT:
+def create_context(context_class: Type[CT], cls_or_self, params=Params()) -> CT:
     args, kwargs = params
 
     if callable(args):
@@ -455,11 +600,11 @@ def create_context(
 
 
 def wrap_to_arrangement(
-        name: str,
-        context_class: Type[CT],
-        class_arrangement: bool = False,
-        doc: str | None = None,
-        env: dict[str, Any] | None = None
+    name: str,
+    context_class: Type[CT],
+    class_arrangement: bool = False,
+    doc: str | None = None,
+    env: dict[str, Any] | None = None,
 ) -> Type[ClassArrangement]:
     if class_arrangement:
         super_class = ClassArrangement
@@ -470,51 +615,55 @@ def wrap_to_arrangement(
         env = {}
 
     cls = type(name, (super_class,), env, config=True, context_class=context_class)
-    cls.context: context_class  # noqa
-    doc and setattr(cls, '__doc__', doc)
-
-    return cls  # type: ignore
+    doc and setattr(cls, "__doc__", doc)
+    return cast(Type[ClassArrangement], cls)
 
 
 _ = wrap_to_arrangement
 
-ClassDictArrangement = _('ClassDictArrangement', DictContext, True)
-ClassListArrangement = _('ClassListArrangement', ListContext, True)
-ClassByteArrayArrangement = _('ClassByteArrayArrangement', ByteArrayContext, True)
-ClassDequeArrangement = _('ClassDequeArrangement', DequeContext, True)
-ClassQueueArrangement = _('ClassQueueArrangement', QueueContext, True)
-ClassLifoQueueArrangement = _('ClassLifoQueueArrangement', LifoQueueContext, True)
-ClassPriorityQueueArrangement = _('ClassPriorityQueueArrangement', PriorityQueueContext, True)
-ClassAsyncioQueueArrangement = _('ClassAsyncioQueueArrangement', AsyncioQueueContext, True)
+ClassDictArrangement = _("ClassDictArrangement", DictContext, True)
+ClassListArrangement = _("ClassListArrangement", ListContext, True)
+ClassByteArrayArrangement = _("ClassByteArrayArrangement", ByteArrayContext, True)
+ClassDequeArrangement = _("ClassDequeArrangement", DequeContext, True)
+ClassQueueArrangement = _("ClassQueueArrangement", QueueContext, True)
+ClassLifoQueueArrangement = _("ClassLifoQueueArrangement", LifoQueueContext, True)
+ClassPriorityQueueArrangement = _(
+    "ClassPriorityQueueArrangement", PriorityQueueContext, True
+)
+ClassAsyncioQueueArrangement = _(
+    "ClassAsyncioQueueArrangement", AsyncioQueueContext, True
+)
 ClassAsyncioLifoQueueArrangement = _(
-    'ClassAsyncioLifoQueueArrangement', AsyncioLifoQueueContext, True
+    "ClassAsyncioLifoQueueArrangement", AsyncioLifoQueueContext, True
 )
 ClassAsyncioPriorityQueueArrangement = _(
-    'ClassAsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext, True
+    "ClassAsyncioPriorityQueueArrangement", AsyncioPriorityQueueContext, True
 )
-ClassBytesIOArrangement = _('ClassBytesIOArrangement', BytesIOContext, True)
-ClassStringIOArrangement = _('ClassStringIOArrangement', StringIOContext, True)
-ClassFileIOArrangement = _('ClassFileIOArrangement', FileIOContext, True)
-ClassSocketArrangement = _('ClassSocketArrangement', SocketContext, True)
+ClassBytesIOArrangement = _("ClassBytesIOArrangement", BytesIOContext, True)
+ClassStringIOArrangement = _("ClassStringIOArrangement", StringIOContext, True)
+ClassFileIOArrangement = _("ClassFileIOArrangement", FileIOContext, True)
+ClassSocketArrangement = _("ClassSocketArrangement", SocketContext, True)
 SSLSocketContext = bind_factory(SSLSocketContext, factory=ssl.wrap_socket)
-ClassSSLSocketArrangement = _('ClassSSLSocketArrangement', SSLSocketContext, True)
-ClassCounterArrangement = _('ClassCounterArrangement', CounterContext, True)
-ClassConstructArrangement = _('ClassConstructArrangement', ConstructContext, True)
+ClassSSLSocketArrangement = _("ClassSSLSocketArrangement", SSLSocketContext, True)
+ClassCounterArrangement = _("ClassCounterArrangement", CounterContext, True)
+ClassConstructArrangement = _("ClassConstructArrangement", ConstructContext, True)
 
-DictArrangement = _('DictArrangement', DictContext)
-ListArrangement = _('ListArrangement', ListContext)
-ByteArrayArrangement = _('ByteArrayArrangement', ByteArrayContext)
-DequeArrangement = _('DequeArrangement', DequeContext)
-QueueArrangement = _('QueueArrangement', QueueContext)
-LifoQueueArrangement = _('LifoQueueArrangement', LifoQueueContext)
-PriorityQueueArrangement = _('PriorityQueueArrangement', PriorityQueueContext)
-AsyncioQueueArrangement = _('AsyncioQueueArrangement', AsyncioQueueContext)
-AsyncioLifoQueueArrangement = _('AsyncioLifoQueueArrangement', AsyncioLifoQueueContext)
-AsyncioPriorityQueueArrangement = _('AsyncioPriorityQueueArrangement', AsyncioPriorityQueueContext)
-FileIOArrangement = _('FileIOArrangement', FileIOContext)
-BytesIOArrangement = _('BytesIOArrangement', BytesIOContext)
-StringIOArrangement = _('StringIOArrangement', StringIOContext)
-SocketArrangement = _('SocketArrangement', SocketContext)
-SSLSocketArrangement = _('SSLSocketArrangement', SSLSocketContext)
-CounterArrangement = _('CounterArrangement', CounterContext)
-ConstructArrangement = _('ConstructArrangement', ConstructContext)
+DictArrangement = _("DictArrangement", DictContext)
+ListArrangement = _("ListArrangement", ListContext)
+ByteArrayArrangement = _("ByteArrayArrangement", ByteArrayContext)
+DequeArrangement = _("DequeArrangement", DequeContext)
+QueueArrangement = _("QueueArrangement", QueueContext)
+LifoQueueArrangement = _("LifoQueueArrangement", LifoQueueContext)
+PriorityQueueArrangement = _("PriorityQueueArrangement", PriorityQueueContext)
+AsyncioQueueArrangement = _("AsyncioQueueArrangement", AsyncioQueueContext)
+AsyncioLifoQueueArrangement = _("AsyncioLifoQueueArrangement", AsyncioLifoQueueContext)
+AsyncioPriorityQueueArrangement = _(
+    "AsyncioPriorityQueueArrangement", AsyncioPriorityQueueContext
+)
+FileIOArrangement = _("FileIOArrangement", FileIOContext)
+BytesIOArrangement = _("BytesIOArrangement", BytesIOContext)
+StringIOArrangement = _("StringIOArrangement", StringIOContext)
+SocketArrangement = _("SocketArrangement", SocketContext)
+SSLSocketArrangement = _("SSLSocketArrangement", SSLSocketContext)
+CounterArrangement = _("CounterArrangement", CounterContext)
+ConstructArrangement = _("ConstructArrangement", ConstructContext)
