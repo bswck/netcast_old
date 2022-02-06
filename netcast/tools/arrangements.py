@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ctypes
 import functools
 import ssl
 import threading
@@ -219,16 +218,20 @@ class ClassArrangement(_BaseArrangement):
     """
     An arrangement of classes bound to a :class:`Context` object.
 
-    When :class:`ClassArrangement` is subclassed, that subclass enters a new context.
+    When :class:`ClassArrangement` is subclassed, that subclass might enter a new context.
     All its subclasses then may inherit it and then modify this context.
+    Each following of that subclass instance can access a context common for the class
+    of the instance, thus it is highly recommended wrapping the context class
+    using :func:`thread_safe` or :func:`async_safe` function or use mutex locks programmatically.
 
-    When :class:`ClassArrangement` subclass' subclass has set `new_context` to False,
+    When :class:`ClassArrangement` subclass' subclass has set :attr:`new_context` to False,
     then a new context is bound to it. The last subclass accesses the top-level context using
-    `supercontext` property and the further subclasses access one context further so on.
+    :attr:`supercontext` property and the further subclasses access one context further so on.
 
     Note that it might be especially useful if those classes are singletons,
     however you may use :class:`Arrangement` for instance-context arrangements.
-    Instances that participate in an instance arrangement must be given their descent.
+    Instances that participate in an instance arrangement ought to be given their descent
+    - arrangement participant that accesses a corresponding context.
     """
 
     _default_context_class = True
@@ -437,6 +440,22 @@ class ClassArrangement(_BaseArrangement):
 
 
 class Arrangement(ClassArrangement, no_subclasshook=True):
+    """
+    An arrangement of instances bound to a :class:`Context` object.
+
+    When :class:`Arrangement` is subclassed, that subclass then produces instances that access
+    a distinct context. Each context is created per-instance, but instances may share
+    their context with each other, when they are passed to the constructor.
+    
+    If :attr:`new_context` is set to `True` on a subclass, each instance will enter a subcontext
+    of the context of the instance passed to the instance (called descent). 
+    
+    You might find arrangements useful for example if you want to maintain multiple connections.
+    Having an arrangement class that uses context to store the connection data,
+    you might create different instances to store per-connection, contextual data.
+    Subcontexts might be a part of it, computing a certain branch of that data.
+    """
+
     descent: Arrangement | None
     _new_context: bool = True
     _setup_context: bool = True
