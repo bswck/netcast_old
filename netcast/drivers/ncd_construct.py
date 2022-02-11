@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import time
 
 import construct
 import netcast
@@ -9,7 +10,7 @@ import netcast
 __driver_name__ = "construct"
 
 
-class RealAdapter(netcast.Adapter, netcast.Real, config=True):
+class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
     def _get_swapped(self):
         if self.big is None and self.native is None and self.little is not None:
             return self.little
@@ -91,7 +92,7 @@ class RealAdapter(netcast.Adapter, netcast.Real, config=True):
 
 
 class ConstructDriver(netcast.Driver):
-    Real = netcast.serializer_factory(RealAdapter)
+    Real = netcast.serializer_factory(NumericAdapter)
 
     SignedInt8 = Real(netcast.SignedInt8)
     SignedInt16 = Real(netcast.SignedInt16)
@@ -113,5 +114,7 @@ class ConstructDriver(netcast.Driver):
 
 if __name__ == '__main__':
     ncd = ConstructDriver
-    typ = ncd.UnsignedInt32(policy='shape')
-    print(typ.dump(-10))
+    typ = ncd.UnsignedInt8(constraint_policy="coerce")
+    start = time.perf_counter()
+    print(typ.dump(-128))
+    print('elapsed', time.perf_counter() - start)

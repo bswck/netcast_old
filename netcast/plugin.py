@@ -6,6 +6,8 @@ import inspect
 import operator
 from typing import Callable, ClassVar, TYPE_CHECKING, Any, Optional
 
+from netcast.tools.collections import AttributeDict
+
 if TYPE_CHECKING:
     from netcast.serializer import Serializer
 
@@ -19,10 +21,11 @@ class Plugin:
 
     exports: ClassVar[dict[str, Callable]] = {}
     dependency_count: ClassVar[int] = 0
+    cfg: AttributeDict[str, Any]
 
     def __init__(self: Plugin | Serializer, **cfg):
         """Save your options here"""
-        self.cfg = cfg
+        self.cfg = AttributeDict(cfg)
 
     def __init_subclass__(cls, **kwargs):
         if cls not in Plugin.__subclasses__():

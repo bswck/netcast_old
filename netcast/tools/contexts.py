@@ -373,14 +373,15 @@ def wrap_method(
             hook_args += args
 
             if callable(preceding_hook):
-                trigger = shaped = preceding_hook(*hook_args, **hook_kwargs)
+                trigger = coerced = preceding_hook(*hook_args, **hook_kwargs)
 
                 if inspect.isawaitable(trigger):
-                    shaped = await trigger
+                    coerced = await trigger
 
-                if initial_shaping and isinstance(shaped, ParameterContainer):
-                    args = (self, *shaped.args)
-                    kwargs = {**shaped.kwargs}
+                if initial_shaping:
+                    coerced_args, coerced_kwargs = coerced
+                    args = (self, *coerced_args)
+                    kwargs = {**coerced_kwargs}
 
             result = MISSING
 
@@ -426,10 +427,10 @@ def wrap_method(
             hook_args += args
 
             if callable(preceding_hook):
-                shaped = preceding_hook(*hook_args, **hook_kwargs)
+                coerced = preceding_hook(*hook_args, **hook_kwargs)
 
                 if initial_shaping:
-                    args, kwargs = shaped
+                    args, kwargs = coerced
 
             result = MISSING
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import enum
 import functools
+import numbers
 from typing import Literal, Any, TYPE_CHECKING
 
 from netcast.exceptions import ConstraintError
@@ -10,12 +11,12 @@ from netcast.tools import AttributeDict
 from netcast.tools import strings
 
 if TYPE_CHECKING:
-    Policies = Literal["ignore", "shape", "strict"]
+    Policies = Literal["ignore", "coerce", "strict"]
 
 
 class ConstraintPolicy(enum.Enum):
     IGNORE = "ignore"
-    SHAPE = "shape"
+    SHAPE = "coerce"
     STRICT = "strict"
 
     _value2member_map_: dict[str, ConstraintPolicy]  # pylint: disable=C0103
@@ -32,21 +33,17 @@ class Constraint(metaclass=abc.ABCMeta):
     def setup(self):
         """Constraint setup."""
 
-    @classmethod
-    def validate_dump(cls, obj):
+    def validate_dump(self, obj):
         pass
 
-    @classmethod
-    def validate_load(cls, obj):
+    def validate_load(self, obj):
         pass
 
-    @classmethod
-    def shape_dump(cls, obj):
-        return obj
+    def coerce_dump(self, obj):
+        return NotImplemented
 
-    @classmethod
-    def shape_load(cls, obj):
-        return obj
+    def coerce_load(self, obj):
+        return NotImplemented
 
     @property
     def policy(self):
@@ -73,17 +70,20 @@ class Constraint(metaclass=abc.ABCMeta):
         except AssertionError as err:
             raise ConstraintError(f'constraint failed: {err}') from err
 
-    def call_shape(self, obj, load=False, dump=False):
+    def call_coerce(self, obj, load=False, dump=False):
         if load and not dump:
-            shape = self.shape_load
+            cast = self.coerce_load
         elif dump and not load:
-            shape = self.shape_dump
+            cast = self.coerce_dump
         else:
             raise ValueError("only one of 'load' and 'dump' parameters must be set to True")
         try:
-            obj = shape(obj)
+            obj = cast(obj)
         except Exception as err:
-            raise ConstraintError(f'calling shape failed: {err}') from err
+            raise ConstraintError(f'calling cast failed: {err}') from err
+        else:
+            if obj is NotImplemented:
+                raise NotImplementedError(f'cannot coerce that the object has the desired shape')
         return obj
 
     def validate(self, obj, *, load=False, dump=False):
@@ -94,7 +94,7 @@ class Constraint(metaclass=abc.ABCMeta):
             if self.policy is ConstraintPolicy.STRICT:
                 raise
             if self.policy is ConstraintPolicy.SHAPE:
-                obj = self.call_shape(obj, load=load, dump=dump)
+                obj = self.call_coerce(obj, load=load, dump=dump)
         return obj
 
     def __getattr__(self, item):
@@ -106,13 +106,47 @@ class InstanceConstraint(Constraint):
         self.setdefault('load_type', object)
         self.setdefault('dump_type', object)
 
+    @staticmethod
+    def _get_type_name(typ):
+        if isinstance(typ, tuple):
+            type_name = ", ".join(map(lambda typ_: typ_.__name__, typ))
+            type_name = type_name[::-1].replace(" ,", "ro", 1)[::-1]  # fixme
+        else:
+            type_name = typ.__name__
+        return type_name
+
     def validate_load(self, load):
-        msg = f'loaded object must be an instance of {self.cfg.load_type.__name__}'
+        msg = f"loaded object must be an instance of {self._get_type_name(self.load_type)}"
         assert isinstance(load, self.load_type), msg
 
     def validate_dump(self, dump):
-        msg = f'dumped object must be an instance of {self.cfg.dump_type.__name__}'
+        msg = f"dumped object must be an instance of {self._get_type_name(self.dump_type)}"
         assert isinstance(dump, self.dump_type), msg
+
+    def coerce_numeric(self, obj, desired_type):
+        obj_type = type(obj)
+        if desired_type is int and obj_type is float:
+            return int(obj)
+        if desired_type is float and obj_type is int:
+            return float(obj)
+        return NotImplemented
+
+    def coerce_string(self, obj, desired_type):
+        obj_type = type(obj)
+        encoding = self.get('encoding', 'ascii')
+        if desired_type is bytes and obj_type is str:
+            return obj.encode(encoding)
+        if desired_type is str and obj_type is bytes:
+            return obj.decode(encoding)
+        return NotImplemented
+
+    def coerce_load(self, load):
+        load_type = type(load)
+        if issubclass(load_type, numbers.Number):
+            return self.coerce_numeric(load, self.load_type)
+        if issubclass(load_type, (str, bytes)):
+            return self.coerce_string(load, self.load_type)
+        return NotImplemented
 
 
 class RangeConstraint(Constraint):
@@ -125,7 +159,7 @@ class RangeConstraint(Constraint):
         minimal, maximal = self.min, self.max
         accept_inf = self.accept_inf
 
-        bounded = minimal <= load <= maximal or accept_inf
+        bounded = (minimal <= load <= maximal) or accept_inf
 
         if bounded:
             return
@@ -137,7 +171,9 @@ class RangeConstraint(Constraint):
         msg = f"loaded object is out of bounds [{minimal}, {maximal}]"
         assert bounded, msg
 
-    def shape_load(self, load):
+    def coerce_load(self, load):
         if load < self.min:
             return self.min
-        return self.max
+        if load > self.max:
+            return self.max
+        return load

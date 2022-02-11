@@ -41,8 +41,14 @@ class Driver(metaclass=DriverMeta):
         cls.__drivers_registry__[driver_name] = cls
         cls.name = driver_name
 
-    def __new__(cls, model, engine=None):
-        return State(model=model, driver=cls, engine=engine)
+    def __init__(self, model, engine=None):
+        self.state = State(model=model, driver=type(self), engine=engine)
+
+    def __getattr__(self, item):
+        return getattr(self.state, item)
+
+    def __getitem__(self, item):
+        return self.state[item]
 
 
 def _build_adapted_serializer(

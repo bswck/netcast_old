@@ -12,7 +12,7 @@ if typing.TYPE_CHECKING:
     from netcast import Driver, Engine
 
 
-class _StateTraversible:
+class _StateTraversable:
     @functools.lru_cache
     def __getitem__(self, item):
         return BranchState(
@@ -26,21 +26,21 @@ class _StateTraversible:
 
 
 @dataclasses.dataclass
-class State(_StateTraversible):
+class State(_StateTraversable):
     model: Model  # noqa
     engine: Engine
     driver: typing.Type[Driver]
 
 
 @dataclasses.dataclass
-class BranchState(_StateTraversible):
+class BranchState(_StateTraversable):
     model: Model  # noqa
     driver: typing.Type[Driver]
-    owner: _StateTraversible
+    owner: _StateTraversable
     _value: Any = MISSING
 
     def set_driver(self, driver=None):
-        self.driver = self.owner._engine.get_driver(driver)
+        self.driver = self.owner.engine.get_driver(driver)
 
     def __call__(self, value):
         self._value = value

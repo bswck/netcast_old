@@ -76,7 +76,7 @@ __all__ = (
     "UnsignedReal",
     "Bounds",
     "sized_int_constraint",
-    "int_type",
+    "sized_int",
 )
 
 
@@ -133,6 +133,15 @@ class AnyUnsignedInt(UnsignedReal, abc.ABC):
     __load_type__ = int
 
 
+class SignedAndUnsignedConstraint(RangeConstraint):
+    def coerce_load(self, load):
+        if self.min == 0:
+            signed_max = (self.max + 1) // 2
+            if 0 > load >= -signed_max:
+                return signed_max - load
+        return super().coerce_load(load)
+
+
 def sized_int_constraint(bit_length: int, signed: bool = True):
     if bit_length:
         combinations = 2 ** bit_length
@@ -146,11 +155,11 @@ def sized_int_constraint(bit_length: int, signed: bool = True):
         constraint_bounds = AnySignedInt.bounds
     else:
         constraint_bounds = AnyUnsignedInt.bounds
-    return RangeConstraint(bit_length=bit_length, **constraint_bounds._asdict())
+    return SignedAndUnsignedConstraint(bit_length=bit_length, **constraint_bounds._asdict())
 
 
 @functools.lru_cache
-def int_type(bit_length, signed=True) -> Type[AnyInt] | type:
+def sized_int(bit_length, signed=True) -> Type[AnyInt] | type:
     (constraint,) = constraints = (sized_int_constraint(bit_length, signed=signed),)
     name = _get_class_name(bit_length or math.inf, type_name="Int", signed=signed)
     bases = (AnySignedInt if signed else AnyUnsignedInt, Constrained, abc.ABC)
@@ -160,24 +169,24 @@ def int_type(bit_length, signed=True) -> Type[AnyInt] | type:
     return serializer
 
 
-Bool = Bit = int_type(1, signed=False)
-Nibble = HalfByte = Tetrade = int_type(4, signed=False)
+Bool = Bit = sized_int(1, signed=False)
+Nibble = HalfByte = Tetrade = sized_int(4, signed=False)
 
-SignedInt8 = Int8 = int_type(8)
-SignedInt16 = Int16 = int_type(16)
-SignedInt32 = Int32 = int_type(32)
-SignedInt64 = Int64 = int_type(64)
-SignedInt128 = Int128 = int_type(128)
-SignedInt256 = Int256 = int_type(256)
-SignedInt512 = Int512 = int_type(512)
+SignedInt8 = Int8 = sized_int(8)
+SignedInt16 = Int16 = sized_int(16)
+SignedInt32 = Int32 = sized_int(32)
+SignedInt64 = Int64 = sized_int(64)
+SignedInt128 = Int128 = sized_int(128)
+SignedInt256 = Int256 = sized_int(256)
+SignedInt512 = Int512 = sized_int(512)
 
-UnsignedInt8 = int_type(8, signed=False)
-UnsignedInt16 = int_type(16, signed=False)
-UnsignedInt32 = int_type(32, signed=False)
-UnsignedInt64 = int_type(64, signed=False)
-UnsignedInt128 = int_type(128, signed=False)
-UnsignedInt256 = int_type(256, signed=False)
-UnsignedInt512 = int_type(512, signed=False)
+UnsignedInt8 = sized_int(8, signed=False)
+UnsignedInt16 = sized_int(16, signed=False)
+UnsignedInt32 = sized_int(32, signed=False)
+UnsignedInt64 = sized_int(64, signed=False)
+UnsignedInt128 = sized_int(128, signed=False)
+UnsignedInt256 = sized_int(256, signed=False)
+UnsignedInt512 = sized_int(512, signed=False)
 
 # A few aliases for the easier implementation of serializers in C-associated protocols.
 # Let's (no please...) reinvent the wheel a bit!
