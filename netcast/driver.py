@@ -3,11 +3,10 @@ import inspect
 import sys
 
 from netcast import serializers
+from netcast.plugin import Plugin
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer
-from netcast.plugin import Plugin
 from netcast.state import State
-from netcast.tools.collections import AttributeDict
 
 
 class DriverMeta(type):
@@ -52,7 +51,7 @@ def _build_adapted_serializer(
         stack_level=1
 ):
     if serializer_class is None:
-        raise NetcastError('no serializer has been set on this adapter')
+        raise NetcastError("no serializer has been set on this adapter")
 
     return type(
         serializer_class.__name__,
@@ -65,5 +64,4 @@ def serializer_factory(adapter):
     return functools.partial(_build_adapted_serializer, adapter, stack_level=2)
 
 
-class Adapter(Plugin):
-    cfg: AttributeDict  # as in the Serializer
+Adapter = type("Adapter", (Plugin,), {})

@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import copy
 import sys
-from typing import Any, ClassVar, final, Type
+from typing import Any, ClassVar, Type
 
 from netcast.constants import MISSING
 from netcast.exceptions import ArrangementConstructionError
@@ -74,7 +74,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
                 hooks.append((None, feature.func, feature.call_after))
 
         try:
-            hooked_methods = {  # LBYL
+            methods = {  # LBYL
                 method: getattr(cls, method) for _, _, method in hooks
             }
 
@@ -84,19 +84,16 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
             return
 
         else:
-            for precede_hook, finalize_hook, method in hooks:
-                setattr(
-                    cls,
-                    method,
-                    wrap_method(
-                        hooked_methods[method],
-                        precede_hook=precede_hook,
-                        finalize_hook=finalize_hook,
-                        precedential_reshaping=feature.precedential_reshaping,
-                        hook_takes_method=feature.hook_takes_method,
-                        finalizer_takes_result=feature.finalizer_takes_result,
-                    ),
+            for preceding_hook, trailing_hook, method_name in hooks:
+                wrapped = wrap_method(
+                    methods[method_name],
+                    preceding_hook=preceding_hook,
+                    trailing_hook=trailing_hook,
+                    initial_shaping=feature.initial_shaping,
+                    inform_with_method=feature.inform_with_method,
+                    communicate=feature.communicate,
                 )
+                setattr(cls, method_name, wrapped)
 
     @classmethod
     def _check_feature_export(cls, *, attr, feature, export):
@@ -124,7 +121,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         if feature.is_hook:
             cls._setup_hook_feature(feature)
 
-        if attr in vars(Serializer):
+        if attr in vars(Serializer) or not attr.isidentifier():
             raise ArrangementConstructionError(
                 "exported feature attribute name is illegal"
             )
@@ -138,10 +135,10 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
         if cls.__base__ is not Serializer and cls.new_context is None:
             cls.new_context = True
-            cls.plugins = plugins = Plugin.get_plugins(cls)
+            cls.plugins = plugins = tuple(Plugin.get_plugins(cls))
 
         for plugin in plugins:
-            for attr, feature in plugin.__features__.items():
+            for attr, feature in plugin.exports.items():
                 cls._setup_feature(attr, feature)
 
         super().__init_subclass__(**kwargs)

@@ -110,7 +110,7 @@ class ConstructDriver(netcast.Driver):
     Float32 = Real(netcast.Float32)
     Float64 = Real(netcast.Float64)
 
-
-ncd = ConstructDriver
-typ = ncd.UnsignedInt32(policy='reshape')
-print(typ.dump(-10))
+if __name__ == '__main__':
+    ncd = ConstructDriver
+    typ = ncd.UnsignedInt32(policy='shape')
+    print(typ.dump(-10))

@@ -17,7 +17,7 @@ from typing import (
 )
 
 from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError
-from netcast.tools.collections import IDLookupDictionary, Params, classproperty
+from netcast.tools.collections import IDLookupDictionary, ParameterContainer, classproperty
 from netcast.tools.contexts import *
 from netcast.tools.inspection import is_classmethod
 
@@ -139,7 +139,7 @@ class _BaseArrangement:
 
     Defaults to False.
     """
-    context_params = Params()
+    context_params = ParameterContainer()
 
     @classmethod
     def _get_supercontext(cls):
@@ -191,8 +191,8 @@ class _BaseArrangement:
             if callable(subcontext_key):
                 subcontext_key = subcontext_key(context, supercontext)
 
-            context._bind_supercontext(supercontext, final_key=supercontext_key)
-            supercontext._bind_subcontext(context, final_key=subcontext_key)
+            context._bind_supercontext(supercontext, link=supercontext_key)
+            supercontext._bind_subcontext(context, link=subcontext_key)
 
     @classmethod
     def _create_context(
@@ -609,7 +609,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return self._new_context
 
 
-def create_context(*, context_class: Type[CT], cls_or_self, params=Params()) -> CT:
+def create_context(*, context_class: Type[CT], cls_or_self, params=ParameterContainer()) -> CT:
     args, kwargs = params
 
     if callable(args):

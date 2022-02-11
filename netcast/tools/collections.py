@@ -27,14 +27,14 @@ class IDLookupDictionary(KeyTransformingDict):
     """
     A dictionary that uses id() for storing and lookup.
     """
-    _ref = {}
+    _pointers = {}
 
     def restore_key(self, key):
-        return self._ref.pop(key)
+        return self._pointers.pop(key)
 
     def transform_key(self, key):
         id_of_key = id(key)
-        self._ref[id_of_key] = key
+        self._pointers[id_of_key] = key
         return id_of_key
 
 
@@ -61,51 +61,59 @@ class AttributeDict(OrOperatorDict, ItemsAsAttributes):
         return list(self.keys())
 
 
-class Params:
-    _args: tuple | Callable = ()
-    _kwargs: dict | Callable = {}
+class ParameterContainer:
+    args: tuple | Callable = ()
+    kwargs: dict | Callable = {}
 
     def __init__(self, args=None, kwargs=None):
         if args is not None:
-            self._args = args
+            self.args = args
         if kwargs is not None:
-            self._kwargs = kwargs
+            self.kwargs = kwargs
+
+    def eval(self, context):
+        return self.eval_args(context), self.eval_kwargs(context)
+
+    def eval_args(self, context):
+        if callable(self.args):
+            return self.args(context)
+        return self.args
+
+    def eval_kwargs(self, context):
+        if callable(self.kwargs):
+            return self.kwargs(context)
+        return self.kwargs
+
+    @classmethod
+    def starred(cls, *args, **kwargs):
+        return cls(args=args, kwargs=kwargs)
+
+    def call(self, fn, *args, **kwargs):
+        return fn(*(*args, *self.args), **{**self.kwargs, **kwargs})
 
     def __iter__(self):
-        yield from (self.args, self.kwargs)
+        param_tuple = (self.args, self.kwargs)
+        yield from param_tuple
 
-    def __repr_args__(self):
+    def repr_args(self):
+        if callable(self.args):
+            return '<arguments factory>'
         return ', '.join(map(repr, self.args))
 
-    def __repr_kwargs__(self):
+    def repr_kwargs(self):
+        if callable(self.kwargs):
+            return '<keyword arguments factory>'
         return ', '.join(map(
             lambda key_value: f'{key_value[0]}={key_value[1]!r}',
             self.kwargs.items()
         ))
 
     def __repr__(self):
-        segments = tuple(filter(None, (self.__repr_args__(), self.__repr_kwargs__())))
-        if not segments:
+        chunks = tuple(filter(None, (self.repr_args(), self.repr_kwargs())))
+        if not chunks:
             return '(no parameters)'
-        return ', '.join(segments).join('()')
+        return ', '.join(chunks).join('()')
 
-    @classmethod
-    def pack(cls, *args, **kwargs):
-        return cls(args=args, kwargs=kwargs)
-
-    def call(self, fn, *args, **kwargs):
-        return fn(*(*args, *self.args), **{**self.kwargs, **kwargs})
-
-    def partial(self, fn):
-        return functools.partial(fn, *self.args, **self.kwargs)
-
-    @property
-    def args(self) -> tuple | Callable:
-        return self._args
-
-    @property
-    def kwargs(self) -> dict | Callable:
-        return self._kwargs
 
 
 class ForwardDependency:

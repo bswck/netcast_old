@@ -7,7 +7,7 @@ from netcast import ArrangementConstructionError
 from netcast.tools.arrangements import CT_DEFAULT, AT
 from netcast.tools.arrangements import ClassArrangement
 from netcast.tools.contexts import CT
-from netcast.tools.collections import Params, ForwardDependency
+from netcast.tools.collections import ParameterContainer, ForwardDependency
 
 
 class _TestContextType:
@@ -133,7 +133,7 @@ class TestClassArrangement:
         from netcast.tools.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
-            context_params = Params.pack(pings=0, pongs=0)
+            context_params = ParameterContainer.starred(pings=0, pongs=0)
 
             def ping(self):
                 self.context.pings += 1
@@ -297,7 +297,7 @@ class TestArrangement:
         from netcast.tools.arrangements import DictArrangement
 
         class DA1(DictArrangement):
-            context_params = Params.pack(pings=0, pongs=0)
+            context_params = ParameterContainer.starred(pings=0, pongs=0)
 
             def clear(self):
                 self.context.update(**self.context_params.kwargs)

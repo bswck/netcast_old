@@ -27,7 +27,7 @@ from typing import (
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools import strings
-from netcast.tools.collections import AttributeDict, IDLookupDictionary, Params
+from netcast.tools.collections import AttributeDict, IDLookupDictionary, ParameterContainer
 
 
 __all__ = (
@@ -122,13 +122,13 @@ class ExitPool:
         if async_:
             async def _bulk_enter():
                 for cm in cms:
-                    enter_result = _enter(cm)
-                    if inspect.isawaitable(enter_result):
-                        await enter_result
+                    trigger = _enter_context(cm)
+                    if inspect.isawaitable(trigger):
+                        await trigger
         else:
             def _bulk_enter():
                 for cm in cms:
-                    _enter(cm)
+                    _enter_context(cm)
 
         return _bulk_enter()
 
@@ -148,7 +148,7 @@ class ExitPool:
         if async_:
             async def _call_exit(_exc_info, cm):
                 try:
-                    trigger = _exit(cm=cm, exc_info=_exc_info)
+                    trigger = _exit_context(cm=cm, exc_info=_exc_info)
                     if inspect.isawaitable(trigger):
                         await trigger
                 except Exception:
@@ -163,7 +163,7 @@ class ExitPool:
         else:
             def _call_exit(_exc_info, cm):
                 try:
-                    _exit(cm=cm, exc_info=_exc_info)
+                    _exit_context(cm=cm, exc_info=_exc_info)
                 except Exception:
                     _exc_info = sys.exc_info()
                 finally:
@@ -176,7 +176,7 @@ class ExitPool:
         return _bulk_exit(exc_info)
 
 
-def _enter(cm):
+def _enter_context(cm):
     enter_result = None
     call_enter = getattr(cm, "__exit__", getattr(cm, "__aexit__", None))
 
@@ -186,7 +186,7 @@ def _enter(cm):
     return enter_result
 
 
-def _exit(cm, exc_info=None):
+def _exit_context(cm, exc_info=None):
     exit_result = None
 
     if exc_info is None:
@@ -211,7 +211,7 @@ async def _call_observer_async(observer, context, params):
 
 def _call_observer(observer, context, params):
     try:
-        params.call(observer, context)
+        observer(context, )
     except Exception as e:
         raise NetcastError('observer failed') from e
 
@@ -237,37 +237,37 @@ class _HookCaller:
                     continue
         return trigger
 
-    def precede_hook(self, context, func, /, *args, **kwargs):
+    def preceding_hook(self, context, func, /, *args, **kwargs):
         """Anytime a context is on the verge of being modified, this method is called."""
         pool = self.pools.get(context)
         if pool:
             pool.enter(context, func, sys.exc_info())
-        params = Params(args, kwargs)
+        params = ParameterContainer(args, kwargs)
         self.call_observers(context, params)
 
-    def finalize_hook(self, context, func, /, *args, **kwargs):
+    def trailing_hook(self, context, func, /, *args, **kwargs):
         """Anytime a context was modified, this method is called."""
         pool = self.pools.get(context)
         if pool:
             pool.exit(context, func, sys.exc_info())
-        params = Params(args, kwargs)
+        params = ParameterContainer(args, kwargs)
         self.call_observers(context, params)
 
-    async def precede_hook_async(self, context, func, /, *args, **kwargs):
+    async def preceding_hook_async(self, context, func, /, *args, **kwargs):
         """Anytime a context is going to be modified asynchronously, this method is called."""
         pool = self.pools.get(context)
         if not pool:
             return
-        params = Params(args, kwargs)
+        params = ParameterContainer(args, kwargs)
         await pool.enter(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 
-    async def finalize_hook_async(self, context, func, /, *args, **kwargs):
+    async def trailing_hook_async(self, context, func, /, *args, **kwargs):
         """Anytime a context was modified asynchronously, this method is called."""
         pool = self.pools.get(context)
         if not pool:
             return
-        params = Params(args, kwargs)
+        params = ParameterContainer(args, kwargs)
         await pool.exit(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 
@@ -333,10 +333,10 @@ class Context(metaclass=abc.ABCMeta):
     :func:`wrap_to_context`).
     """
 
-    def _bind_supercontext(self, supercontext: Context, final_key: Any | None = None):
+    def _bind_supercontext(self, supercontext: Context, link: Any | None = None):
         """Handle a supercontext. Handful for creating traversable context trees."""
 
-    def _bind_subcontext(self, subcontext: Context, final_key: Any | None = None):
+    def _bind_subcontext(self, subcontext: Context, link: Any | None = None):
         """Handle a subcontext. Handful for creating traversable context trees."""
 
 
@@ -345,12 +345,12 @@ _WARN_ASYNC_HOOK = "method %s() must be async in order to invoke async hooks"
 
 def wrap_method(
     func: Callable,
-    precede_hook: Union[Callable, None] = None,
-    finalize_hook: Union[Callable, None] = None,
+    preceding_hook: Union[Callable, None] = None,
+    trailing_hook: Union[Callable, None] = None,
     cls: type | None = None,
-    precedential_reshaping: bool = False,
-    hook_takes_method: bool = True,
-    finalizer_takes_result: bool = False,
+    initial_shaping: bool = False,
+    inform_with_method: bool = True,
+    communicate: bool = False
 ):
     if func is None:
         raise TypeError(
@@ -362,67 +362,74 @@ def wrap_method(
     if inspect.iscoroutinefunction(func):
 
         async def wrapper(self, *args, **kwargs):
-            bound_method = getattr(self, func.__name__)
+            method = getattr(self, func.__name__)
 
-            params = Params.pack(Params.pack(args=args, kwargs=kwargs))
+            hook_kwargs = kwargs
+            if inform_with_method:
+                hook_args = (self, method)
+            else:
+                hook_args = (self,)
 
-            if hook_takes_method:
-                params = Params.pack(bound_method, *params.args, **params.kwargs)
+            hook_args += args
 
-            if callable(precede_hook):
-                trigger = reshaped = params.call(precede_hook, self)
+            if callable(preceding_hook):
+                trigger = shaped = preceding_hook(*hook_args, **hook_kwargs)
 
                 if inspect.isawaitable(trigger):
-                    reshaped = await trigger
+                    shaped = await trigger
 
-                if precedential_reshaping and isinstance(reshaped, Params):
-                    args = (self, *reshaped.args)
-                    kwargs = {**reshaped.kwargs}
+                if initial_shaping and isinstance(shaped, ParameterContainer):
+                    args = (self, *shaped.args)
+                    kwargs = {**shaped.kwargs}
 
-            res = MISSING
+            result = MISSING
 
             try:
-                res = await func(self, *args, **kwargs)
+                result = await func(self, *args, **kwargs)
 
             finally:
-                if finalizer_takes_result:
-                    params = Params.pack(res, *params.args, **params.kwargs)
+                if communicate:
+                    if inform_with_method:
+                        hook_args = (self, method, result)
+                    else:
+                        hook_args = (self, result)
 
-                if callable(finalize_hook):
-                    trigger = params.call(finalize_hook, self)
+                if callable(trailing_hook):
+                    trigger = trailing_hook(*hook_args, **hook_kwargs)
                     if inspect.isawaitable(trigger):
                         await trigger
 
-                if res is MISSING:
+                if result is MISSING:
                     raise  # pylint: disable=E0704
 
-                return res  # pylint: disable=WO150
+                return result  # pylint: disable=WO150
 
     else:
-        if inspect.iscoroutinefunction(precede_hook):
+        if inspect.iscoroutinefunction(preceding_hook):
             warnings.warn(
                 _WARN_ASYNC_HOOK % strings.truncate(func.__name__), stacklevel=2
             )
-        if inspect.iscoroutinefunction(finalize_hook):
+        if inspect.iscoroutinefunction(trailing_hook):
             warnings.warn(
                 _WARN_ASYNC_HOOK % strings.truncate(func.__name__), stacklevel=2
             )
 
         def wrapper(self, *args, **kwargs):
-            bound_method = getattr(self, func.__name__)
+            method = getattr(self, func.__name__)
 
             hook_kwargs = kwargs
-            if hook_takes_method:
-                hook_args = (self, bound_method)
+            if inform_with_method:
+                hook_args = (self, method)
             else:
                 hook_args = (self,)
+
             hook_args += args
 
-            if callable(precede_hook):
-                reshaped = precede_hook(*hook_args, **hook_kwargs)
+            if callable(preceding_hook):
+                shaped = preceding_hook(*hook_args, **hook_kwargs)
 
-                if precedential_reshaping:
-                    args, kwargs = reshaped
+                if initial_shaping:
+                    args, kwargs = shaped
 
             result = MISSING
 
@@ -430,14 +437,14 @@ def wrap_method(
                 result = func(self, *args, **kwargs)
 
             finally:
-                if finalizer_takes_result:
-                    if hook_takes_method:
-                        hook_args = (self, bound_method, result)
+                if communicate:
+                    if inform_with_method:
+                        hook_args = (self, method, result)
                     else:
                         hook_args = (self, result)
 
-                if callable(finalize_hook):
-                    finalize_hook(*hook_args, **hook_kwargs)
+                if callable(trailing_hook):
+                    trailing_hook(*hook_args, **hook_kwargs)
 
                 if result is MISSING:
                     raise  # pylint: disable=E0704
@@ -466,7 +473,7 @@ BT = TypeVar("BT", type, Tuple[type, ...])
 
 def wrap_to_context(
     bases: BT,
-    hooked_methods: Iterable | None = (),
+    methods: Iterable = (),
     name: str | None = None,
     doc: str | None = None,
     init_subclass: dict[str, Any] | None = None,
@@ -481,26 +488,31 @@ def wrap_to_context(
     else:
         cls = bases
         bases = (cls, Context)
+        
     env = {**({"__doc__": doc} if doc else {})}
-    for method in hooked_methods:
+
+    for method in methods:
         method = getattr(cls, method, None) if isinstance(method, str) else method
         if inspect.iscoroutinefunction(method):
-            precede_hook = hook_caller.precede_hook_async
-            finalize_hook = hook_caller.finalize_hook_async
+            preceding_hook = hook_caller.preceding_hook_async
+            trailing_hook = hook_caller.trailing_hook_async
         else:
-            precede_hook = hook_caller.precede_hook
-            finalize_hook = hook_caller.finalize_hook
+            preceding_hook = hook_caller.preceding_hook
+            trailing_hook = hook_caller.trailing_hook
         env[method.__name__] = wrap_method(
-            method, precede_hook=precede_hook, finalize_hook=finalize_hook, cls=cls
+            method, preceding_hook=preceding_hook, trailing_hook=trailing_hook, cls=cls
         )
+
     if name is None:
         name = _supply_context_name(cls)
+
     if init_subclass is None:
         init_subclass = {}
+
     return type(name, bases, env, **init_subclass)
 
 
-_list_hooked_methods = (
+_list_methods = (
     "append",
     "extend",
     "insert",
@@ -510,11 +522,11 @@ _list_hooked_methods = (
     "__setitem__",
     "__delitem__",
 )
-_deque_hooked_methods = _list_hooked_methods + ("appendleft", "extendleft", "popleft")
-_dict_hooked_methods = ("__setitem__",)
-_queue_hooked_methods = ("_put", "_get", "put", "get")
-_io_hooked_methods = ("write", "read", "seek", "close")
-_socket_hooked_methods = (
+_deque_methods = _list_methods + ("appendleft", "extendleft", "popleft")
+_dict_methods = ("__setitem__",)
+_queue_methods = ("_put", "_get", "put", "get")
+_io_methods = ("write", "read", "seek", "close")
+_socket_methods = (
     "accept",
     "bind",
     "connect",
@@ -533,7 +545,7 @@ _socket_hooked_methods = (
     "sendfile",
     "shutdown",
 )
-_counter_hooked_methods = (
+_counter_methods = (
     "update",
     "subtract",
     "update",
@@ -542,9 +554,9 @@ _counter_hooked_methods = (
     "__iand__",
 )
 
-ListContext = wrap_to_context(list, _list_hooked_methods)
-DequeContext = wrap_to_context(collections.deque, _deque_hooked_methods)
-DictContext = wrap_to_context(AttributeDict, _dict_hooked_methods, name="DictContext")
+ListContext = wrap_to_context(list, _list_methods)
+DequeContext = wrap_to_context(collections.deque, _deque_methods)
+DictContext = wrap_to_context(AttributeDict, _dict_methods, name="DictContext")
 
 
 class UpwardContextMixin(Context):
@@ -555,16 +567,16 @@ class UpwardContextMixin(Context):
     Used solely, it behaves like a linked list.
     """
 
-    _supercontext_key: Any = "_"
+    _supercontext_link: Any = "_"
 
     def _bind_supercontext(
         self: UpwardContextMixin | MutableSequence,
         supercontext: Context,
-        final_key: _supercontext_key | None = None,
+        link: _supercontext_link | None = None,
     ):
-        if final_key is None:
-            final_key = self._supercontext_key
-        self[final_key] = supercontext
+        if link is None:
+            link = self._supercontext_link
+        self[link] = supercontext
 
 
 class SinglyDownwardContextMixin(Context):
@@ -575,16 +587,16 @@ class SinglyDownwardContextMixin(Context):
     Used solely, it behaves like a linked list.
     """
 
-    _subcontext_key: Any = "__"
+    _subcontext_link: Any = "__"
 
     def _bind_subcontext(
         self: SinglyDownwardContextMixin | MutableSequence,
         subcontext: Context,
-        final_key: _subcontext_key | None = None,
+        link: _subcontext_link | None = None,
     ):
-        if final_key is None:
-            final_key = self._subcontext_key
-        self[final_key] = subcontext
+        if link is None:
+            link = self._subcontext_link
+        self[link] = subcontext
 
 
 class DownwardContextMixin(Context):
@@ -593,18 +605,18 @@ class DownwardContextMixin(Context):
     You can set your own subcontexts key, however.
     """
 
-    _subcontext_key: Any = "__"
+    _subcontext_link: Any = "__"
 
     def _bind_subcontext(
         self: DownwardContextMixin | MutableSequence,
         subcontext: Context,
-        final_key: _subcontext_key | None = None,
+        link: _subcontext_link | None = None,
     ):
-        if final_key is None:
-            final_key = self._subcontext_key
-        if final_key not in self:
-            self[final_key] = []
-        self[final_key].append(subcontext)
+        if link is None:
+            link = self._subcontext_link
+        if link not in self:
+            self[link] = []
+        self[link].append(subcontext)
 
 
 class RootedTreeContextMixin(UpwardContextMixin, DownwardContextMixin):
@@ -620,27 +632,27 @@ LinkedListContextMixin = SinglyDownwardContextMixin
 _ = wrap_to_context
 
 ConstructContext = _((UpwardContextMixin, collections.OrderedDict, AttributeDict))
-ByteArrayContext = _(bytearray, _list_hooked_methods, name="ByteArrayContext")
-MemoryDictContext = _(IDLookupDictionary, _dict_hooked_methods)
-QueueContext = _(queue.Queue, _queue_hooked_methods)
-PriorityQueueContext = _(queue.PriorityQueue, _queue_hooked_methods)
-LifoQueueContext = _(queue.LifoQueue, _queue_hooked_methods)
+ByteArrayContext = _(bytearray, _list_methods, name="ByteArrayContext")
+MemoryDictContext = _(IDLookupDictionary, _dict_methods)
+QueueContext = _(queue.Queue, _queue_methods)
+PriorityQueueContext = _(queue.PriorityQueue, _queue_methods)
+LifoQueueContext = _(queue.LifoQueue, _queue_methods)
 AsyncioQueueContext = _(
-    asyncio.Queue, _queue_hooked_methods, name="AsyncioQueueContext"
+    asyncio.Queue, _queue_methods, name="AsyncioQueueContext"
 )
 AsyncioPriorityQueueContext = _(
-    asyncio.PriorityQueue, _queue_hooked_methods, name="AsyncioPriorityQueueContext"
+    asyncio.PriorityQueue, _queue_methods, name="AsyncioPriorityQueueContext"
 )
 AsyncioLifoQueueContext = _(
-    asyncio.LifoQueue, _queue_hooked_methods, name="AsyncioLifoQueueContext"
+    asyncio.LifoQueue, _queue_methods, name="AsyncioLifoQueueContext"
 )
-FileIOContext = _(io.FileIO, _io_hooked_methods)
-BytesIOContext = _(io.BytesIO, _io_hooked_methods)
-StringIOContext = _(io.StringIO, _io_hooked_methods)
-SocketContext = _(socket.socket, _socket_hooked_methods)
+FileIOContext = _(io.FileIO, _io_methods)
+BytesIOContext = _(io.BytesIO, _io_methods)
+StringIOContext = _(io.StringIO, _io_methods)
+SocketContext = _(socket.socket, _socket_methods)
 
-SSLSocketContext = _(ssl.SSLSocket, _socket_hooked_methods)
-CounterContext = _(collections.Counter, _counter_hooked_methods)
+SSLSocketContext = _(ssl.SSLSocket, _socket_methods)
+CounterContext = _(collections.Counter, _counter_methods)
 
 CT = TypeVar(
     "CT",

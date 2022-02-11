@@ -10,24 +10,21 @@ from netcast.tools import AttributeDict
 from netcast.tools import strings
 
 if TYPE_CHECKING:
-    Policies = Literal["ignore", "reshape", "strict"]
+    Policies = Literal["ignore", "shape", "strict"]
 
 
 class ConstraintPolicy(enum.Enum):
     IGNORE = "ignore"
-    RESHAPE = "reshape"
+    SHAPE = "shape"
     STRICT = "strict"
 
     _value2member_map_: dict[str, ConstraintPolicy]  # pylint: disable=C0103
 
 
 class Constraint(metaclass=abc.ABCMeta):
-    def __init__(self, policy: Policies | ConstraintPolicy = "strict", **cfg: Any):
-        if isinstance(policy, str):
-            valid_opts = ConstraintPolicy._value2member_map_
-            if policy not in valid_opts:
-                raise ValueError(f"invalid constraint policy: {policy!r}")
-            policy = valid_opts[policy]
+    _policy = "strict"
+
+    def __init__(self, policy: Policies | ConstraintPolicy = _policy, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
         self.policy = policy
         self.setup()
@@ -44,37 +41,60 @@ class Constraint(metaclass=abc.ABCMeta):
         pass
 
     @classmethod
-    def reshape_dump(cls, obj):
+    def shape_dump(cls, obj):
         return obj
 
     @classmethod
-    def reshape_load(cls, obj):
+    def shape_load(cls, obj):
         return obj
 
-    def validate(self, obj, **dump_or_load):
-        """Validate an object and return it."""
-        if len(set(dump_or_load).intersection(("load", "dump"))) != 1:
-            raise ValueError("load=True or dump=True must be set")
+    @property
+    def policy(self):
+        return self._policy
 
-        load = dump_or_load.get("load", False)
+    @policy.setter
+    def policy(self, policy):
+        if isinstance(policy, str):
+            valid_opts = ConstraintPolicy._value2member_map_
+            if policy not in valid_opts:
+                raise ValueError(f"invalid constraint policy: {policy!r}")
+            policy = valid_opts[policy]
+        self._policy = policy
 
-        if load:
+    def call_validate(self, obj, load=False, dump=False):
+        if load and not dump:
             validate = self.validate_load
-        else:
+        elif dump and not load:
             validate = self.validate_dump
-
+        else:
+            raise ValueError("only one of 'load' and 'dump' parameters must be set to True")
         try:
-            try:
-                validate(obj)
-            except AssertionError as err:
-                raise ConstraintError(f'constraint failed: {err}') from err
+            validate(obj)
+        except AssertionError as err:
+            raise ConstraintError(f'constraint failed: {err}') from err
 
+    def call_shape(self, obj, load=False, dump=False):
+        if load and not dump:
+            shape = self.shape_load
+        elif dump and not load:
+            shape = self.shape_dump
+        else:
+            raise ValueError("only one of 'load' and 'dump' parameters must be set to True")
+        try:
+            obj = shape(obj)
+        except Exception as err:
+            raise ConstraintError(f'calling shape failed: {err}') from err
+        return obj
+
+    def validate(self, obj, *, load=False, dump=False):
+        """Validate an object and return it."""
+        try:
+            self.call_validate(obj, load=load, dump=dump)
         except ConstraintError:
             if self.policy is ConstraintPolicy.STRICT:
                 raise
-            if self.policy is ConstraintPolicy.RESHAPE:
-                obj = self.reshape_load(obj) if load else self.reshape_dump(obj)
-
+            if self.policy is ConstraintPolicy.SHAPE:
+                obj = self.call_shape(obj, load=load, dump=dump)
         return obj
 
     def __getattr__(self, item):
@@ -117,7 +137,7 @@ class RangeConstraint(Constraint):
         msg = f"loaded object is out of bounds [{minimal}, {maximal}]"
         assert bounded, msg
 
-    def reshape_load(self, load):
+    def shape_load(self, load):
         if load < self.min:
             return self.min
         return self.max

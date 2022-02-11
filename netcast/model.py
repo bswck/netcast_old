@@ -5,7 +5,7 @@ import threading
 import typing
 
 from netcast.engine import get_global_engine
-from netcast.tools import Params
+
 
 if typing.TYPE_CHECKING:
     from netcast import Driver
@@ -26,7 +26,7 @@ class ComponentStack:
             cfg = {}
         return component.copy(**cfg)
 
-    def transform_item(self, component, cfg=None, default_name=None):
+    def transform_item(self, component, *, cfg=None, default_name=None):
         if isinstance(component, type) and issubclass(component, Model):
             component = self.transform_submodel(component)
         if cfg is None:
@@ -38,17 +38,28 @@ class ComponentStack:
             component = self.transform_component(component, cfg)
         return component
 
-    def insert(self, idx, item):
+    def insert(self, idx, component):
         with self._mutex:
-            self._components.insert(idx, item)
+            self._components.insert(idx, component)
 
-    def push_with_transform(self, component, cfg=None, default_name=None):
-        component = self.transform_item(component=component, cfg=cfg, default_name=default_name)
-        self.push(component)
+    def push_transformed(self, component, *, cfg=None, default_name=None):
+        transformed = self.transform_item(
+            component=component, default_name=default_name, cfg=cfg
+        )
+        self.push(transformed)
 
-    def push(self, item):
+    def discard(self, component):
         with self._mutex:
-            self._components.append(item)
+            try:
+                idx = self._components.index(component)
+            except IndexError:
+                pass
+            else:
+                self.pop(idx)
+
+    def push(self, component):
+        with self._mutex:
+            self._components.append(component)
 
     def pop(self, index=-1):
         with self._mutex:
@@ -63,7 +74,7 @@ class ComponentStack:
         return len(self._components)
 
     def __repr__(self):
-        return f'<{type(self).__name__}{Params.pack(self._components)}>'
+        return f'<{type(self).__name__}{self._components}>'
 
 
 class Model:
@@ -73,13 +84,10 @@ class Model:
         if stack is None:
             stack = ComponentStack()
         cls.stack = stack
+        cls.cfg = cfg
         if push_members:
             for default_name, component in inspect.getmembers(cls):
-                stack.push_with_transform(
-                    component=component,
-                    default_name=default_name,
-                    cfg=cfg
-                )
+                cls.add_component(component, default_name=default_name)
 
     def __init__(self, driver: str | Driver, engine=None):
         if engine is None:
@@ -88,11 +96,31 @@ class Model:
             driver = engine.get_driver(driver)
         self._state = driver(self)
 
-    def __setattr__(self, key, value):
+    @classmethod
+    def add_component(cls, component, default_name=None):
+        cls.stack.push_transformed(
+            component=component,
+            default_name=default_name,
+            cfg=cls.cfg
+        )
+        return cls
+
+    @classmethod
+    def discard_component(cls, component):
+        cls.stack.discard(component=component)
+        return cls
+
+    def __setitem__(self, key, value):
         self._state[key] = value
 
-    def __getattr__(self, key, value):
+    def __getitem__(self, key, value):
         return self._state[key]
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __getattr__(self, key, value):
+        return self[key]
 
 
 def model(
@@ -104,7 +132,7 @@ def model(
     if stack is None:
         stack = ComponentStack()
     for component in components:
-        stack.push_with_transform(component, cfg=cfg)
+        stack.push_transformed(component, cfg=cfg)
     if name is None:
         name = '_'.join(('model', str(id(stack))))
     return type(name, (Model,), {}, stack=stack)
