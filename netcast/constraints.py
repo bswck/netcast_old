@@ -37,18 +37,18 @@ class Constraint(metaclass=abc.ABCMeta):
 
     @classmethod
     def validate_dump(cls, obj):
-        return obj or True
+        pass
 
     @classmethod
     def validate_load(cls, obj):
-        return True
-
-    @classmethod
-    def reshape_load(cls, obj):
-        return obj
+        pass
 
     @classmethod
     def reshape_dump(cls, obj):
+        return obj
+
+    @classmethod
+    def reshape_load(cls, obj):
         return obj
 
     def validate(self, obj, **dump_or_load):
@@ -58,40 +58,66 @@ class Constraint(metaclass=abc.ABCMeta):
 
         load = dump_or_load.get("load", False)
 
+        if load:
+            validate = self.validate_load
+        else:
+            validate = self.validate_dump
+
         try:
-            validate = (self.validate_dump, self.validate_load)[load]
-            validate(obj)
+            try:
+                validate(obj)
+            except AssertionError as err:
+                raise ConstraintError(f'constraint failed: {err}') from err
 
         except ConstraintError:
             if self.policy is ConstraintPolicy.STRICT:
                 raise
             if self.policy is ConstraintPolicy.RESHAPE:
                 obj = self.reshape_load(obj) if load else self.reshape_dump(obj)
+
         return obj
+
+    def __getattr__(self, item):
+        return getattr(self.cfg, item)
+
+
+class InstanceConstraint(Constraint):
+    def setup(self):
+        self.setdefault('load_type', object)
+        self.setdefault('dump_type', object)
+
+    def validate_load(self, load):
+        msg = f'loaded object must be an instance of {self.cfg.load_type.__name__}'
+        assert isinstance(load, self.load_type), msg
+
+    def validate_dump(self, dump):
+        msg = f'dumped object must be an instance of {self.cfg.dump_type.__name__}'
+        assert isinstance(dump, self.dump_type), msg
 
 
 class RangeConstraint(Constraint):
     def setup(self):
-        if self.cfg.min > self.cfg.max:
+        if self.min > self.max:
             raise ValueError("the minimal value cannot be less than the maximal value")
-        self.cfg.setdefault("allow_inf", False)
+        self.setdefault("accept_inf", False)
 
     def validate_load(self, load):
-        min_val, max_val = self.cfg.min, self.cfg.max
-        allow_inf = self.cfg.allow_inf
+        minimal, maximal = self.min, self.max
+        accept_inf = self.accept_inf
 
-        if min_val <= load <= max_val or allow_inf:
-            return load
+        bounded = minimal <= load <= maximal or accept_inf
 
-        min_val, max_val = map(
+        if bounded:
+            return
+
+        minimal, maximal = map(
             functools.partial(strings.truncate, stats=None),
-            map(str, (min_val, max_val)),
+            map(str, (minimal, maximal)),
         )
-        raise ConstraintError(
-            f"loaded object is out of serialization bounds [{min_val}, {max_val}]"
-        )
+        msg = f"loaded object is out of bounds [{minimal}, {maximal}]"
+        assert bounded, msg
 
     def reshape_load(self, load):
-        if load < self.cfg.min:
-            return self.cfg.min
-        return self.cfg.max
+        if load < self.min:
+            return self.min
+        return self.max

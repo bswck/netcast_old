@@ -78,17 +78,23 @@ class Params:
         return ', '.join(map(repr, self.args))
 
     def __repr_kwargs__(self):
-        return ', '.join(map(lambda key, value: f'{key}={value!r}', self.kwargs.items()))
+        return ', '.join(map(
+            lambda key_value: f'{key_value[0]}={key_value[1]!r}',
+            self.kwargs.items()
+        ))
 
     def __repr__(self):
-        return ', '.join(filter(None, (self.__repr_args__(), self.__repr_kwargs__())))
+        segments = tuple(filter(None, (self.__repr_args__(), self.__repr_kwargs__())))
+        if not segments:
+            return '(no parameters)'
+        return ', '.join(segments).join('()')
 
     @classmethod
     def pack(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
 
     def call(self, fn, *args, **kwargs):
-        return type(self)(args, kwargs).partial(fn)(*self.args, **self.kwargs)
+        return fn(*(*args, *self.args), **{**self.kwargs, **kwargs})
 
     def partial(self, fn):
         return functools.partial(fn, *self.args, **self.kwargs)

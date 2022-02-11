@@ -20,6 +20,8 @@ class Plugin:
         """Save your options here"""
 
     def __init_subclass__(cls, **kwargs):
+        if cls not in Plugin.__subclasses__():
+            return
         independent, dependent = {}, {}
         for attr, feature in inspect.getmembers(cls, predicate=cls.feature_predicate):
             if feature.is_dependent:

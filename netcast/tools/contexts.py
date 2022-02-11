@@ -237,33 +237,37 @@ class _HookCaller:
                     continue
         return trigger
 
-    def precede_hook(self, context, func, params):
+    def precede_hook(self, context, func, /, *args, **kwargs):
         """Anytime a context is on the verge of being modified, this method is called."""
         pool = self.pools.get(context)
         if pool:
             pool.enter(context, func, sys.exc_info())
+        params = Params(args, kwargs)
         self.call_observers(context, params)
 
-    def finalize_hook(self, context, func, params):
+    def finalize_hook(self, context, func, /, *args, **kwargs):
         """Anytime a context was modified, this method is called."""
         pool = self.pools.get(context)
         if pool:
             pool.exit(context, func, sys.exc_info())
+        params = Params(args, kwargs)
         self.call_observers(context, params)
 
-    async def precede_hook_async(self, context, func, params):
+    async def precede_hook_async(self, context, func, /, *args, **kwargs):
         """Anytime a context is going to be modified asynchronously, this method is called."""
         pool = self.pools.get(context)
         if not pool:
             return
+        params = Params(args, kwargs)
         await pool.enter(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 
-    async def finalize_hook_async(self, context, func, params):
+    async def finalize_hook_async(self, context, func, /, *args, **kwargs):
         """Anytime a context was modified asynchronously, this method is called."""
         pool = self.pools.get(context)
         if not pool:
             return
+        params = Params(args, kwargs)
         await pool.exit(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 
@@ -407,34 +411,38 @@ def wrap_method(
         def wrapper(self, *args, **kwargs):
             bound_method = getattr(self, func.__name__)
 
-            params = Params.pack(Params.pack(args=args, kwargs=kwargs))
-
+            hook_kwargs = kwargs
             if hook_takes_method:
-                params = Params.pack(bound_method, *params.args, **params.kwargs)
+                hook_args = (self, bound_method)
+            else:
+                hook_args = (self,)
+            hook_args += args
 
             if callable(precede_hook):
-                reshaped = params.call(precede_hook, self)
+                reshaped = precede_hook(*hook_args, **hook_kwargs)
 
-                if precedential_reshaping and isinstance(reshaped, Params):
-                    args = (*reshaped.args,)
-                    kwargs = {**reshaped.kwargs}
+                if precedential_reshaping:
+                    args, kwargs = reshaped
 
-            res = MISSING
+            result = MISSING
 
             try:
-                res = func(self, *args, **kwargs)
+                result = func(self, *args, **kwargs)
 
             finally:
                 if finalizer_takes_result:
-                    params = Params.pack(res, *params.args, **params.kwargs)
+                    if hook_takes_method:
+                        hook_args = (self, bound_method, result)
+                    else:
+                        hook_args = (self, result)
 
                 if callable(finalize_hook):
-                    params.call(finalize_hook, self)
+                    finalize_hook(*hook_args, **hook_kwargs)
 
-                if res is MISSING:
+                if result is MISSING:
                     raise  # pylint: disable=E0704
 
-                return res  # pylint: disable=WO150
+                return result  # pylint: disable=WO150
 
     return functools.update_wrapper(wrapper, func)
 

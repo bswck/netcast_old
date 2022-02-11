@@ -17,6 +17,13 @@ from netcast.tools.collections import AttributeDict
 class DataTypeRegistry(DoublyLinkedListContextMixin, AttributeDict):
     """Data types registry."""
 
+    def __repr__(self):
+        super_type = getattr(getattr(self.get('_'), 'cls', None), '__name__', MISSING)
+        return '\n'.join((
+            f'Supertype: {super_type}',
+            f'Data type: {self.cls.__name__}'
+        ))
+
 
 class TypeArrangement(ClassArrangement, config=True):
     __visit_key__: Any = None
@@ -30,7 +37,6 @@ class TypeArrangement(ClassArrangement, config=True):
         return context
 
     @classmethod
-    @final
     def subcontext_key(cls, *__related_contexts):
         """Return the key for all the subcontexts."""
         if cls.__visit_key__ == getattr(cls.__base__, "__visit_key__", None):
@@ -170,3 +176,6 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
 
     def __call__(self, **cfg: Any) -> Serializer:  # [Origin, Cast]:
         return self.copy(**cfg)
+
+    def __getattr__(self, item):
+        return getattr(self.cfg, item)

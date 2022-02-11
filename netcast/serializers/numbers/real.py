@@ -17,6 +17,7 @@ __all__ = (
     "Bool",
     "Byte",
     "Char",
+    "Double",
     "Float16",
     "Float32",
     "Float64",
@@ -55,6 +56,7 @@ __all__ = (
     "SignedLongLong",
     "SignedLongLongInt",
     "SignedReal",
+    "Single",
     "Tetrade",
     "Unsigned",
     "UnsignedByte",
@@ -94,8 +96,8 @@ class Real(Primitive, Constrained, abc.ABC):
     bounds = Bounds(-math.inf, math.inf)
 
     @classproperty
-    def constraints(cls):
-        return (RangeConstraint(**cls.bounds._asdict()),)
+    def _constraints(cls):
+        return RangeConstraint(**cls.bounds._asdict()),
 
 
 SignedReal = Real
@@ -152,7 +154,7 @@ def int_type(bit_length, signed=True) -> Type[AnyInt] | type:
     (constraint,) = constraints = (sized_int_constraint(bit_length, signed=signed),)
     name = _get_class_name(bit_length or math.inf, type_name="Int", signed=signed)
     bases = (AnySignedInt if signed else AnyUnsignedInt, Constrained, abc.ABC)
-    serializer = type(name, bases, {"constraints": constraints, "__module__": __name__})
+    serializer = type(name, bases, {"_constraints": constraints, "__module__": __name__})
     serializer.bounds = Bounds(constraint.cfg.min, constraint.cfg.max)
     serializer.bit_length = constraint.cfg.bit_length
     return serializer
@@ -196,7 +198,7 @@ class _Float(Real, metaclass=abc.ABCMeta):
 
 def float_type(bit_length, constraints=()):
     name = _get_class_name(bit_length, type_name="Float")
-    env = {"__module__": __name__, "constraints": constraints, "bit_length": bit_length}
+    env = {"__module__": __name__, "_constraints": constraints, "bit_length": bit_length}
     serializer = type(name, (_Float, abc.ABC), env)
     return serializer
 

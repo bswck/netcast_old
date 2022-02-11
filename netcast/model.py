@@ -63,7 +63,7 @@ class ComponentStack:
         return len(self._components)
 
     def __repr__(self):
-        return f'<{type(self).__name__}({Params.pack(self._components)})>'
+        return f'<{type(self).__name__}{Params.pack(self._components)}>'
 
 
 class Model:

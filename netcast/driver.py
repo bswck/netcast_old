@@ -3,6 +3,7 @@ import inspect
 import sys
 
 from netcast import serializers
+from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer
 from netcast.plugin import Plugin
 from netcast.state import State
@@ -12,7 +13,10 @@ from netcast.tools.collections import AttributeDict
 class DriverMeta(type):
     def __getattr__(self, item):
         alias = getattr(serializers, item, None)
-        if alias is None or not issubclass(alias, Serializer) or item == alias.__name__:
+        if (
+            alias is None
+            or not issubclass(alias, Serializer)
+        ):
             raise AttributeError(item)
         return object.__getattribute__(self, alias.__name__)
 
@@ -42,21 +46,24 @@ class Driver(metaclass=DriverMeta):
         return State(model=model, driver=cls, engine=engine)
 
 
-def adapted_serializer(serializer_class, adapter, stack_level=1):
-    module = inspect.stack()[stack_level][0].f_globals["__name__"]
+def _build_adapted_serializer(
+        adapter,
+        serializer_class=None,
+        stack_level=1
+):
+    if serializer_class is None:
+        raise NetcastError('no serializer has been set on this adapter')
+
     return type(
-        serializer_class.__name__, (serializer_class, adapter), {"__module__": module}
+        serializer_class.__name__,
+        (serializer_class, adapter),
+        {"__module__": inspect.stack()[stack_level][0].f_globals["__name__"]}
     )
 
 
 def serializer_factory(adapter):
-    return functools.partial(adapted_serializer, adapter=adapter, stack_level=2)
+    return functools.partial(_build_adapted_serializer, adapter, stack_level=2)
 
 
 class Adapter(Plugin):
-    _impls = {}
     cfg: AttributeDict  # as in the Serializer
-
-    @property
-    def impl(self):
-        return self.cfg.impl
