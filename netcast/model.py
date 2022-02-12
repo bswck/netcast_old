@@ -100,7 +100,7 @@ class Model:
             engine = get_global_engine()
         if isinstance(driver, str):
             driver = engine.get_driver(driver)
-        self._state = driver(self)
+        self._state = driver(self).state
 
     def __setitem__(self, key, value):
         self._state[key] = value
