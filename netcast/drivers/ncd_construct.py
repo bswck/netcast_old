@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import time
 
 import construct
 import netcast
@@ -70,14 +69,14 @@ class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
             return io.BytesIO(dumped)
         return io.BytesIO()
 
-    def _load(self, dumped, context=None, **_kwargs):
+    def _load(self, dumped, *, context=None, **_kwargs):
         return self.impl._parse(
             stream=self.ensure_stream(dumped),
             context=context,
             path=f"(parsing {type(self).__name__} using netcast)",
         )
 
-    def _dump(self, loaded, context=None, stream=None, **_kwargs):
+    def _dump(self, loaded, *, context=None, stream=None, **_kwargs):
         stream = self.ensure_stream(stream)
         self.impl._build(
             obj=loaded,
@@ -110,11 +109,3 @@ class ConstructDriver(netcast.Driver):
     Float16 = Real(netcast.Float16)
     Float32 = Real(netcast.Float32)
     Float64 = Real(netcast.Float64)
-
-
-if __name__ == '__main__':
-    ncd = ConstructDriver
-    typ = ncd.UnsignedInt8(constraint_policy="coerce")
-    start = time.perf_counter()
-    print(typ.dump(-128))
-    print('elapsed', time.perf_counter() - start)

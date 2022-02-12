@@ -16,38 +16,6 @@ def export_predicate(obj):
     return isinstance(obj, Export) and not obj.disabled
 
 
-class Plugin:
-    """Plugin is a serializer mix-in."""
-
-    exports: ClassVar[dict[str, Callable]] = {}
-    dependency_count: ClassVar[int] = 0
-    cfg: AttributeDict[str, Any]
-
-    def __init__(self: Plugin | Serializer, **cfg):
-        """Save your options here"""
-        self.cfg = AttributeDict(cfg)
-
-    def __init_subclass__(cls, **kwargs):
-        if cls not in Plugin.__subclasses__():
-            return
-        i, d = {}, {}
-        for attr, feature in inspect.getmembers(cls, predicate=export_predicate):
-            if feature.is_dependent:
-                d[attr] = feature
-            else:
-                i[attr] = feature
-            cls.dependency_count = len(d)
-        cls.exports.update(**i, **d)
-
-    @classmethod
-    def get_plugins(cls, serializer_class):
-        def predicate(super_class):
-            return super_class in cls.__subclasses__()
-
-        plugins = filter(predicate, serializer_class.__bases__)
-        return sorted(plugins, key=operator.attrgetter("dependency_count"))
-
-
 @dataclasses.dataclass
 class Export:
     # pylint: disable=R0902
@@ -82,3 +50,35 @@ def export(func=None, **kwargs) -> functools.partial[Export] | Export:
     if func is None:
         return functools.partial(export, **kwargs)
     return Export(func, **kwargs)
+
+
+class Plugin:
+    """Plugin is a serializer mix-in."""
+
+    exports: ClassVar[dict[str, Callable]] = {}
+    resolution: ClassVar[int] = 0
+    cfg: AttributeDict[str, Any]
+
+    def __init__(self: Plugin | Serializer, **cfg):
+        """Save your options here"""
+        self.cfg = AttributeDict(cfg)
+
+    def __init_subclass__(cls, **kwargs):
+        if cls not in Plugin.__subclasses__():
+            return
+        i, d = {}, {}
+        for attr, feature in inspect.getmembers(cls, predicate=export_predicate):
+            if feature.is_dependent:
+                d[attr] = feature
+            else:
+                i[attr] = feature
+            cls.resolution = len(d)
+        cls.exports.update(**i, **d)
+
+    @classmethod
+    def get_plugins(cls, serializer_class):
+        def predicate(super_class):
+            return super_class in cls.__subclasses__()
+
+        plugins = filter(predicate, serializer_class.__bases__)
+        return sorted(plugins, key=operator.attrgetter("dependency_count"))

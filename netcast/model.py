@@ -133,5 +133,5 @@ def model(
     for component in components:
         stack.push_transformed(component, cfg=cfg)
     if name is None:
-        name = '_'.join(('model', str(id(stack))))
+        name = "model_" + str(id(stack))
     return type(name, (Model,), {}, stack=stack)

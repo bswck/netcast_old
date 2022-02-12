@@ -153,7 +153,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         new = type(self)(**new_cfg)
         return new
 
-    def dump(self, loaded, context: Context | None = None, **kwargs):
+    def dump(self, loaded, *, context: Context | None = None, **kwargs):
         """Cast an origin value to the cast type."""
         try:
             dump = getattr(self, "_dump")
@@ -162,7 +162,7 @@ class Serializer(TypeArrangement, metaclass=abc.ABCMeta):
         else:
             return dump(loaded, context=context, **kwargs)
 
-    def load(self, dumped, context: Context | None = None, **kwargs):
+    def load(self, dumped, *, context: Context | None = None, **kwargs):
         """Cast an origin value to the cast type."""
         try:
             load = getattr(self, "_load")

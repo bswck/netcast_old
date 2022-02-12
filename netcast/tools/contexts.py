@@ -24,7 +24,7 @@ from typing import (
     Tuple,
 )
 
-from netcast.constants import MISSING
+from netcast.constants import MISSING, Break
 from netcast.exceptions import NetcastError
 from netcast.tools import strings
 from netcast.tools.collections import AttributeDict, IDLookupDictionary, ParameterContainer
@@ -350,7 +350,8 @@ def wrap_method(
     cls: type | None = None,
     initial_shaping: bool = False,
     inform_with_method: bool = True,
-    communicate: bool = False
+    communicate: bool = False,
+
 ):
     if func is None:
         raise TypeError(
@@ -380,6 +381,10 @@ def wrap_method(
 
                 if initial_shaping:
                     coerced_args, coerced_kwargs = coerced
+
+                    if coerced_args and isinstance(coerced_args[0], Break):
+                        return Break(*coerced_args, **coerced_kwargs)
+
                     args = (self, *coerced_args)
                     kwargs = {**coerced_kwargs}
 
@@ -431,6 +436,9 @@ def wrap_method(
 
                 if initial_shaping:
                     args, kwargs = coerced
+
+                    if args and isinstance(args[0], Break):
+                        return Break(*args, **kwargs)
 
             result = MISSING
 
