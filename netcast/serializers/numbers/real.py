@@ -82,7 +82,7 @@ __all__ = (
 
 class SignedAndUnsignedConstraint(RangeConstraint):
     def coerce_load(self, load):
-        if self.serializer_cfg.get('signedness_coercion') and self.min == 0:
+        if self.serializer_cfg.get("signedness_coercion") and self.min == 0:
             signed_max = (self.max + 1) // 2
             if 0 > load >= -signed_max:
                 return signed_max - load

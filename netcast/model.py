@@ -54,8 +54,7 @@ class ComponentStack:
                 idx = self._components.index(component)
             except IndexError:
                 pass
-            else:
-                self.pop(idx)
+        self.pop(idx)
 
     def push(self, component):
         with self._mutex:
