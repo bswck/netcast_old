@@ -7,7 +7,7 @@ from netcast import ArrangementConstructionError
 from netcast.tools.arrangements import CT_DEFAULT, AT
 from netcast.tools.arrangements import ClassArrangement
 from netcast.tools.contexts import CT
-from netcast.tools.collections import ParameterContainer, ForwardDependency
+from netcast.tools.collections import ForwardDependency, parameters
 
 
 class _TestContextType:
@@ -133,7 +133,7 @@ class TestClassArrangement:
         from netcast.tools.arrangements import ClassDictArrangement
 
         class CA1(ClassDictArrangement):
-            context_params = ParameterContainer.starred(pings=0, pongs=0)
+            context_params = parameters(pings=0, pongs=0)
 
             def ping(self):
                 self.context.pings += 1
@@ -297,7 +297,7 @@ class TestArrangement:
         from netcast.tools.arrangements import DictArrangement
 
         class DA1(DictArrangement):
-            context_params = ParameterContainer.starred(pings=0, pongs=0)
+            context_params = parameters(pings=0, pongs=0)
 
             def clear(self):
                 self.context.update(**self.context_params.kwargs)
@@ -466,14 +466,14 @@ class TestArrangement:
 
         # Now, test the underlying conditions
         assert csa2.context == {"_": csa2.supercontext}
-        assert csa2.context._ == {}
+        assert csa2.context._ == {}  # noqa
 
         test_val = 1
-        csa2.context._.test_item = test_val
+        csa2.context._.test_item = test_val  # noqa
         csa2.context.test_item = test_val
 
-        assert csa2.context.test_item is test_val
-        assert csa2.context._.test_item is test_val
+        assert csa2.context.test_item is test_val  # noqa
+        assert csa2.context._.test_item is test_val  # noqa
         assert csa2.supercontext.test_item is csa2.context.test_item  # type: ignore
 
     @pytest.mark.asyncio

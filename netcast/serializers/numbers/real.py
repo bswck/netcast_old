@@ -80,6 +80,15 @@ __all__ = (
 )
 
 
+class SignedAndUnsignedConstraint(RangeConstraint):
+    def coerce_load(self, load):
+        if self.serializer_cfg.get('signedness_coercion') and self.min == 0:
+            signed_max = (self.max + 1) // 2
+            if 0 > load >= -signed_max:
+                return signed_max - load
+        return super().coerce_load(load)
+
+
 class Bounds(NamedTuple):
     min: numbers.Real
     max: numbers.Real
@@ -131,15 +140,6 @@ class AnyUnsignedInt(UnsignedReal, abc.ABC):
     """Base unsigned integer type."""
 
     __load_type__ = int
-
-
-class SignedAndUnsignedConstraint(RangeConstraint):
-    def coerce_load(self, load):
-        if self.min == 0:
-            signed_max = (self.max + 1) // 2
-            if 0 > load >= -signed_max:
-                return signed_max - load
-        return super().coerce_load(load)
 
 
 def sized_int_constraint(bit_length: int, signed: bool = True):

@@ -7,13 +7,13 @@ from netcast.plugin import Plugin, export, default
 class Constrained(Plugin):
     _constraints: tuple[Constraint, ...] = default(())
 
-    def _propagate_policy(self, constraints):
+    def _notify_constraints(self, constraints):
         for constraint in constraints:
-            constraint.policy = self.cfg.get('constraint_policy')
+            constraint.notify(self)
 
     @property
     def constraints(self):
-        self._propagate_policy(self._constraints)
+        self._notify_constraints(self._constraints)
         return self._constraints
 
     @export(

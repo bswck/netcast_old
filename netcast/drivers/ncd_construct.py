@@ -11,31 +11,6 @@ __driver_name__ = "construct"
 
 
 class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
-    def _get_swapped(self):
-        if self.big is None and self.native is None and self.little is not None:
-            return self.little
-        if self.big is None and self.native is not None:
-            return self.native
-        return True if self.big is None else self.big
-
-    def _get_bi(self, *, signed):
-        byte_length = self.bit_length >> 3
-        return construct.BytesInteger(byte_length, signed=signed, swapped=self._get_swapped())
-
-    def _get_ff(self, *, signed):
-        type_name = "Int" if self.__load_type__ is int else "Float"
-        type_name += str(self.bit_length)
-        type_name += ("s" if signed else "u") if self.__load_type__ is int else ""
-
-        if self.big:
-            type_name += "b"
-        elif self.little:
-            type_name += "l"
-        else:
-            type_name += "n"
-        obj = getattr(construct, type_name, None)
-        return obj
-
     def setup(self):
         obj = self.get("impl")
 
@@ -61,6 +36,31 @@ class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
             raise ImportError(f"construct does not support {self.__visit_key__}")
 
         self.cfg.impl = obj
+
+    def _get_swapped(self):
+        if self.big is None and self.native is None and self.little is not None:
+            return self.little
+        if self.big is None and self.native is not None:
+            return self.native
+        return True if self.big is None else self.big
+
+    def _get_bi(self, *, signed):
+        byte_length = self.bit_length >> 3
+        return construct.BytesInteger(byte_length, signed=signed, swapped=self._get_swapped())
+
+    def _get_ff(self, *, signed):
+        type_name = "Int" if self.__load_type__ is int else "Float"
+        type_name += str(self.bit_length)
+        type_name += ("s" if signed else "u") if self.__load_type__ is int else ""
+
+        if self.big:
+            type_name += "b"
+        elif self.little:
+            type_name += "l"
+        else:
+            type_name += "n"
+        obj = getattr(construct, type_name, None)
+        return obj
 
     @staticmethod
     def ensure_stream(dumped):

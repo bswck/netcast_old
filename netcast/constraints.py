@@ -27,6 +27,7 @@ class Constraint(metaclass=abc.ABCMeta):
 
     def __init__(self, policy: Policies | ConstraintPolicy = _policy, **cfg: Any):
         self.cfg: AttributeDict[str, Any] = AttributeDict(cfg)
+        self.setdefault('serializer_cfg', AttributeDict())
         self.policy = policy
         self.setup()
 
@@ -44,6 +45,13 @@ class Constraint(metaclass=abc.ABCMeta):
 
     def coerce_load(self, obj):
         return NotImplemented
+
+    def notify(self, serializer):
+        # We won't link to serializer here, because we don't want
+        # to create a strong reference to it.
+        cfg = serializer.cfg.copy()
+        self.policy = cfg.pop('constraint_policy')
+        self.cfg.update(serializer_cfg=cfg)
 
     @property
     def policy(self):

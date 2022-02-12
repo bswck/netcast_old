@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 from typing import Callable
 
 from jaraco.collections import (
@@ -11,6 +10,7 @@ from jaraco.collections import (
 
 class KeyTransformingDict(_KeyTransformingDict):
     def update(self, e=None, **f):
+        # I don't know why update() doesn't call __setitem__(), either on CPython or PyPy
         d = self
         if e:
             if callable(getattr(e, "keys", None)):
@@ -85,7 +85,7 @@ class ParameterContainer:
         return self.kwargs
 
     @classmethod
-    def starred(cls, *args, **kwargs):
+    def from_call(cls, *args, **kwargs):
         return cls(args=args, kwargs=kwargs)
 
     def call(self, fn, *args, **kwargs):
@@ -114,6 +114,8 @@ class ParameterContainer:
             return '(no parameters)'
         return ', '.join(chunks).join('()')
 
+
+parameters = ParameterContainer.from_call
 
 
 class ForwardDependency:
