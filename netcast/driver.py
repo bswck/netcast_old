@@ -3,7 +3,6 @@ import inspect
 import sys
 
 from netcast import serializers
-from netcast.plugin import Plugin
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer
 from netcast.state import State
@@ -68,6 +67,3 @@ def _build_adapted_serializer(
 
 def serializer_factory(adapter):
     return functools.partial(_build_adapted_serializer, adapter, stack_level=2)
-
-
-Adapter = type("Adapter", (Plugin,), {})

@@ -7,10 +7,12 @@ from jaraco.collections import (
     ItemsAsAttributes,
 )
 
+from netcast.constants import MISSING
+
 
 class KeyTransformingDict(_KeyTransformingDict):
+    # I don't know why update() doesn't call __setitem__(), either on CPython or PyPy
     def update(self, e=None, **f):
-        # I don't know why update() doesn't call __setitem__(), either on CPython or PyPy
         d = self
         if e:
             if callable(getattr(e, "keys", None)):
@@ -38,18 +40,7 @@ class IDLookupDictionary(KeyTransformingDict):
         return id_of_key
 
 
-class OrOperatorDict(dict):
-    def __or__(self, other):
-        """Return self | other."""
-        return type(self).__ior__(self.copy(), other)  # type: ignore
-
-    def __ior__(self, other):
-        """Return self |= other."""
-        self.update(other)
-        return self
-
-
-class AttributeDict(OrOperatorDict, ItemsAsAttributes):
+class AttributeDict(dict, ItemsAsAttributes):
     """A modern dictionary with attribute-as-item access."""
 
     def __setattr__(self, key, value):
@@ -62,54 +53,58 @@ class AttributeDict(OrOperatorDict, ItemsAsAttributes):
 
 
 class ParameterContainer:
-    args: tuple | Callable = ()
-    kwargs: dict | Callable = {}
+    arguments: tuple | Callable = ()
+    keywords: dict | Callable = {}
 
-    def __init__(self, args=None, kwargs=None):
-        if args is not None:
-            self.args = args
-        if kwargs is not None:
-            self.kwargs = kwargs
+    def __init__(self, arguments=None, keywords=None):
+        if arguments is not None:
+            self.arguments = arguments
+        if keywords is not None:
+            self.keywords = keywords
 
     def eval(self, context):
-        return self.eval_args(context), self.eval_kwargs(context)
+        return self.eval_arguments(context), self.eval_keywords(context)
 
-    def eval_args(self, context):
-        if callable(self.args):
-            return self.args(context)
-        return self.args
+    def eval_arguments(self, context=MISSING):
+        if callable(self.arguments):
+            if context is MISSING:
+                return self.arguments()
+            return self.arguments(context)
+        return self.arguments
 
-    def eval_kwargs(self, context):
-        if callable(self.kwargs):
-            return self.kwargs(context)
-        return self.kwargs
+    def eval_keywords(self, context=MISSING):
+        if callable(self.keywords):
+            if context is MISSING:
+                return self.keywords()
+            return self.keywords(context)
+        return self.keywords
 
     @classmethod
-    def from_call(cls, *args, **kwargs):
-        return cls(args=args, kwargs=kwargs)
+    def from_call(cls, *arguments, **keywords):
+        return cls(arguments=arguments, keywords=keywords)
 
     def call(self, fn, *args, **kwargs):
-        return fn(*(*args, *self.args), **{**self.kwargs, **kwargs})
+        return fn(*(*args, *self.arguments), **{**self.keywords, **kwargs})
 
     def __iter__(self):
-        param_tuple = (self.args, self.kwargs)
+        param_tuple = (self.arguments, self.keywords)
         yield from param_tuple
 
-    def repr_args(self):
-        if callable(self.args):
+    def repr_arguments(self):
+        if callable(self.arguments):
             return '<arguments factory>'
-        return ', '.join(map(repr, self.args))
+        return ', '.join(map(repr, self.arguments))
 
-    def repr_kwargs(self):
-        if callable(self.kwargs):
+    def repr_keywords(self):
+        if callable(self.keywords):
             return '<keyword arguments factory>'
         return ', '.join(map(
             lambda key_value: f'{key_value[0]}={key_value[1]!r}',
-            self.kwargs.items()
+            self.keywords.items()
         ))
 
     def __repr__(self):
-        chunks = tuple(filter(None, (self.repr_args(), self.repr_kwargs())))
+        chunks = tuple(filter(None, (self.repr_arguments(), self.repr_keywords())))
         if not chunks:
             return '(no parameters)'
         return ', '.join(chunks).join('()')

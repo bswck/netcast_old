@@ -1,6 +1,6 @@
 import pytest
 
-from netcast.tools.arrangements import AT
+from netcast.tools.arrangements import ArrangementT
 from netcast.tools.arrangements import (
     ClassArrangement,
     ClassFileIOArrangement,
@@ -17,7 +17,7 @@ class_arrangements.discard(ClassSSLSocketArrangement)
 
 
 @pytest.fixture(params=class_arrangements, scope="session")
-def injected_class_arrangement(request) -> AT:
+def injected_class_arrangement(request) -> ArrangementT:
     yield request.param
 
 
@@ -27,7 +27,7 @@ arrangements.discard(SSLSocketArrangement)
 
 
 @pytest.fixture(params=arrangements, scope="session")
-def injected_arrangement(request) -> AT:
+def injected_arrangement(request) -> ArrangementT:
     yield request.param
 
 

@@ -9,7 +9,7 @@ import netcast
 __driver_name__ = "construct"
 
 
-class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
+class NumericAdapter(netcast.Real, config=True):
     def setup(self):
         obj = self.get("impl")
 
@@ -20,21 +20,20 @@ class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
         little = self.setdefault("little", None)
         native = self.setdefault("native", None)
         cpu_sized = self.setdefault("cpu_sized", True)
-        signed = self.bounds[0]
 
         if cpu_sized and any(map(callable, (big, little, native))):
-            self.cfg.cpu_sized = cpu_sized = False
+            self.settings.cpu_sized = cpu_sized = False
 
         if cpu_sized:
-            obj = self._get_ff(signed=signed)
+            obj = self._get_ff()
 
         if obj is None:
-            obj = self._get_bi(signed=signed)
+            obj = self._get_bi()
 
         if obj is None:
-            raise ImportError(f"construct does not support {self.__visit_key__}")
+            raise ImportError(f"construct does not support {self.visit_key}")
 
-        self.cfg.impl = obj
+        self.settings.impl = obj
 
     def _get_swapped(self):
         if self.big is None and self.native is None and self.little is not None:
@@ -43,14 +42,14 @@ class NumericAdapter(netcast.Adapter, netcast.Real, config=True):
             return self.native
         return True if self.big is None else self.big
 
-    def _get_bi(self, *, signed):
-        byte_length = self.bit_length >> 3
-        return construct.BytesInteger(byte_length, signed=signed, swapped=self._get_swapped())
+    def _get_bi(self):
+        byte_length = self.bit_size >> 3
+        return construct.BytesInteger(byte_length, signed=self.signed, swapped=self._get_swapped())
 
-    def _get_ff(self, *, signed):
-        type_name = "Int" if self.__load_type__ is int else "Float"
-        type_name += str(self.bit_length)
-        type_name += ("s" if signed else "u") if self.__load_type__ is int else ""
+    def _get_ff(self):
+        type_name = "Int" if self.load_type is int else "Float"
+        type_name += str(self.bit_size)
+        type_name += ("s" if self.signed else "u") if self.load_type is int else ""
 
         if self.big:
             type_name += "b"

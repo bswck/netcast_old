@@ -22,14 +22,13 @@ from netcast.tools.contexts import *
 from netcast.tools.inspection import is_classmethod
 
 __all__ = (
-    "AT",
+    "ArrangementT",
     "Arrangement",
     "AsyncioLifoQueueArrangement",
     "AsyncioPriorityQueueArrangement",
     "AsyncioQueueArrangement",
     "ByteArrayArrangement",
     "BytesIOArrangement",
-    "CT",
     "ClassArrangement",
     "ClassAsyncioLifoQueueArrangement",
     "ClassAsyncioPriorityQueueArrangement",
@@ -50,7 +49,7 @@ __all__ = (
     "ClassStringIOArrangement",
     "ConstructArrangement",
     "CounterArrangement",
-    "CT_DEFAULT",
+    "DefaultContextT",
     "DequeArrangement",
     "DictArrangement",
     "FileIOArrangement",
@@ -101,11 +100,11 @@ __all__ = (
     "wrap_to_arrangement",
 )
 
-AT = TypeVar("AT", bound="ClassArrangement")
-CT_DEFAULT = ConstructContext
+ArrangementT = TypeVar("ArrangementT", bound="ClassArrangement")
+DefaultContextT = ConstructContext
 
 
-def bind_factory(context_class: CT = None, *, factory: Union[Callable, None] = None):
+def bind_factory(context_class: ContextT = None, *, factory: Union[Callable, None] = None):
     if context_class is not None:
         if not callable(factory):
             raise ValueError("factory must be a callable")
@@ -129,7 +128,7 @@ class _BaseArrangement:
     context_class: ClassVar[Type[Context] | None] = None
     """Context class. Must derive from the abstract class :class:`Context`."""
 
-    _context: CT | None
+    _context: ContextT | None
     """A :class:`Context` object shared across members of a class arrangement."""
 
     new_context: bool | None = None
@@ -197,7 +196,7 @@ class _BaseArrangement:
     @classmethod
     def _create_context(
         cls, supercontext=None, context_class=None, self=None, bind=False
-    ) -> CT:
+    ) -> ContextT:
         """Create a new context associated with its descent, :param:`supercontext`."""
         if context_class is None:
             context_class = cls.context_class
@@ -212,7 +211,7 @@ class _BaseArrangement:
         return context
 
     @classmethod
-    def _get_context(cls, *args, **kwargs) -> CT | None:
+    def _get_context(cls, *args, **kwargs) -> ContextT | None:
         """Get the current context."""
         return getattr(cls, "_context", None)
 
@@ -275,8 +274,8 @@ class ClassArrangement(_BaseArrangement):
 
     @classmethod
     def _resolve_context_class(
-        cls, *, context_class: Type[CT] | None = None, new_context=None, descent=None
-    ) -> Type[CT]:
+        cls, *, context_class: Type[ContextT] | None = None, new_context=None, descent=None
+    ) -> Type[ContextT]:
         if (
             context_class is not cls.context_class
             and context_class is not None
@@ -292,7 +291,7 @@ class ClassArrangement(_BaseArrangement):
             (context_class,) = filter(None, (context_class, cls.context_class))
 
         if context_class is None and descent_context_class is None:
-            context_class = CT_DEFAULT
+            context_class = DefaultContextT
 
         if context_class is None:
             context_class = descent_context_class
@@ -387,13 +386,13 @@ class ClassArrangement(_BaseArrangement):
         return descent
 
     @classmethod
-    def setup_context(cls, context) -> Generator[CT]:
+    def setup_context(cls, context: ContextT) -> ContextT:
         return context
 
     def __init_subclass__(
         cls,
-        descent: AT | None = None,
-        context_class: Type[CT] | None = None,
+        descent: ArrangementT | None = None,
+        context_class: Type[ContextT] | None = None,
         config: bool = False,
         no_subclasshook: bool = False,
         setup_context: bool = True,
@@ -424,7 +423,7 @@ class ClassArrangement(_BaseArrangement):
             cls.__init__ = _init
 
     @classproperty
-    def context(cls) -> CT | None:
+    def context(cls) -> ContextT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return cls._get_context()
 
@@ -470,7 +469,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         cls,
         descent: Arrangement | None = None,
         clear_init: bool = False,
-        context_class: Type[CT] | None = None,
+        context_class: Type[ContextT] | None = None,
         config: bool = False,
         no_subclasshook: bool = False,
         setup_context: bool = _setup_context,
@@ -569,11 +568,11 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         )
         return self
 
-    def setup_context(self, context: CT) -> Generator[CT]:
+    def setup_context(self, context: ContextT) -> Generator[ContextT]:
         return context
 
     @classmethod
-    def _get_context(cls, self: Arrangement | None = None) -> CT:
+    def _get_context(cls, self: Arrangement | None = None) -> ContextT:
         """Get the current context."""
         contexts = super()._get_context()
 
@@ -591,7 +590,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return _BaseArrangement._super_registry.get(cls._get_context(self))
 
     @property
-    def context(self: Arrangement) -> CT | None:
+    def context(self: Arrangement) -> ContextT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return self._get_context(self)
 
@@ -609,7 +608,12 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return self._new_context
 
 
-def create_context(*, context_class: Type[CT], cls_or_self, params=ParameterContainer()) -> CT:
+def create_context(
+        *,
+        context_class: Type[ContextT],
+        cls_or_self: Any,
+        params=ParameterContainer()
+) -> ContextT:
     args, kwargs = params
 
     if callable(args):
@@ -624,7 +628,7 @@ def create_context(*, context_class: Type[CT], cls_or_self, params=ParameterCont
 
 def wrap_to_arrangement(
     name: str,
-    context_class: Type[CT],
+    context_class: Type[ContextT],
     class_arrangement: bool = False,
     doc: str | None = None,
     env: dict[str, Any] | None = None,

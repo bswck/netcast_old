@@ -24,7 +24,7 @@ from typing import (
     Tuple,
 )
 
-from netcast.constants import MISSING, Break
+from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools import strings
 from netcast.tools.collections import AttributeDict, IDLookupDictionary, ParameterContainer
@@ -36,7 +36,7 @@ __all__ = (
     "AsyncioQueueContext",
     "ByteArrayContext",
     "BytesIOContext",
-    "CT",
+    "ContextT",
     "ConstructContext",
     "Context",
     "ExitPool",
@@ -61,6 +61,9 @@ __all__ = (
     "wrap_method",
     "wrap_to_context",
 )
+
+
+ContextT = TypeVar("ContextT", bound="Context")
 
 
 class ExitPool:
@@ -202,7 +205,7 @@ def _exit_context(cm, exc_info=None):
 
 async def _call_observer_async(observer, context, params):
     try:
-        trigger = observer(context, *params.args, **params.kwargs)
+        trigger = observer(context, *params.arguments, **params.keywords)
         if inspect.isawaitable(trigger):
             await trigger
     except Exception as e:
@@ -348,9 +351,8 @@ def wrap_method(
     preceding_hook: Union[Callable, None] = None,
     trailing_hook: Union[Callable, None] = None,
     cls: type | None = None,
-    initial_shaping: bool = False,
     inform_with_method: bool = True,
-    communicate: bool = False,
+    pass_result: bool = False,
 
 ):
     if func is None:
@@ -374,19 +376,10 @@ def wrap_method(
             hook_args += args
 
             if callable(preceding_hook):
-                trigger = coerced = preceding_hook(*hook_args, **hook_kwargs)
+                trigger = preceding_hook(*hook_args, **hook_kwargs)
 
                 if inspect.isawaitable(trigger):
-                    coerced = await trigger
-
-                if initial_shaping:
-                    coerced_args, coerced_kwargs = coerced
-
-                    if coerced_args and isinstance(coerced_args[0], Break):
-                        return Break(*coerced_args, **coerced_kwargs)
-
-                    args = (self, *coerced_args)
-                    kwargs = {**coerced_kwargs}
+                    await trigger
 
             result = MISSING
 
@@ -394,7 +387,7 @@ def wrap_method(
                 result = await func(self, *args, **kwargs)
 
             finally:
-                if communicate:
+                if pass_result:
                     if inform_with_method:
                         hook_args = (self, method, result)
                     else:
@@ -432,13 +425,7 @@ def wrap_method(
             hook_args += args
 
             if callable(preceding_hook):
-                coerced = preceding_hook(*hook_args, **hook_kwargs)
-
-                if initial_shaping:
-                    args, kwargs = coerced
-
-                    if args and isinstance(args[0], Break):
-                        return Break(*args, **kwargs)
+                preceding_hook(*hook_args, **hook_kwargs)
 
             result = MISSING
 
@@ -446,7 +433,7 @@ def wrap_method(
                 result = func(self, *args, **kwargs)
 
             finally:
-                if communicate:
+                if pass_result:
                     if inform_with_method:
                         hook_args = (self, method, result)
                     else:
@@ -463,30 +450,16 @@ def wrap_method(
     return functools.update_wrapper(wrapper, func)
 
 
-def _supply_context_name(cls: type) -> str:
-    class_name = cls.__name__
-    suffix = "Context"
-    if class_name:
-        first_letter = class_name[0].upper()
-        if len(class_name) > 1:
-            name = first_letter + class_name[1:] + suffix
-        else:
-            name = first_letter + suffix
-    else:
-        raise ValueError("class name was not provided")
-    return name
-
-
-BT = TypeVar("BT", type, Tuple[type, ...])
+BasesT = TypeVar("BasesT", type, Tuple[type, ...])
 
 
 def wrap_to_context(
-    bases: BT,
+    bases: BasesT,
     methods: Iterable = (),
     name: str | None = None,
     doc: str | None = None,
     init_subclass: dict[str, Any] | None = None,
-) -> Type[Context] | BT:
+) -> Type[Context] | BasesT:
     """Build a context class and its modification hooks."""
     if isinstance(bases, Sequence):
         if not bases:
@@ -498,7 +471,7 @@ def wrap_to_context(
         cls = bases
         bases = (cls, Context)
         
-    env = {**({"__doc__": doc} if doc else {})}
+    attrs = {**({"__doc__": doc} if doc else {})}
 
     for method in methods:
         method = getattr(cls, method, None) if isinstance(method, str) else method
@@ -508,17 +481,29 @@ def wrap_to_context(
         else:
             preceding_hook = hook_caller.preceding_hook
             trailing_hook = hook_caller.trailing_hook
-        env[method.__name__] = wrap_method(
-            method, preceding_hook=preceding_hook, trailing_hook=trailing_hook, cls=cls
+        attrs[method.__name__] = wrap_method(
+            method,
+            preceding_hook=preceding_hook,
+            trailing_hook=trailing_hook,
+            cls=cls
         )
 
     if name is None:
-        name = _supply_context_name(cls)
+        class_name = cls.__name__
+        end_with = "Context"
+        if class_name:
+            start_with = class_name[0].upper()
+            if len(class_name) > 1:
+                name = start_with + class_name[1:] + end_with
+            else:
+                name = start_with + end_with
+        else:
+            raise ValueError("class name was not provided")
 
     if init_subclass is None:
         init_subclass = {}
 
-    return type(name, bases, env, **init_subclass)
+    return type(name, bases, attrs, **init_subclass)
 
 
 _list_methods = (
@@ -662,26 +647,3 @@ SocketContext = _(socket.socket, _socket_methods)
 
 SSLSocketContext = _(ssl.SSLSocket, _socket_methods)
 CounterContext = _(collections.Counter, _counter_methods)
-
-CT = TypeVar(
-    "CT",
-    Context,
-    ListContext,
-    DictContext,
-    DequeContext,
-    ConstructContext,
-    ByteArrayContext,
-    MemoryDictContext,
-    QueueContext,
-    PriorityQueueContext,
-    LifoQueueContext,
-    AsyncioQueueContext,
-    AsyncioPriorityQueueContext,
-    AsyncioLifoQueueContext,
-    FileIOContext,
-    BytesIOContext,
-    StringIOContext,
-    SocketContext,
-    SSLSocketContext,
-    CounterContext,
-)

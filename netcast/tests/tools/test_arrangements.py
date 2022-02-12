@@ -4,19 +4,19 @@ from typing import ClassVar, Type
 import pytest
 
 from netcast import ArrangementConstructionError
-from netcast.tools.arrangements import CT_DEFAULT, AT
+from netcast.tools.arrangements import DefaultContextT, ArrangementT
 from netcast.tools.arrangements import ClassArrangement
-from netcast.tools.contexts import CT
+from netcast.tools.contexts import ContextT
 from netcast.tools.collections import ForwardDependency, parameters
 
 
 class _TestContextType:
-    context: CT
-    context_class: ClassVar[Type[CT]]
+    context: ContextT
+    context_class: ClassVar[Type[ContextT]]
 
-    def test(self, cls: AT):
+    def test(self, cls: ArrangementT):
         if cls.context_class is None:
-            expected_context_class = CT_DEFAULT
+            expected_context_class = DefaultContextT
         else:
             expected_context_class = cls.context_class
         assert type(self.context) is expected_context_class is self.context_class
@@ -300,7 +300,7 @@ class TestArrangement:
             context_params = parameters(pings=0, pongs=0)
 
             def clear(self):
-                self.context.update(**self.context_params.kwargs)
+                self.context.update(**self.context_params.keywords)
 
             def ping(self):
                 self.context.pings += 1
