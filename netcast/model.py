@@ -93,7 +93,7 @@ class Model:
             engine = get_global_engine()
         if isinstance(driver, str):
             driver = engine.get_driver(driver)
-        self._state = driver(self)
+        self._state = driver(self).state
 
     @classmethod
     def add_component(cls, component, default_name=None):
