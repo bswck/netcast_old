@@ -56,15 +56,11 @@ def serializer(
 ):
     if serializer_class is None:
         raise NetcastError("no serializer has been set on this adapter")
-
     impl = type(
         serializer_class.__name__,
         (serializer_class, implementation),
         {}
     )
-    impl.load_type = serializer_class.load_type
-    if getattr(serializer_class, "factory", None):
-        impl.factory = serializer_class.factory
     return impl
 
 

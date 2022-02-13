@@ -1,60 +1,42 @@
 from __future__ import annotations
 
-import functools
-import operator
-
 import construct
 import netcast as nc
-
 
 DRIVER_NAME = "construct"
 
 
-class ConstructInterface:
-    _impl: construct.Construct
-    compiled: bool
-    load_type: type
+class ConstructInterface(nc.DriverInterface):
+    dump_type = bytes
 
-    def __init__(self, compiled=False, force_load_type=True):
+    def __init__(
+            self,
+            name=None,
+            *,
+            compiled=False,
+            coerce_after_loading=True,
+            coerce_before_dumping=False,
+            **settings
+    ):
+        super().__init__(name, **settings)
         self.compiled = compiled
-        self.force_load_type = force_load_type
-
-    @functools.cached_property
-    def impl(self):
-        if self.compiled:
-            return self._impl.compile()
-        return self._impl
-
-    def _load(self, dump, *, context=None):
-        if context is None:
-            context = {}
-        load = self.impl.parse(dump, **context)
-        if self.force_load_type:
-            load = self._coerce_load_type(load)
-        return load
-
-    def _coerce_load_type(self, load):
-        factory = getattr(self, "factory", self.load_type)
-        return factory(load)
-
-    def _dump(self, load, *, context=None, stream=None):
-        if context is None:
-            context = {}
-        if stream is not None:
-            context['_io'] = stream
-        return self.impl.build(load, **context)
+        self.coerce_after_loading = coerce_after_loading
+        self.coerce_before_dumping = coerce_before_dumping
 
 
 class Number(nc.Number, ConstructInterface):
     def __init__(
-            self, 
+            self,
+            name=None,
+            *,
             big_endian=None,
             little_endian=None,
             native_endian=None,
             cpu_sized=True,
-            compiled=False
+            compiled=False,
+            **settings
     ):
-        ConstructInterface.__init__(self, compiled)
+        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
 
         if cpu_sized and any(map(callable, (big_endian, little_endian, native_endian))):
             cpu_sized = False
@@ -109,23 +91,27 @@ class Number(nc.Number, ConstructInterface):
 class Sequence(nc.BulkSerializer, ConstructInterface):
     def __init__(
             self,
+            name=None,
             *fields,
-            compiled=False
+            compiled=False,
+            **settings
     ):
-        ConstructInterface.__init__(self, compiled)
-        self._impl = construct.Sequence(*map(operator.attrgetter('impl'), fields))
+        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+        self._impl = construct.Sequence(*self.ensure_impls(fields, settings))
 
 
 class Array(nc.BulkSerializer, ConstructInterface):
     def __init__(
             self,
             data_type,
+            name=None,
             size=None,
             prefixed=False,
             lazy=False,
-            compiled=False
+            compiled=False,
+            **settings
     ):
-        ConstructInterface.__init__(self, compiled)
+        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
 
         if prefixed and lazy:
             raise ValueError("array can't be prefixed and lazy at the same time")
@@ -133,32 +119,49 @@ class Array(nc.BulkSerializer, ConstructInterface):
         if size is None:
             size = driver.UnsignedInt8(compiled=compiled).impl
 
-        if prefixed:
-            if isinstance(size, int):
-                size = construct.Const(bytes([size]))
+        self.data_type_impl = data_type_impl = self.ensure_impl(data_type, **settings)
 
-            self._impl = construct.PrefixedArray(size, data_type.impl)
+        if prefixed:
+            if isinstance(size, int) and 0 <= size < 256:
+                size = construct.Const(bytes([size]))
+            else:
+                raise ValueError("expected a netcast data type!")
+
+            self._impl = construct.PrefixedArray(size, data_type_impl)
 
         elif lazy:
             if not isinstance(size, int) or not callable(size):
                 raise ValueError("expected an integer or a callable that returns integer")
 
-            self._impl = construct.LazyArray(size, data_type.impl)
+            self._impl = construct.LazyArray(size, data_type_impl)
 
         else:
-            self._impl = construct.Array(size, data_type.impl)
+            self._impl = construct.Array(size, data_type_impl)
 
 
 class Struct(nc.BulkSerializer, ConstructInterface):
-    def __init__(self, *fields, compiled=False):
-        ConstructInterface.__init__(self, compiled)
-        self._impl = construct.Struct(*map(operator.attrgetter('impl'), fields))
+    def __init__(
+            self,
+            *fields,
+            name=None,
+            alignment_modulus=None,
+            compiled=False,
+            **settings
+    ):
+        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+        field_map = self.ensure_impls(fields, settings)
+        if alignment_modulus is None:
+            impl = construct.Struct(*field_map)
+        else:
+            impl = construct.AlignedStruct(alignment_modulus, *field_map)
+        self._impl = impl
 
 
 class ConstructDriver(nc.Driver):
     NumberImpl = nc.adapter(Number)
     SequenceImpl = nc.adapter(Sequence)
     ArrayImpl = nc.adapter(Array)
+    StructImpl = nc.adapter(Struct)
 
     SignedInt8 = NumberImpl(nc.SignedInt8)
     SignedInt16 = NumberImpl(nc.SignedInt16)
@@ -176,20 +179,23 @@ class ConstructDriver(nc.Driver):
     Float16 = NumberImpl(nc.Float16)
     Float32 = NumberImpl(nc.Float32)
     Float64 = NumberImpl(nc.Float64)
+
     ListSequence = SequenceImpl(nc.List)
     TupleSequence = SequenceImpl(nc.Tuple)
     SetSequence = SequenceImpl(nc.Set)
     FrozenSetSequence = SequenceImpl(nc.FrozenSet)
-    Array = Array
-    Dict = Struct = Struct
+    Sequence = ListSequence
+
+    ListArray = ArrayImpl(nc.List)
+    TupleArray = ArrayImpl(nc.Tuple)
+    SetArray = ArrayImpl(nc.Set)
+    FrozenSetArray = ArrayImpl(nc.FrozenSet)
+    Array = ListArray
+
+    DictStruct = StructImpl(nc.Dict)
+    MappingProxyStruct = StructImpl(nc.MappingProxy)
+    SimpleNamespaceStruct = StructImpl(nc.SimpleNamespace)
+    Struct = DictStruct
 
 
 driver = ConstructDriver
-
-
-if __name__ == '__main__':
-    arr = [3, 5, 255, 3, 64, 23, 43, 5, 0, 42]
-    comp = driver.Array(data_type=driver.UnsignedInt8(), size=10)
-    cs = comp.dump(arr)
-    print(cs)
-    print(comp.load(cs))

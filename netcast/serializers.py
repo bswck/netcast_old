@@ -46,7 +46,6 @@ __all__ = (
     "Number",
     "Serializer",
     "Set",
-    "Sequence",
     "Short",
     "ShortInt",
     "Signed",
@@ -64,7 +63,7 @@ __all__ = (
     "SignedLongInt",
     "SignedLongLong",
     "SignedLongLongInt",
-    "SignedReal",
+    "SignedNumber",
     "Simple",
     "SimpleNamespace",
     "Single",
@@ -87,7 +86,7 @@ __all__ = (
     "UnsignedLongInt",
     "UnsignedLongLong",
     "UnsignedLongLongInt",
-    "UnsignedReal"
+    "UnsignedNumber"
 )
 
 
@@ -107,7 +106,7 @@ class Number(Simple):
     signed = True
 
 
-class UnsignedReal(Number):
+class UnsignedNumber(Number):
     signed = False
 
 
@@ -116,7 +115,7 @@ class AnyInt(Number):
     load_type = int
 
 
-class AnyUnsignedInt(UnsignedReal):
+class AnyUnsignedInt(UnsignedNumber):
     """Base unsigned integer type."""
     load_type = int
 
@@ -144,8 +143,8 @@ class SimpleNamespace(BulkSerializer):
     """Base class for all dictionaries."""
     load_type = SimpleNamespaceType
 
-    def factory(self, dictionary):
-        return self.load_type(**dictionary)
+    def load_type_factory(self, mapping):
+        return self.load_type(**mapping)
 
 
 class List(BulkSerializer):
@@ -193,10 +192,8 @@ def float_type(bit_size):
     return type(name, (AnyFloat,), {"bit_size": bit_size})
 
 
-SignedReal = Number
+SignedNumber = Number
 AnySignedInt = AnyInt
-Sequence = List
-
 Bool = Bit = int_type(1, signed=False)
 Nibble = HalfByte = Tetrade = int_type(4, signed=False)
 
