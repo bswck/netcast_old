@@ -6,7 +6,6 @@ from typing import ClassVar, Any
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
-from netcast.tools.contexts import Context
 from netcast.tools.inspection import adjust_kwargs
 
 
@@ -21,9 +20,9 @@ class Serializer:
         self.name = name
         self.settings = settings
 
-    def dump(self, load, *, context: Context | None = None, **kwargs):
+    def dump(self, load, *, context: Any = None, **kwargs):
         """
-        Dump a load.
+        Dump a loaded object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
@@ -38,9 +37,9 @@ class Serializer:
             except Exception as exc:
                 raise NetcastError(f"dumping failed: {exc}") from exc
 
-    def load(self, dump, *, context: Context | None = None, **kwargs):
+    def load(self, dump, *, context: Any = None, **kwargs):
         """
-        Load from a dump.
+        Load from a dumped object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
@@ -83,7 +82,6 @@ class Coercion(enum.IntFlag):
 
 class DriverInterface(Serializer):
     _impl: Any = None
-    impl: ClassVar[property]
 
     def __init__(
             self,
@@ -108,6 +106,10 @@ class DriverInterface(Serializer):
     def ensure_impls(self, dependencies, context):
         return (self.ensure_impl(dependency, **context).impl for dependency in dependencies)
 
+    @property
+    def impl(self):
+        return self._impl
+
     def _load(self, dump, *, context=None):
         if context is None:
             context = {}
@@ -129,4 +131,3 @@ class DriverInterface(Serializer):
         if self.coercion_flags & Coercion.DUMP_TYPE_AFTER_DUMPING:
             dump = self._coerce_dump_type(dump)
         return dump
-

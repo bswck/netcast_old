@@ -15,7 +15,7 @@ __all__ = (
     "AnyUnsignedInt",
     "Bit",
     "Bool",
-    "BulkSerializer",
+    "ModelSerializer",
     "Byte",
     "ByteArray",
     "Bytes",
@@ -125,59 +125,73 @@ class AnyFloat(Number):
     load_type = float
 
 
-class BulkSerializer(Serializer):
-    """Base class for all composite types."""
+class ModelSerializer(Serializer):
+    """Base class for all types for storing bound models."""
 
 
-class Dict(BulkSerializer):
+class Dict(ModelSerializer):
     """Base class for all dictionaries."""
     load_type = dict
 
 
-class MappingProxy(BulkSerializer):
-    """Base class for all dictionaries."""
+class MappingProxy(ModelSerializer):
+    """Base class for all mapping proxies."""
     load_type = MappingProxyType
 
 
-class SimpleNamespace(BulkSerializer):
-    """Base class for all dictionaries."""
+class SimpleNamespace(ModelSerializer):
+    """Base class for all simple namespaces."""
     load_type = SimpleNamespaceType
 
     def load_type_factory(self, mapping):
         return self.load_type(**mapping)
 
 
-class List(BulkSerializer):
+class Sequence(ModelSerializer):
+    """Base class for all sequences."""
+
+    def load_type_factory(self, obj):
+        if callable(getattr(obj, "values", None)):
+            return self.load_type(obj.values())
+        return self.load_type(obj)
+
+
+class List(Sequence):
     """Base class for all lists."""
     load_type = list
 
 
-class Tuple(BulkSerializer):
+class Tuple(Sequence):
     """Base class for all tuples."""
     load_type = tuple
 
 
-class Set(BulkSerializer):
+class Set(Sequence):
     """Base class for all sets."""
     load_type = set
 
 
-class FrozenSet(BulkSerializer):
+class FrozenSet(Sequence):
     """Base class for all frozen sets."""
     load_type = frozenset
 
 
-class String(BulkSerializer):
+class String(Sequence):
     """Base class for all strings."""
     load_type = str
 
+    def load_type_factory(self, obj):
+        if callable(getattr(obj, "values", None)):
+            return self.load_type().join(obj.values())
+        return self.load_type(obj)
 
-class Bytes(BulkSerializer):
+
+class Bytes(String):
     """Base class for all byte strings."""
     load_type = bytes
 
 
-class ByteArray(BulkSerializer):
+class ByteArray(String):
     """Base class for all byte arrays."""
     load_type = bytearray
 

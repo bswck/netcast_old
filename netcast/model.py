@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import collections.abc
+import functools
 import inspect
 import threading
 import typing
 
-from netcast.constants import LEAST, GREATEST
+from netcast.constants import LEAST, GREATEST, MISSING
+from netcast.driver import Driver
 from netcast.serializer import Serializer
+from netcast.tools import strings
 
 
 class ComponentStack:
@@ -14,24 +18,34 @@ class ComponentStack:
         self._lock = threading.RLock()
 
     @classmethod
-    def transform_submodel(cls, submodel):
+    def transform_submodel(cls, submodel) -> Model:
         return submodel
 
     @classmethod
-    def transform_serializer(cls, component, settings=None):
+    def transform_serializer(
+            cls,
+            component: Serializer,
+            settings: dict | None = None
+    ) -> Serializer:
         if settings is None:
             settings = {}
         return component(**settings)
 
-    def transform_component(self, component, *, settings=None, default_name=None):
-        if isinstance(component, type) and issubclass(component, Model):
-            component = self.transform_submodel(component)
+    def transform_component(
+            self,
+            component, *,
+            settings=None,
+            default_name=None
+    ) -> ComponentT | None:
         if settings is None:
             settings = {}
         settings.setdefault("name", default_name)
         if isinstance(component, type) and not issubclass(component, Model):
             component = component(**settings)
+        elif isinstance(component, type) and issubclass(component, Model):
+            component = self.transform_submodel(component)
         else:
+            assert isinstance(component, Serializer)
             component = self.transform_serializer(component, settings)
         return component
 
@@ -63,13 +77,13 @@ class ComponentStack:
         self._components.append(component)
         self._lock.release()
 
-    def pop(self, index=-1):
+    def pop(self, index=-1) -> ComponentT | None:
         self._lock.acquire()
         obj = self._components.pop(index)
         self._lock.release()
         return obj
 
-    def get(self, index=-1, context=None):
+    def get(self, index=-1, context=None) -> ComponentT | None:
         self._lock.acquire()
         try:
             obj = self._components[index]
@@ -84,15 +98,15 @@ class ComponentStack:
         self._lock.release()
 
     @property
-    def size(self):
+    def size(self) -> int:
         return len(self._components)
 
-    def get_final_content(self, context):
-        final = []
+    def get_final_components(self, context) -> dict[str, ComponentT]:
+        final = {}
         for idx in range(self.size):
             component = self.get(idx, context)
             if component is not None:
-                final.append(component)
+                final[component.name] = component
         return final
 
     def __repr__(self):
@@ -136,19 +150,43 @@ class VersionAwareComponentStack(FilteredComponentStack):
         version = context.get("version", self.default_version)
         since_version = getattr(component, self.since_version_field, self.default_since_version)
         until_version = getattr(component, self.until_version_field, self.default_until_version)
-        return since_version >= version or until_version <= version
+        return since_version <= version or until_version >= version
 
     def predicate(self, component, context):
         return self.predicate_version(component, context)
 
 
-class Model:
-    def __init__(self, **context):
-        self.context: dict = context
-        self.components: list[ComponentT] = self.get_components()
+class ComponentDescriptor:
+    def __init__(self, component: ComponentT):
+        self.component = component
+        self.value = MISSING
 
-    def get_components(self) -> list[ComponentT]:
-        return self.stack.get_final_content(self.context)
+    def __get__(self, instance, owner):
+        if instance is not None:
+            return self.value
+        return self
+
+    def __set__(self, instance, value):
+        self.value = value
+
+    def __call__(self, value):
+        self.__set__(None, value)
+        return value
+
+
+class Model:
+    descriptor_class = ComponentDescriptor
+
+    def __init__(self, driver: Driver, serializer=None, **context):
+        self.driver = driver
+        serializer = serializer or driver.default_model_serializer
+        if serializer is not None:
+            serializer = ComponentStack.transform_serializer(serializer, context)
+        self.serializer = serializer
+        self._descriptors = {}
+        components = self.stack.get_final_components(context)
+        for key, value in components.items():
+            self._descriptors[key] = self.descriptor_class(value)
 
     @classmethod
     def add_component(cls, component: ComponentT, default_name: str | None = None):
@@ -164,25 +202,56 @@ class Model:
         cls.stack.discard(component=component)
         return cls
 
+    @property
+    def name(self):
+        return type(self).__name__
+
+    def dump(self, **context):
+        return self.serializer.dump(self, context=context)
+
+    def load(self, dump, **context):
+        load = self.serializer.load(dump, context=context)
+        state = self.get_state(load)
+        self.set_state(state)
+        return self
+
+    @functools.singledispatchmethod
+    def get_state(self, load) -> dict | tuple[tuple[str, typing.Any], ...]:
+        raise TypeError(f"unsupported state type: {strings.truncate(type(load).__name__)}")
+
+    @get_state.register
+    def get_state_from_sequence(self, load: collections.abc.Sequence) -> dict:
+        return dict(zip(self._descriptors, load))
+
+    @get_state.register
+    def get_state_from_mapping(self, load: collections.abc.Mapping) -> dict:
+        return dict(load)
+
+    def set_state(self, state):
+        if callable(getattr(state, "items", None)):
+            state = state.items()
+        for item, value in state:
+            self[item] = value
+
+    def __iter__(self):
+        for name in self._descriptors:
+            yield name, self[name]
+
     def __setitem__(self, key, value):
-        self._state[key] = value
+        self._descriptors[key].__set__(self, value)
 
-    def __getitem__(self, key, value):
-        return self._state[key]
+    def __getitem__(self, key):
+        return self._descriptors[key].__get__(self, None)
 
-    def __setattr__(self, key, value):
-        self[key] = value
-
-    def __getattr__(self, key, value):
+    def __getattr__(self, key):
         return self[key]
 
     def __init_subclass__(
             cls,
             stack=None,
             from_members=None,
-            settings=None,
-            serializer=None,
-            stack_class=VersionAwareComponentStack
+            stack_class=VersionAwareComponentStack,
+            **settings
     ):
         if from_members is None:
             from_members = stack is None
@@ -190,10 +259,10 @@ class Model:
             stack = stack_class()
         cls.stack = stack
         cls.settings = settings
-        cls.serializer = serializer
         if from_members:
             for default_name, component in inspect.getmembers(cls):
-                cls.add_component(component, default_name=default_name)
+                if isinstance(component, (Serializer, Model)):
+                    cls.add_component(component, default_name=default_name)
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
@@ -205,6 +274,7 @@ def model(
         name=None,
         model_class=Model,
         stack_class=VersionAwareComponentStack,
+        serializer=None,
         **settings
 ):
     if stack is None:
@@ -213,4 +283,4 @@ def model(
         stack.add(component, settings=settings)
     if name is None:
         name = "model_" + str(id(stack))
-    return type(name, (model_class,), {}, stack=stack)
+    return type(name, (model_class,), {}, stack=stack, serializer=serializer)

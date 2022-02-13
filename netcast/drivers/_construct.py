@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+
 import construct
 import netcast as nc
 
@@ -12,16 +14,22 @@ class ConstructInterface(nc.DriverInterface):
     def __init__(
             self,
             name=None,
-            *,
-            compiled=False,
-            coerce_after_loading=True,
-            coerce_before_dumping=False,
+            coercion_flags=0,
+            compiled=True,
             **settings
     ):
-        super().__init__(name, **settings)
+        super().__init__(name, coercion_flags=coercion_flags, **settings)
         self.compiled = compiled
-        self.coerce_after_loading = coerce_after_loading
-        self.coerce_before_dumping = coerce_before_dumping
+
+    @functools.cached_property
+    def impl(self):
+        impl = self._impl
+        if self.compiled:
+            impl = impl.compile()
+        if self.name is not None:
+            if not isinstance(impl, construct.Renamed):
+                impl = construct.Renamed(impl)
+        return impl
 
 
 class Number(nc.Number, ConstructInterface):
@@ -88,7 +96,7 @@ class Number(nc.Number, ConstructInterface):
         return obj
 
 
-class Sequence(nc.BulkSerializer, ConstructInterface):
+class Sequence(nc.ModelSerializer, ConstructInterface):
     def __init__(
             self,
             name=None,
@@ -100,7 +108,7 @@ class Sequence(nc.BulkSerializer, ConstructInterface):
         self._impl = construct.Sequence(*self.ensure_impls(fields, settings))
 
 
-class Array(nc.BulkSerializer, ConstructInterface):
+class Array(nc.ModelSerializer, ConstructInterface):
     def __init__(
             self,
             data_type,
@@ -139,7 +147,7 @@ class Array(nc.BulkSerializer, ConstructInterface):
             self._impl = construct.Array(size, data_type_impl)
 
 
-class Struct(nc.BulkSerializer, ConstructInterface):
+class Struct(nc.ModelSerializer, ConstructInterface):
     def __init__(
             self,
             *fields,
@@ -196,6 +204,8 @@ class ConstructDriver(nc.Driver):
     MappingProxyStruct = StructImpl(nc.MappingProxy)
     SimpleNamespaceStruct = StructImpl(nc.SimpleNamespace)
     Struct = DictStruct
+
+    default_model_serializer = Struct
 
 
 driver = ConstructDriver

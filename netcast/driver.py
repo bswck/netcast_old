@@ -21,6 +21,8 @@ class DriverMeta(type):
 class Driver(metaclass=DriverMeta):
     __drivers_registry__ = {}
 
+    default_model_serializer = None
+
     @staticmethod
     def _inspect_driver_name(stack_level=1):
         f_globals = inspect.stack()[stack_level][0].f_globals
