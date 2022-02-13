@@ -5,7 +5,6 @@ import sys
 from netcast import serializers
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer
-from netcast.state import State
 
 
 class DriverMeta(type):
@@ -39,9 +38,6 @@ class Driver(metaclass=DriverMeta):
             raise ValueError(f"{driver_name!r} driver has already been implemented")
         cls.__drivers_registry__[driver_name] = cls
         cls.name = driver_name
-
-    def __init__(self, model, engine=None):
-        self.state = State(model=model, driver=type(self), engine=engine)
 
     def __getattr__(self, item):
         return getattr(self.state, item)

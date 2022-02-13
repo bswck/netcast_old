@@ -1,12 +1,18 @@
-import sys
+from __future__ import annotations
 
-from netcast.driver import Driver
+import sys
+import typing
+
 from netcast.tools.arrangements import Arrangement
+
+if typing.TYPE_CHECKING:
+    from netcast.driver import Driver
 
 
 class Engine(Arrangement):
     def __init__(self, descent=None):
         super().__init__(descent)
+        from netcast.driver import Driver
         self.data = {}
         self.drivers = Driver.__drivers_registry__
 
@@ -15,8 +21,11 @@ class Engine(Arrangement):
         return self.drivers.get(name)
 
 
-__global_engine = Engine()
+__global_engine = None
 
 
 def get_global_engine():
+    global __global_engine
+    if __global_engine is None:
+        __global_engine = Engine()
     return __global_engine

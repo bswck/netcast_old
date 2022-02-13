@@ -4,11 +4,8 @@ import inspect
 import threading
 import typing
 
-from netcast.engine import get_global_engine
 from netcast.constants import LEAST, GREATEST
-
-if typing.TYPE_CHECKING:
-    from netcast import Driver
+from netcast.serializer import Serializer
 
 
 class ComponentStack:
@@ -40,7 +37,9 @@ class ComponentStack:
 
     def add(self, component, *, settings=None, default_name=None):
         transformed = self.transform_component(
-            component=component, default_name=default_name, settings=settings
+            component=component,
+            default_name=default_name,
+            settings=settings
         )
         self.push(transformed)
 
@@ -88,6 +87,14 @@ class ComponentStack:
     def size(self):
         return len(self._components)
 
+    def get_final_content(self, context):
+        final = []
+        for idx in range(self.size):
+            component = self.get(idx, context)
+            if component is not None:
+                final.append(component)
+        return final
+
     def __repr__(self):
         name = type(self).__name__
         return f'<{name} {self._components}>'
@@ -103,31 +110,72 @@ class FilteredComponentStack(ComponentStack):
         component = super().get(index)
         if component is None:
             return component
-        if self.predicate(component, context):
+        if not self.predicate(component, context):
             component = None
         return component
 
 
 class VersionAwareComponentStack(FilteredComponentStack):
-    def __init__(self, since_field="version_added", until_field="version_removed"):
+    def __init__(
+            self,
+            *,
+            since_field="version_added",
+            until_field="version_removed",
+            default_version=GREATEST,
+            default_since_version=LEAST,
+            default_until_version=GREATEST
+    ):
         super().__init__()
         self.since_version_field = since_field
         self.until_version_field = until_field
+        self.default_version = default_version
+        self.default_since_version = default_since_version
+        self.default_until_version = default_until_version
 
     def predicate_version(self, component, context):
-        version = context.get("version", LEAST)
-        if (
-            version <= getattr(component, self.since_version_field, LEAST)
-            or version > getattr(component, self.until_version_field, GREATEST)
-        ):
-            component = None
-        return component
+        version = context.get("version", self.default_version)
+        since_version = getattr(component, self.since_version_field, self.default_since_version)
+        until_version = getattr(component, self.until_version_field, self.default_until_version)
+        return since_version >= version or until_version <= version
 
     def predicate(self, component, context):
         return self.predicate_version(component, context)
 
 
 class Model:
+    def __init__(self, **context):
+        self.context: dict = context
+        self.components: list[ComponentT] = self.get_components()
+
+    def get_components(self) -> list[ComponentT]:
+        return self.stack.get_final_content(self.context)
+
+    @classmethod
+    def add_component(cls, component: ComponentT, default_name: str | None = None):
+        cls.stack.add(
+            component=component,
+            default_name=default_name,
+            settings=cls.settings
+        )
+        return cls
+
+    @classmethod
+    def discard_component(cls, component):
+        cls.stack.discard(component=component)
+        return cls
+
+    def __setitem__(self, key, value):
+        self._state[key] = value
+
+    def __getitem__(self, key, value):
+        return self._state[key]
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __getattr__(self, key, value):
+        return self[key]
+
     def __init_subclass__(
             cls,
             stack=None,
@@ -147,44 +195,8 @@ class Model:
             for default_name, component in inspect.getmembers(cls):
                 cls.add_component(component, default_name=default_name)
 
-    def __init__(self, driver: str | Driver, engine=None):
-        if engine is None:
-            engine = get_global_engine()
-        if isinstance(driver, str):
-            driver = engine.get_driver(driver)
-        self._state = driver(self).state
 
-    def __setitem__(self, key, value):
-        self._state[key] = value
-
-    def __getitem__(self, key, value):
-        return self._state[key]
-
-    def __setattr__(self, key, value):
-        self[key] = value
-
-    def __getattr__(self, key, value):
-        return self[key]
-
-    def dump(self):
-        return self.serializer.dump(self.serializer._coerce_load_type(self._state))
-
-    def load(self, dump):
-        return self.serializer.load(self.serializer._coerce_dump_type(dump))
-
-    @classmethod
-    def add_component(cls, component, default_name=None):
-        cls.stack.add(
-            component=component,
-            default_name=default_name,
-            settings=cls.settings
-        )
-        return cls
-
-    @classmethod
-    def discard_component(cls, component):
-        cls.stack.discard(component=component)
-        return cls
+ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
 
 
 def model(
