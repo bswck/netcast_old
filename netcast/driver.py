@@ -25,7 +25,7 @@ class Driver(metaclass=DriverMeta):
     @staticmethod
     def _inspect_driver_name(stack_level=1):
         f_globals = inspect.stack()[stack_level][0].f_globals
-        driver_name = f_globals.get("__driver_name__", f_globals.get("__name__"))
+        driver_name = f_globals.get("DRIVER_NAME", f_globals.get("__name__"))
         if driver_name is None:
             raise ValueError("driver name is required")
         return sys.intern(driver_name)
@@ -50,20 +50,23 @@ class Driver(metaclass=DriverMeta):
         return self.state[item]
 
 
-def _build_adapted_serializer(
-        adapter,
-        serializer_class=None,
-        stack_level=1
+def serializer(
+    implementation,
+    serializer_class=None,
 ):
     if serializer_class is None:
         raise NetcastError("no serializer has been set on this adapter")
 
-    return type(
+    impl = type(
         serializer_class.__name__,
-        (serializer_class, adapter),
-        {"__module__": inspect.stack()[stack_level][0].f_globals["__name__"]}
+        (serializer_class, implementation),
+        {}
     )
+    impl.load_type = serializer_class.load_type
+    if getattr(serializer_class, "factory", None):
+        impl.factory = serializer_class.factory
+    return impl
 
 
-def serializer_factory(adapter):
-    return functools.partial(_build_adapted_serializer, adapter, stack_level=2)
+def adapter(implementation):
+    return functools.partial(serializer, implementation)

@@ -350,25 +350,18 @@ def wrap_method(
     func: Callable,
     preceding_hook: Union[Callable, None] = None,
     trailing_hook: Union[Callable, None] = None,
-    cls: type | None = None,
-    inform_with_method: bool = True,
-    pass_result: bool = False,
-
+    pass_method: bool = True,
+    pass_result: bool = False
 ):
     if func is None:
-        raise TypeError(
-            f"method "
-            f'{"of " + repr(cls) + " " if cls is not None else ""}'
-            f"does not exist"
-        )
+        raise TypeError("wrapped method can't be None")
 
     if inspect.iscoroutinefunction(func):
-
         async def wrapper(self, *args, **kwargs):
             method = getattr(self, func.__name__)
 
             hook_kwargs = kwargs
-            if inform_with_method:
+            if pass_method:
                 hook_args = (self, method)
             else:
                 hook_args = (self,)
@@ -388,7 +381,7 @@ def wrap_method(
 
             finally:
                 if pass_result:
-                    if inform_with_method:
+                    if pass_method:
                         hook_args = (self, method, result)
                     else:
                         hook_args = (self, result)
@@ -417,7 +410,7 @@ def wrap_method(
             method = getattr(self, func.__name__)
 
             hook_kwargs = kwargs
-            if inform_with_method:
+            if pass_method:
                 hook_args = (self, method)
             else:
                 hook_args = (self,)
@@ -434,7 +427,7 @@ def wrap_method(
 
             finally:
                 if pass_result:
-                    if inform_with_method:
+                    if pass_method:
                         hook_args = (self, method, result)
                     else:
                         hook_args = (self, result)
@@ -461,6 +454,7 @@ def wrap_to_context(
     init_subclass: dict[str, Any] | None = None,
 ) -> Type[Context] | BasesT:
     """Build a context class and its modification hooks."""
+
     if isinstance(bases, Sequence):
         if not bases:
             raise ValueError("at least 1 base class is required")
@@ -481,20 +475,19 @@ def wrap_to_context(
         else:
             preceding_hook = hook_caller.preceding_hook
             trailing_hook = hook_caller.trailing_hook
+
         attrs[method.__name__] = wrap_method(
             method,
             preceding_hook=preceding_hook,
             trailing_hook=trailing_hook,
-            cls=cls
         )
 
     if name is None:
-        class_name = cls.__name__
         end_with = "Context"
-        if class_name:
-            start_with = class_name[0].upper()
-            if len(class_name) > 1:
-                name = start_with + class_name[1:] + end_with
+        if cls.__name__:
+            start_with = cls.__name__[0].upper()
+            if len(cls.__name__) > 1:
+                name = start_with + cls.__name__[1:] + end_with
             else:
                 name = start_with + end_with
         else:

@@ -1,21 +1,31 @@
 from __future__ import annotations
 
-import abc
-import math
 from typing import Type
+from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
 
 
 __all__ = (
+    "float_type",
+    "int_type",
+    "AnyFloat",
+    "AnyInt",
+    "AnySignedInt",
+    "AnyUnsignedInt",
     "Bit",
     "Bool",
+    "BulkSerializer",
     "Byte",
+    "ByteArray",
+    "Bytes",
     "Char",
+    "Dict",
     "Double",
     "Float16",
     "Float32",
     "Float64",
+    "FrozenSet",
     "Half",
     "HalfByte",
     "Int",
@@ -26,13 +36,17 @@ __all__ = (
     "Int512",
     "Int64",
     "Int8",
+    "List",
     "Long",
     "LongInt",
     "LongLong",
     "LongLongInt",
+    "MappingProxy",
     "Nibble",
-    "Primitive",
-    "Real",
+    "Number",
+    "Serializer",
+    "Set",
+    "Sequence",
     "Short",
     "ShortInt",
     "Signed",
@@ -51,8 +65,13 @@ __all__ = (
     "SignedLongLong",
     "SignedLongLongInt",
     "SignedReal",
+    "Simple",
+    "SimpleNamespace",
     "Single",
+    "String",
     "Tetrade",
+    "Tuple",
+    "Type",
     "Unsigned",
     "UnsignedByte",
     "UnsignedChar",
@@ -68,25 +87,31 @@ __all__ = (
     "UnsignedLongInt",
     "UnsignedLongLong",
     "UnsignedLongLongInt",
-    "UnsignedReal",
-    "int_type",
+    "UnsignedReal"
 )
 
 
-class Primitive(Serializer):
+class Simple(Serializer):
     """Base class for all primitive types."""
 
 
-class Real(Primitive):
-    bit_size = math.inf
+class Number(Simple):
+    """
+    Base class for all numbers.
+
+    This rather refers only to the "real" numbers,
+    but "number" itself sounds better.
+    """
+
+    bit_size = float("infinity")
     signed = True
 
 
-class UnsignedReal(Real):
+class UnsignedReal(Number):
     signed = False
 
 
-class AnyInt(Real):
+class AnyInt(Number):
     """Base integer type."""
     load_type = int
 
@@ -96,7 +121,7 @@ class AnyUnsignedInt(UnsignedReal):
     load_type = int
 
 
-class AnyFloat(Real):
+class AnyFloat(Number):
     """Base class for all floats."""
     load_type = float
 
@@ -105,19 +130,42 @@ class BulkSerializer(Serializer):
     """Base class for all composite types."""
 
 
-class List(BulkSerializer):
-    """Base class for all lists."""
-    load_type = list
-
-
 class Dict(BulkSerializer):
     """Base class for all dictionaries."""
     load_type = dict
 
 
+class MappingProxy(BulkSerializer):
+    """Base class for all dictionaries."""
+    load_type = MappingProxyType
+
+
+class SimpleNamespace(BulkSerializer):
+    """Base class for all dictionaries."""
+    load_type = SimpleNamespaceType
+
+    def factory(self, dictionary):
+        return self.load_type(**dictionary)
+
+
+class List(BulkSerializer):
+    """Base class for all lists."""
+    load_type = list
+
+
 class Tuple(BulkSerializer):
     """Base class for all tuples."""
     load_type = tuple
+
+
+class Set(BulkSerializer):
+    """Base class for all sets."""
+    load_type = set
+
+
+class FrozenSet(BulkSerializer):
+    """Base class for all frozen sets."""
+    load_type = set
 
 
 class String(BulkSerializer):
@@ -137,7 +185,7 @@ class ByteArray(BulkSerializer):
 
 def int_type(bit_size, signed=True) -> Type[AnyInt] | type:
     name = ("Unsigned", "Signed")[signed] + "Int" + str(bit_size)
-    return type(name, ((AnyUnsignedInt, AnySignedInt)[signed]), {"bit_size": bit_size})
+    return type(name, ((AnyUnsignedInt, AnySignedInt)[signed],), {"bit_size": bit_size})
 
 
 def float_type(bit_size):
@@ -145,8 +193,9 @@ def float_type(bit_size):
     return type(name, (AnyFloat,), {"bit_size": bit_size})
 
 
-SignedReal = Real
+SignedReal = Number
 AnySignedInt = AnyInt
+Sequence = List
 
 Bool = Bit = int_type(1, signed=False)
 Nibble = HalfByte = Tetrade = int_type(4, signed=False)
@@ -182,7 +231,6 @@ Float16 = float_type(16)
 Float32 = float_type(32)
 Float64 = float_type(64)
 
-# Aliases
 Half = Float16
 Single = Float32
 Double = Float64
