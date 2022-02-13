@@ -165,7 +165,7 @@ class Set(BulkSerializer):
 
 class FrozenSet(BulkSerializer):
     """Base class for all frozen sets."""
-    load_type = set
+    load_type = frozenset
 
 
 class String(BulkSerializer):
