@@ -23,22 +23,19 @@ and put assigned values to the proper places inside them during the runtime.
 
 
 ### Legible format
-Let's have a look at an example implementation of a _netcast_ data model.
+This is an example implementation _netcast_ data model.
 ```py
 import netcast as nc
 
 class Foo(nc.Model):
     bar = nc.String
-    baz = nc.Int64(signed=True)
+    baz = nc.LongLongInt
+    biz = nc.Char
 ```
-
-
 
 ### Variability of components – built-in support for backward compatibility
 _netcast's_ `FilteredComponentStack` lets you filter particular components to be loaded or dumped
-depending on the used predicate. Its subclass, `VersionAwareComponentStack` is a simple handler 
-for versioned data models, which makes it possible to backward compatible its older versions.
-It is of course possible to override the behaviour depending on your needs.
-
-### 
+depending on the used predicate. Its subclass – `VersionAwareComponentStack` – is a simple handler 
+for versioned data models, which makes it possible to be backward compatible with its older 
+versions. It is of course possible to override the behaviour depending on your needs.
 
