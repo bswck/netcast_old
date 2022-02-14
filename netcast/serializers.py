@@ -9,10 +9,9 @@ from netcast.serializer import Serializer
 __all__ = (
     "float_type",
     "int_type",
-    "AnyFloat",
-    "AnyInt",
+    "FloatingPoint",
+    "Integer",
     "AnySignedInt",
-    "AnyUnsignedInt",
     "Bit",
     "Bool",
     "ModelSerializer",
@@ -86,7 +85,6 @@ __all__ = (
     "UnsignedLongInt",
     "UnsignedLongLong",
     "UnsignedLongLongInt",
-    "UnsignedNumber"
 )
 
 
@@ -101,26 +99,16 @@ class Number(Simple):
     This rather refers only to the "real" numbers,
     but "number" itself sounds better.
     """
-
     bit_size = float("infinity")
     signed = True
 
 
-class UnsignedNumber(Number):
-    signed = False
-
-
-class AnyInt(Number):
+class Integer(Number):
     """Base integer type."""
     load_type = int
 
 
-class AnyUnsignedInt(UnsignedNumber):
-    """Base unsigned integer type."""
-    load_type = int
-
-
-class AnyFloat(Number):
+class FloatingPoint(Number):
     """Base class for all floats."""
     load_type = float
 
@@ -134,12 +122,12 @@ class Dict(ModelSerializer):
     load_type = dict
 
 
-class MappingProxy(ModelSerializer):
+class MappingProxy(Dict):
     """Base class for all mapping proxies."""
     load_type = MappingProxyType
 
 
-class SimpleNamespace(ModelSerializer):
+class SimpleNamespace(Dict):
     """Base class for all simple namespaces."""
     load_type = SimpleNamespaceType
 
@@ -196,23 +184,22 @@ class ByteArray(String):
     load_type = bytearray
 
 
-def int_type(bit_size, signed=True) -> Type[AnyInt] | type:
-    name = ("Unsigned", "Signed")[signed] + "Int" + str(bit_size)
-    return type(name, ((AnyUnsignedInt, AnySignedInt)[signed],), {"bit_size": bit_size})
+def int_type(bit_size, signed=True) -> Type[Integer] | type:
+    return type("Int" + str(bit_size), (Integer,), {"bit_size": bit_size, "signed": signed})
 
 
 def float_type(bit_size):
-    name = "Float" + str(bit_size)
-    return type(name, (AnyFloat,), {"bit_size": bit_size})
+    return type("Float" + str(bit_size), (FloatingPoint,), {"bit_size": bit_size})
 
 
 SignedNumber = Number
-AnySignedInt = AnyInt
+AnySignedInt = Integer
 Bool = Bit = int_type(1, signed=False)
 Nibble = HalfByte = Tetrade = int_type(4, signed=False)
 
 SignedInt8 = Int8 = int_type(8)
 SignedInt16 = Int16 = int_type(16)
+SignedInt24 = Int24 = int_type(24)
 SignedInt32 = Int32 = int_type(32)
 SignedInt64 = Int64 = int_type(64)
 SignedInt128 = Int128 = int_type(128)
@@ -221,6 +208,7 @@ SignedInt512 = Int512 = int_type(512)
 
 UnsignedInt8 = int_type(8, signed=False)
 UnsignedInt16 = int_type(16, signed=False)
+UnsignedInt24 = int_type(24, signed=False)
 UnsignedInt32 = int_type(32, signed=False)
 UnsignedInt64 = int_type(64, signed=False)
 UnsignedInt128 = int_type(128, signed=False)

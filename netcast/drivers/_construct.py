@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import functools
-
 import construct
 import netcast as nc
 
@@ -18,18 +16,21 @@ class ConstructInterface(nc.DriverInterface):
             compiled=True,
             **settings
     ):
-        super().__init__(name, coercion_flags=coercion_flags, **settings)
+        super().__init__(name=name, coercion_flags=coercion_flags, **settings)
         self.compiled = compiled
 
-    @functools.cached_property
+    @property
     def impl(self):
         impl = self._impl
         if self.compiled:
             impl = impl.compile()
         if self.name is not None:
-            if not isinstance(impl, construct.Renamed):
-                impl = construct.Renamed(impl)
+            impl = construct.Renamed(impl, self.name)
         return impl
+
+    @property
+    def driver(self):
+        return driver
 
 
 class Number(nc.Number, ConstructInterface):
@@ -42,9 +43,16 @@ class Number(nc.Number, ConstructInterface):
             native_endian=None,
             cpu_sized=True,
             compiled=False,
+            signed=None,
             **settings
     ):
         ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+
+        if signed is not None:
+            if signed and not self.signed:
+                raise ValueError("signed-unsigned configuration conflict")
+
+            self.signed = signed
 
         if cpu_sized and any(map(callable, (big_endian, little_endian, native_endian))):
             cpu_sized = False
@@ -105,7 +113,7 @@ class Sequence(nc.ModelSerializer, ConstructInterface):
             **settings
     ):
         ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
-        self._impl = construct.Sequence(*self.ensure_impls(fields, settings))
+        self._impl = construct.Sequence(*self.get_impls(fields, settings))
 
 
 class Array(nc.ModelSerializer, ConstructInterface):
@@ -127,7 +135,7 @@ class Array(nc.ModelSerializer, ConstructInterface):
         if size is None:
             size = driver.UnsignedInt8(compiled=compiled).impl
 
-        self.data_type_impl = data_type_impl = self.ensure_impl(data_type, **settings)
+        self.data_type_impl = data_type_impl = self.get_impl(data_type, **settings)
 
         if prefixed:
             if isinstance(size, int) and 0 <= size < 256:
@@ -157,19 +165,19 @@ class Struct(nc.ModelSerializer, ConstructInterface):
             **settings
     ):
         ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
-        field_map = self.ensure_impls(fields, settings)
+        impls = self.get_impls(fields, settings)
         if alignment_modulus is None:
-            impl = construct.Struct(*field_map)
+            impl = construct.Struct(*impls)
         else:
-            impl = construct.AlignedStruct(alignment_modulus, *field_map)
+            impl = construct.AlignedStruct(alignment_modulus, *impls)
         self._impl = impl
 
 
 class ConstructDriver(nc.Driver):
-    NumberImpl = nc.adapter(Number)
-    SequenceImpl = nc.adapter(Sequence)
-    ArrayImpl = nc.adapter(Array)
-    StructImpl = nc.adapter(Struct)
+    NumberImpl = nc.mixin(Number)
+    SequenceImpl = nc.mixin(Sequence)
+    ArrayImpl = nc.mixin(Array)
+    StructImpl = nc.mixin(Struct)
 
     SignedInt8 = NumberImpl(nc.SignedInt8)
     SignedInt16 = NumberImpl(nc.SignedInt16)
@@ -209,3 +217,12 @@ class ConstructDriver(nc.Driver):
 
 
 driver = ConstructDriver
+
+
+@driver.get_model_serializer.register(Array)
+def get_array_serializer(_, serializer, components=(), settings=None):
+    if settings is None:
+        settings = {}
+    if len(components) != 1:
+        raise ValueError("Array() takes exactly 1 argument")
+    return serializer(*components, **settings)

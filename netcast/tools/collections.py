@@ -83,9 +83,6 @@ class ParameterContainer:
     def from_call(cls, *arguments, **keywords):
         return cls(arguments=arguments, keywords=keywords)
 
-    def call(self, fn, *args, **kwargs):
-        return fn(*(*args, *self.arguments), **{**self.keywords, **kwargs})
-
     def __iter__(self):
         param_tuple = (self.arguments, self.keywords)
         yield from param_tuple

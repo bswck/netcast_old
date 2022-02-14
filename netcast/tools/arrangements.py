@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import ssl
 import threading
 from typing import (
     Any,
@@ -20,6 +19,11 @@ from netcast.exceptions import ArrangementConstructionError, ArrangementTypeErro
 from netcast.tools.collections import IDLookupDictionary, ParameterContainer, classproperty
 from netcast.tools.contexts import *
 from netcast.tools.inspection import is_classmethod
+
+try:
+    import ssl
+except ImportError:
+    ssl = None
 
 __all__ = (
     "ArrangementT",
@@ -614,14 +618,7 @@ def create_context(
         cls_or_self: Any,
         params=ParameterContainer()
 ) -> ContextT:
-    args, kwargs = params
-
-    if callable(args):
-        args = args(cls_or_self)
-
-    if callable(kwargs):
-        kwargs = kwargs(cls_or_self)
-
+    args, kwargs = params.eval(cls_or_self)
     factory = _BaseArrangement._factory_registry.get(context_class, context_class)
     return factory(*args, **kwargs)
 
@@ -631,17 +628,17 @@ def wrap_to_arrangement(
     context_class: Type[ContextT],
     class_arrangement: bool = False,
     doc: str | None = None,
-    env: dict[str, Any] | None = None,
+    attrs: dict[str, Any] | None = None,
 ) -> Type[ClassArrangement]:
     if class_arrangement:
         super_class = ClassArrangement
     else:
         super_class = Arrangement
 
-    if env is None:
-        env = {}
+    if attrs is None:
+        attrs = {}
 
-    cls = type(name, (super_class,), env, config=True, context_class=context_class)
+    cls = type(name, (super_class,), attrs, config=True, context_class=context_class)
     doc and setattr(cls, "__doc__", doc)
     return cast(Type[ClassArrangement], cls)
 
@@ -670,8 +667,14 @@ ClassBytesIOArrangement = _("ClassBytesIOArrangement", BytesIOContext, True)
 ClassStringIOArrangement = _("ClassStringIOArrangement", StringIOContext, True)
 ClassFileIOArrangement = _("ClassFileIOArrangement", FileIOContext, True)
 ClassSocketArrangement = _("ClassSocketArrangement", SocketContext, True)
-SSLSocketContext = bind_factory(SSLSocketContext, factory=ssl.wrap_socket)
-ClassSSLSocketArrangement = _("ClassSSLSocketArrangement", SSLSocketContext, True)
+
+if ssl:
+    SSLSocketContext = bind_factory(SSLSocketContext, factory=ssl.wrap_socket)
+    ClassSSLSocketArrangement = _("ClassSSLSocketArrangement", SSLSocketContext, True)
+else:
+    SSLSocketContext = None
+    ClassSSLSocketArrangement = None
+
 ClassCounterArrangement = _("ClassCounterArrangement", CounterContext, True)
 ClassConstructArrangement = _("ClassConstructArrangement", ConstructContext, True)
 
@@ -691,6 +694,10 @@ FileIOArrangement = _("FileIOArrangement", FileIOContext)
 BytesIOArrangement = _("BytesIOArrangement", BytesIOContext)
 StringIOArrangement = _("StringIOArrangement", StringIOContext)
 SocketArrangement = _("SocketArrangement", SocketContext)
-SSLSocketArrangement = _("SSLSocketArrangement", SSLSocketContext)
+if ssl:
+    SSLSocketArrangement = _("SSLSocketArrangement", SSLSocketContext)
+else:
+    SSLSocketArrangement = None
+
 CounterArrangement = _("CounterArrangement", CounterContext)
 ConstructArrangement = _("ConstructArrangement", ConstructContext)

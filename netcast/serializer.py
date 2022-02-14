@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import abc
 import copy
 import enum
-from typing import ClassVar, Any
+from typing import Any, TYPE_CHECKING
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
+from netcast.tools.collections import AttributeDict
 from netcast.tools.inspection import adjust_kwargs
+
+if TYPE_CHECKING:
+    from netcast.driver import DriverMeta
 
 
 class Serializer:
@@ -16,9 +21,14 @@ class Serializer:
     load_type = MISSING
     dump_type = MISSING
 
-    def __init__(self, name=None, **settings):
-        self.name = name
+    name: str | None
+    settings: dict[str, Any]
+    default: Any
+
+    def __init__(self, name=None, default=MISSING, **settings):
         self.settings = settings
+        self.settings["name"] = self.name = name
+        self.settings["default"] = self.default = default
 
     def dump(self, load, *, context: Any = None, **kwargs):
         """
@@ -72,6 +82,10 @@ class Serializer:
             setattr(new, attr, value)
         return new
 
+    @property
+    def impl(self):
+        return NotImplemented
+
 
 class Coercion(enum.IntFlag):
     LOAD_TYPE_BEFORE_DUMPING = 1 << 0
@@ -80,7 +94,7 @@ class Coercion(enum.IntFlag):
     DUMP_TYPE_AFTER_DUMPING = 1 << 3
 
 
-class DriverInterface(Serializer):
+class DriverInterface(Serializer, abc.ABC):
     _impl: Any = None
 
     def __init__(
@@ -90,25 +104,49 @@ class DriverInterface(Serializer):
             **settings
     ):
         super().__init__(name, **settings)
-        self.coercion_flags = coercion_flags
-
-    def ensure_dependency(self, dependency, **context):
-        if isinstance(dependency, type):
-            return dependency(**adjust_kwargs(dependency, context))
-        return dependency
-
-    def ensure_impl(self, dependency, **context):
-        return self.ensure_dependency(dependency, **context).impl
-
-    def ensure_dependencies(self, dependencies, context):
-        return (self.ensure_dependency(dependency, **context).impl for dependency in dependencies)
-
-    def ensure_impls(self, dependencies, context):
-        return (self.ensure_impl(dependency, **context).impl for dependency in dependencies)
+        self.settings["coercion_flags"] = self.coercion_flags = coercion_flags
 
     @property
     def impl(self):
         return self._impl
+
+    @property
+    @abc.abstractmethod
+    def driver(self) -> DriverMeta:
+        """Return the driver here."""
+
+    def get_dependency(self, dependency, **settings):
+        settings = {**self.settings, **settings}
+        if isinstance(dependency, type):
+            return dependency(**adjust_kwargs(dependency, settings))
+        return dependency
+
+    def get_impl(self, dependency, **settings):
+        dependency = self.get_dependency(dependency, **settings)
+        impl = dependency.impl
+
+        if impl is NotImplemented:
+            impl = self.get_dependency(
+                self.driver.lookup(type(dependency)),
+                name=dependency.name,
+                default=dependency.default,
+                **settings
+            ).impl
+
+        if impl is NotImplemented:
+            signature = type(dependency).__name__
+            if getattr(dependency, "name", None) is not None:
+                signature += f" ({dependency.name})"
+            raise NotImplementedError(
+                f"{signature} is not supported by the {self.driver.name} driver"
+            )
+        return impl
+
+    def get_dependencies(self, dependencies, settings):
+        return (self.get_dependency(dependency, **settings).impl for dependency in dependencies)
+
+    def get_impls(self, dependencies, settings):
+        return (self.get_impl(dependency, **settings) for dependency in dependencies)
 
     def _load(self, dump, *, context=None):
         if context is None:
@@ -120,11 +158,9 @@ class DriverInterface(Serializer):
             load = self._coerce_load_type(load)
         return load
 
-    def _dump(self, load, *, context=None, stream=None):
+    def _dump(self, load, *, context=None):
         if context is None:
             context = {}
-        if stream is not None:
-            context['_io'] = stream
         if self.coercion_flags & Coercion.LOAD_TYPE_BEFORE_DUMPING:
             load = self._coerce_load_type(load)
         dump = self.impl.build(load, **context)

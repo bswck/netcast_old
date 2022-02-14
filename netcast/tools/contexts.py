@@ -8,7 +8,6 @@ import inspect
 import io
 import queue
 import socket
-import ssl
 import sys
 import threading
 import warnings
@@ -28,6 +27,11 @@ from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools import strings
 from netcast.tools.collections import AttributeDict, IDLookupDictionary, ParameterContainer
+
+try:
+    import ssl
+except ImportError:
+    ssl = None
 
 
 __all__ = (
@@ -638,5 +642,9 @@ BytesIOContext = _(io.BytesIO, _io_methods)
 StringIOContext = _(io.StringIO, _io_methods)
 SocketContext = _(socket.socket, _socket_methods)
 
-SSLSocketContext = _(ssl.SSLSocket, _socket_methods)
+if ssl:
+    SSLSocketContext = _(ssl.SSLSocket, _socket_methods)
+else:
+    SSLSocketContext = None
+
 CounterContext = _(collections.Counter, _counter_methods)
