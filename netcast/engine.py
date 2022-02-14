@@ -13,6 +13,7 @@ class Engine(Arrangement):
     def __init__(self, descent=None):
         super().__init__(descent)
         from netcast.driver import Driver
+
         self.data = {}
         self.drivers = Driver.__drivers_registry__
 

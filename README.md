@@ -30,13 +30,12 @@ import netcast as nc
 class Foo(nc.Model):
     bar = nc.String
     baz = nc.Int64(signed=True)
-
 ```
 
 
 
 ### Variability of components – built-in support for backward compatibility
-_netcast's_ `FilteredComponentStack` lets you filter particular components to be loaded or parsed
+_netcast's_ `FilteredComponentStack` lets you filter particular components to be loaded or dumped
 depending on the used predicate. Its subclass, `VersionAwareComponentStack` is a simple handler 
 for versioned data models, which makes it possible to backward compatible its older versions.
 It is of course possible to override the behaviour depending on your needs.

@@ -10,7 +10,6 @@ from netcast.constants import LEAST, GREATEST, MISSING
 from netcast.driver import Driver, DriverMeta
 from netcast.serializer import Serializer
 from netcast.tools import strings
-from netcast.tools.collections import AttributeDict
 from netcast.tools.inspection import combined_getattr
 
 
@@ -25,9 +24,7 @@ class ComponentStack:
 
     @classmethod
     def transform_serializer(
-            cls,
-            component: Serializer,
-            settings: dict | None = None
+        cls, component: Serializer, settings: dict | None = None
     ) -> Serializer:
         if settings is None:
             settings = {}
@@ -38,10 +35,7 @@ class ComponentStack:
         return component
 
     def transform_component(
-            self,
-            component: ComponentArgumentT, *,
-            settings=None,
-            default_name=None
+        self, component: ComponentArgumentT, *, settings=None, default_name=None
     ) -> ComponentT | None:
         if settings is None:
             settings = {}
@@ -56,16 +50,16 @@ class ComponentStack:
         return component
 
     def add(
-            self, component: ComponentArgumentT, *,
-            settings: dict | None = None,
-            default_name: str | None = None
+        self,
+        component: ComponentArgumentT,
+        *,
+        settings: dict | None = None,
+        default_name: str | None = None,
     ):
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(
-            component=component,
-            default_name=default_name,
-            settings=settings
+            component=component, default_name=default_name, settings=settings
         )
         self.push(transformed)
 
@@ -130,7 +124,7 @@ class ComponentStack:
 
     def __repr__(self) -> str:
         name = type(self).__name__
-        return f'<{name} {self._components}>'
+        return f"<{name} {self._components}>"
 
 
 class FilteredComponentStack(ComponentStack):
@@ -155,14 +149,14 @@ class VersionAwareComponentStack(FilteredComponentStack):
     """
 
     def __init__(
-            self,
-            *,
-            context_version_field="version",
-            since_field="settings['version_added']",
-            until_field="settings['version_removed']",
-            default_version=GREATEST,
-            default_since_version=LEAST,
-            default_until_version=GREATEST
+        self,
+        *,
+        context_version_field="version",
+        since_field="settings[version_added]",
+        until_field="settings[version_removed]",
+        default_version=GREATEST,
+        default_since_version=LEAST,
+        default_until_version=GREATEST,
     ):
         super().__init__()
         self.context_version_field = context_version_field
@@ -194,9 +188,9 @@ class ComponentDescriptor:
         self.value = MISSING
 
     def __get__(self, instance, owner):
-        if instance is not None:
-            return self.value
-        return self
+        if instance is None:
+            return self
+        return self.value
 
     def __set__(self, instance, value):
         self.value = value
@@ -212,10 +206,10 @@ class Model:
     descriptor_class = ComponentDescriptor
 
     def __init__(
-            self,
-            name: str | None = None,
-            defaults: dict[str, typing.Any] | None = None,
-            **common_settings
+        self,
+        name: str | None = None,
+        defaults: dict[str, typing.Any] | None = None,
+        **common_settings,
     ):
         self._descriptors = {}
         self._name = name
@@ -223,12 +217,15 @@ class Model:
             defaults = {}
         self._defaults = defaults
         components = self.stack.get_matching_components(common_settings)
+        for key, component in components.items():
+            self._descriptors[key] = self.descriptor_class(component)
+            if is_component(getattr(self, key, None)):
+                object.__setattr__(self, key, self._descriptors[key])
+        for key in set(common_settings):
+            if key in self._descriptors:
+                self[key] = common_settings.pop(key)
         self.settings = common_settings
         self.settings["name"] = self.name
-        for key, value in components.items():
-            self._descriptors[key] = self.descriptor_class(value)
-            if is_component(getattr(self, key, None)):
-                setattr(self, key, self._descriptors[key])
         self.settings["defaults"] = self.default
 
     @property
@@ -252,9 +249,7 @@ class Model:
             components = self.get_matching_components(**invoked_settings)
             settings = {**self.settings, **invoked_settings}
             serializer = driver.get_model_serializer(
-                None,
-                components=components.values(),
-                settings=settings
+                None, components=components.values(), settings=settings
             )
         else:
             serializer = driver_or_serializer
@@ -278,6 +273,7 @@ class Model:
                         f"value for serializer named {desc.component.name}"
                     )
             state[name] = value
+
         return state
 
     def get_matching_components(self, **settings):
@@ -286,14 +282,18 @@ class Model:
 
     def get_matching_descriptors(self, **settings):
         namespace = set(self.get_matching_components(**settings))
-        descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
+        descriptors = {
+            name: desc for name, desc in self._descriptors.items() if name in namespace
+        }
         return descriptors
 
     def dump(self, driver_or_serializer: typing.Type[Driver] | Serializer, **context):
         serializer = self.resolve_serializer(driver_or_serializer, context)
         return serializer.dump(self.to_state(), context=context)
 
-    def load(self, driver_or_serializer: typing.Type[Driver] | Serializer, dump, **context):
+    def load(
+        self, driver_or_serializer: typing.Type[Driver] | Serializer, dump, **context
+    ):
         serializer = self.resolve_serializer(driver_or_serializer, context)
         load = serializer.load(dump, context=context)
         state = self.get_state(load)
@@ -302,7 +302,9 @@ class Model:
 
     @functools.singledispatchmethod
     def get_state(self, load) -> dict | tuple[tuple[str, typing.Any], ...]:
-        raise TypeError(f"unsupported state type: {strings.truncate(type(load).__name__)}")
+        raise TypeError(
+            f"unsupported state type: {strings.truncate(type(load).__name__)}"
+        )
 
     @get_state.register
     def get_state_from_sequence(self, load: collections.abc.Sequence) -> dict:
@@ -316,7 +318,10 @@ class Model:
         if callable(getattr(state, "items", None)):
             state = state.items()
         for item, value in state:
-            self[item] = value
+            try:
+                self[item] = value
+            except KeyError:
+                pass
 
     def __iter__(self):
         for name in self._descriptors:
@@ -328,12 +333,21 @@ class Model:
     def __getitem__(self, key):
         return self._descriptors[key].__get__(self, None)
 
+    def __setattr__(self, key, value):
+        if key in getattr(self, "_descriptors", {}):
+            self._descriptors[key].__set__(self, value)
+            return
+        object.__setattr__(self, key, value)
+
+    def __eq__(self, other):
+        return self.to_state() == other.to_state()
+
     def __init_subclass__(
-            cls,
-            stack=None,
-            from_members=None,
-            stack_class=VersionAwareComponentStack,
-            **settings
+        cls,
+        stack=None,
+        from_members=None,
+        stack_class=VersionAwareComponentStack,
+        **settings,
     ):
         if from_members is None:
             from_members = stack is None
@@ -345,9 +359,7 @@ class Model:
             for default_name, component in inspect.getmembers(cls):
                 if is_component(component):
                     cls.stack.add(
-                        component,
-                        default_name=default_name,
-                        settings=cls.settings
+                        component, default_name=default_name, settings=cls.settings
                     )
 
 
@@ -365,13 +377,13 @@ def is_component(maybe_component, accept_type=True):
 
 
 def model(
-        *components,
-        stack=None,
-        name=None,
-        model_class=Model,
-        stack_class=VersionAwareComponentStack,
-        serializer=None,
-        **settings
+    *components,
+    stack=None,
+    name=None,
+    model_class=Model,
+    stack_class=VersionAwareComponentStack,
+    serializer=None,
+    **settings,
 ):
     if stack is None:
         stack = stack_class()

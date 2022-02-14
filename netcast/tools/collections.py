@@ -29,6 +29,7 @@ class IDLookupDictionary(KeyTransformingDict):
     """
     A dictionary that uses id() for storing and lookup.
     """
+
     _pointers = {}
 
     def restore_key(self, key):
@@ -89,22 +90,24 @@ class ParameterContainer:
 
     def repr_arguments(self):
         if callable(self.arguments):
-            return '<arguments factory>'
-        return ', '.join(map(repr, self.arguments))
+            return "<arguments factory>"
+        return ", ".join(map(repr, self.arguments))
 
     def repr_keywords(self):
         if callable(self.keywords):
-            return '<keyword arguments factory>'
-        return ', '.join(map(
-            lambda key_value: f'{key_value[0]}={key_value[1]!r}',
-            self.keywords.items()
-        ))
+            return "<keyword arguments factory>"
+        return ", ".join(
+            map(
+                lambda key_value: f"{key_value[0]}={key_value[1]!r}",
+                self.keywords.items(),
+            )
+        )
 
     def __repr__(self):
         chunks = tuple(filter(None, (self.repr_arguments(), self.repr_keywords())))
         if not chunks:
-            return '(no parameters)'
-        return ', '.join(chunks).join('()')
+            return "(no parameters)"
+        return ", ".join(chunks).join("()")
 
 
 parameters = ParameterContainer.from_call

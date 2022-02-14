@@ -26,7 +26,11 @@ from typing import (
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools import strings
-from netcast.tools.collections import AttributeDict, IDLookupDictionary, ParameterContainer
+from netcast.tools.collections import (
+    AttributeDict,
+    IDLookupDictionary,
+    ParameterContainer,
+)
 
 try:
     import ssl
@@ -113,7 +117,7 @@ class ExitPool:
         if method_name is None:
             return self._get_cms(context)
 
-        if hasattr(method_name, '__name__'):
+        if hasattr(method_name, "__name__"):
             method_name = method_name.__name__
 
         if context in self._method_cms:
@@ -127,25 +131,22 @@ class ExitPool:
         cms = self.get_cms(context, method_name=method_name)
 
         if async_:
+
             async def _bulk_enter():
                 for cm in cms:
                     trigger = _enter_context(cm)
                     if inspect.isawaitable(trigger):
                         await trigger
+
         else:
+
             def _bulk_enter():
                 for cm in cms:
                     _enter_context(cm)
 
         return _bulk_enter()
 
-    def exit(
-            self,
-            context,
-            method_name=None,
-            exc_info=None,
-            async_=False
-    ):
+    def exit(self, context, method_name=None, exc_info=None, async_=False):
         cms = self.get_cms(context, method_name=method_name)
         cms.reverse()
 
@@ -153,6 +154,7 @@ class ExitPool:
             exc_info = sys.exc_info()
 
         if async_:
+
             async def _call_exit(_exc_info, cm):
                 try:
                     trigger = _exit_context(cm=cm, exc_info=_exc_info)
@@ -168,6 +170,7 @@ class ExitPool:
                     _exc_info = await _call_exit(_exc_info, cm)
 
         else:
+
             def _call_exit(_exc_info, cm):
                 try:
                     _exit_context(cm=cm, exc_info=_exc_info)
@@ -213,14 +216,14 @@ async def _call_observer_async(observer, context, params):
         if inspect.isawaitable(trigger):
             await trigger
     except Exception as e:
-        raise NetcastError('(async?) observer failed') from e
+        raise NetcastError("(async?) observer failed") from e
 
 
 def _call_observer(observer, context, params):
     try:
-        observer(context, )
+        observer(context,)
     except Exception as e:
-        raise NetcastError('observer failed') from e
+        raise NetcastError("observer failed") from e
 
 
 class _HookCaller:
@@ -232,10 +235,12 @@ class _HookCaller:
         trigger = None
 
         if async_:
-            trigger = asyncio.gather(*(
-                _call_observer_async(observer, context, params)
-                for observer in observers
-            ))
+            trigger = asyncio.gather(
+                *(
+                    _call_observer_async(observer, context, params)
+                    for observer in observers
+                )
+            )
         else:
             for observer in observers:
                 try:
@@ -314,7 +319,9 @@ def extend_exit_pool(
     return context_class
 
 
-def append_exit_pool(context_class, cm_class, per_instance=True, methods=None, name=None):
+def append_exit_pool(
+    context_class, cm_class, per_instance=True, methods=None, name=None
+):
     if name is None:
         name = "CM" + context_class.__name__
     kwds = {}
@@ -355,12 +362,13 @@ def wrap_method(
     preceding_hook: Union[Callable, None] = None,
     trailing_hook: Union[Callable, None] = None,
     pass_method: bool = True,
-    pass_result: bool = False
+    pass_result: bool = False,
 ):
     if func is None:
         raise TypeError("wrapped method can't be None")
 
     if inspect.iscoroutinefunction(func):
+
         async def wrapper(self, *args, **kwargs):
             method = getattr(self, func.__name__)
 
@@ -468,7 +476,7 @@ def wrap_to_context(
     else:
         cls = bases
         bases = (cls, Context)
-        
+
     attrs = {**({"__doc__": doc} if doc else {})}
 
     for method in methods:
@@ -481,9 +489,7 @@ def wrap_to_context(
             trailing_hook = hook_caller.trailing_hook
 
         attrs[method.__name__] = wrap_method(
-            method,
-            preceding_hook=preceding_hook,
-            trailing_hook=trailing_hook,
+            method, preceding_hook=preceding_hook, trailing_hook=trailing_hook,
         )
 
     if name is None:
@@ -628,9 +634,7 @@ MemoryDictContext = _(IDLookupDictionary, _dict_methods)
 QueueContext = _(queue.Queue, _queue_methods)
 PriorityQueueContext = _(queue.PriorityQueue, _queue_methods)
 LifoQueueContext = _(queue.LifoQueue, _queue_methods)
-AsyncioQueueContext = _(
-    asyncio.Queue, _queue_methods, name="AsyncioQueueContext"
-)
+AsyncioQueueContext = _(asyncio.Queue, _queue_methods, name="AsyncioQueueContext")
 AsyncioPriorityQueueContext = _(
     asyncio.PriorityQueue, _queue_methods, name="AsyncioPriorityQueueContext"
 )

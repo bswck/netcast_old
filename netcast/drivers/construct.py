@@ -3,19 +3,11 @@ from __future__ import annotations
 import construct
 import netcast as nc
 
-DRIVER_NAME = "construct"
 
-
-class ConstructInterface(nc.DriverInterface):
+class Interface(nc.DriverInterface):
     dump_type = bytes
 
-    def __init__(
-            self,
-            name=None,
-            coercion_flags=0,
-            compiled=True,
-            **settings
-    ):
+    def __init__(self, name=None, coercion_flags=0, compiled=True, **settings):
         super().__init__(name=name, coercion_flags=coercion_flags, **settings)
         self.compiled = compiled
 
@@ -33,22 +25,23 @@ class ConstructInterface(nc.DriverInterface):
         return driver
 
 
-class Number(nc.Number, ConstructInterface):
+class Number(nc.Number, Interface):
     def __init__(
-            self,
-            name=None,
-            *,
-            big_endian=None,
-            little_endian=None,
-            native_endian=None,
-            cpu_sized=True,
-            compiled=False,
-            signed=None,
-            **settings
+        self,
+        name=None,
+        *,
+        big_endian=None,
+        little_endian=None,
+        native_endian=None,
+        cpu_sized=True,
+        compiled=False,
+        signed=None,
+        **settings,
     ):
-        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
-
         if signed is not None:
+            if isinstance(self, nc.FloatingPoint):
+                raise ValueError("there is no distinction of signedness in floats")
+
             if signed and not self.signed:
                 raise ValueError("signed-unsigned configuration conflict")
 
@@ -76,6 +69,8 @@ class Number(nc.Number, ConstructInterface):
 
         self._impl = impl
 
+        Interface.__init__(self, name=name, compiled=compiled, **settings)
+
     def get_swapped(self):
         if self.big is None and self.native is None and self.little is not None:
             return self.little
@@ -86,8 +81,7 @@ class Number(nc.Number, ConstructInterface):
     def get_bytes_integer(self):
         byte_length = self.bit_size >> 3
         return construct.BytesInteger(
-            byte_length, signed=self.signed,
-            swapped=self.get_swapped()
+            byte_length, signed=self.signed, swapped=self.get_swapped()
         )
 
     def get_format_field(self):
@@ -104,30 +98,24 @@ class Number(nc.Number, ConstructInterface):
         return obj
 
 
-class Sequence(nc.ModelSerializer, ConstructInterface):
-    def __init__(
-            self,
-            name=None,
-            *fields,
-            compiled=False,
-            **settings
-    ):
-        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+class Sequence(nc.ModelSerializer, Interface):
+    def __init__(self, name=None, *fields, compiled=False, **settings):
+        Interface.__init__(self, name=name, compiled=compiled, **settings)
         self._impl = construct.Sequence(*self.get_impls(fields, settings))
 
 
-class Array(nc.ModelSerializer, ConstructInterface):
+class Array(nc.ModelSerializer, Interface):
     def __init__(
-            self,
-            data_type,
-            name=None,
-            size=None,
-            prefixed=False,
-            lazy=False,
-            compiled=False,
-            **settings
+        self,
+        data_type,
+        name=None,
+        size=None,
+        prefixed=False,
+        lazy=False,
+        compiled=False,
+        **settings,
     ):
-        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+        Interface.__init__(self, name=name, compiled=compiled, **settings)
 
         if prefixed and lazy:
             raise ValueError("array can't be prefixed and lazy at the same time")
@@ -147,7 +135,9 @@ class Array(nc.ModelSerializer, ConstructInterface):
 
         elif lazy:
             if not isinstance(size, int) or not callable(size):
-                raise ValueError("expected an integer or a callable that returns integer")
+                raise ValueError(
+                    "expected an integer or a callable that returns integer"
+                )
 
             self._impl = construct.LazyArray(size, data_type_impl)
 
@@ -155,16 +145,11 @@ class Array(nc.ModelSerializer, ConstructInterface):
             self._impl = construct.Array(size, data_type_impl)
 
 
-class Struct(nc.ModelSerializer, ConstructInterface):
+class Struct(nc.ModelSerializer, Interface):
     def __init__(
-            self,
-            *fields,
-            name=None,
-            alignment_modulus=None,
-            compiled=False,
-            **settings
+        self, *fields, name=None, alignment_modulus=None, compiled=False, **settings
     ):
-        ConstructInterface.__init__(self, name=name, compiled=compiled, **settings)
+        Interface.__init__(self, name=name, compiled=compiled, **settings)
         impls = self.get_impls(fields, settings)
         if alignment_modulus is None:
             impl = construct.Struct(*impls)
@@ -174,43 +159,43 @@ class Struct(nc.ModelSerializer, ConstructInterface):
 
 
 class ConstructDriver(nc.Driver):
-    NumberImpl = nc.mixin(Number)
-    SequenceImpl = nc.mixin(Sequence)
-    ArrayImpl = nc.mixin(Array)
-    StructImpl = nc.mixin(Struct)
+    NumberMixin = nc.mixin(Number)
+    SequenceMixin = nc.mixin(Sequence)
+    ArrayMixin = nc.mixin(Array)
+    StructMixin = nc.mixin(Struct)
 
-    SignedInt8 = NumberImpl(nc.SignedInt8)
-    SignedInt16 = NumberImpl(nc.SignedInt16)
-    SignedInt32 = NumberImpl(nc.SignedInt32)
-    SignedInt64 = NumberImpl(nc.SignedInt64)
-    SignedInt128 = NumberImpl(nc.SignedInt128)
-    SignedInt256 = NumberImpl(nc.SignedInt256)
-    SignedInt512 = NumberImpl(nc.SignedInt512)
-    UnsignedInt8 = NumberImpl(nc.UnsignedInt8)
-    UnsignedInt16 = NumberImpl(nc.UnsignedInt16)
-    UnsignedInt32 = NumberImpl(nc.UnsignedInt32)
-    UnsignedInt64 = NumberImpl(nc.UnsignedInt64)
-    UnsignedInt128 = NumberImpl(nc.UnsignedInt128)
-    UnsignedInt256 = NumberImpl(nc.UnsignedInt256)
-    Float16 = NumberImpl(nc.Float16)
-    Float32 = NumberImpl(nc.Float32)
-    Float64 = NumberImpl(nc.Float64)
+    SignedInt8 = NumberMixin(nc.SignedInt8)
+    SignedInt16 = NumberMixin(nc.SignedInt16)
+    SignedInt32 = NumberMixin(nc.SignedInt32)
+    SignedInt64 = NumberMixin(nc.SignedInt64)
+    SignedInt128 = NumberMixin(nc.SignedInt128)
+    SignedInt256 = NumberMixin(nc.SignedInt256)
+    SignedInt512 = NumberMixin(nc.SignedInt512)
+    UnsignedInt8 = NumberMixin(nc.UnsignedInt8)
+    UnsignedInt16 = NumberMixin(nc.UnsignedInt16)
+    UnsignedInt32 = NumberMixin(nc.UnsignedInt32)
+    UnsignedInt64 = NumberMixin(nc.UnsignedInt64)
+    UnsignedInt128 = NumberMixin(nc.UnsignedInt128)
+    UnsignedInt256 = NumberMixin(nc.UnsignedInt256)
+    Float16 = NumberMixin(nc.Float16)
+    Float32 = NumberMixin(nc.Float32)
+    Float64 = NumberMixin(nc.Float64)
 
-    ListSequence = SequenceImpl(nc.List)
-    TupleSequence = SequenceImpl(nc.Tuple)
-    SetSequence = SequenceImpl(nc.Set)
-    FrozenSetSequence = SequenceImpl(nc.FrozenSet)
+    ListSequence = SequenceMixin(nc.List)
+    TupleSequence = SequenceMixin(nc.Tuple)
+    SetSequence = SequenceMixin(nc.Set)
+    FrozenSetSequence = SequenceMixin(nc.FrozenSet)
     Sequence = ListSequence
 
-    ListArray = ArrayImpl(nc.List)
-    TupleArray = ArrayImpl(nc.Tuple)
-    SetArray = ArrayImpl(nc.Set)
-    FrozenSetArray = ArrayImpl(nc.FrozenSet)
+    ListArray = ArrayMixin(nc.List)
+    TupleArray = ArrayMixin(nc.Tuple)
+    SetArray = ArrayMixin(nc.Set)
+    FrozenSetArray = ArrayMixin(nc.FrozenSet)
     Array = ListArray
 
-    DictStruct = StructImpl(nc.Dict)
-    MappingProxyStruct = StructImpl(nc.MappingProxy)
-    SimpleNamespaceStruct = StructImpl(nc.SimpleNamespace)
+    DictStruct = StructMixin(nc.Dict)
+    MappingProxyStruct = StructMixin(nc.MappingProxy)
+    SimpleNamespaceStruct = StructMixin(nc.SimpleNamespace)
     Struct = DictStruct
 
     default_model_serializer = Struct

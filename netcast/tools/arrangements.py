@@ -16,7 +16,11 @@ from typing import (
 )
 
 from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError
-from netcast.tools.collections import IDLookupDictionary, ParameterContainer, classproperty
+from netcast.tools.collections import (
+    IDLookupDictionary,
+    ParameterContainer,
+    classproperty,
+)
 from netcast.tools.contexts import *
 from netcast.tools.inspection import is_classmethod
 
@@ -108,7 +112,9 @@ ArrangementT = TypeVar("ArrangementT", bound="ClassArrangement")
 DefaultContextT = ConstructContext
 
 
-def bind_factory(context_class: ContextT = None, *, factory: Union[Callable, None] = None):
+def bind_factory(
+    context_class: ContextT = None, *, factory: Union[Callable, None] = None
+):
     if context_class is not None:
         if not callable(factory):
             raise ValueError("factory must be a callable")
@@ -208,7 +214,7 @@ class _BaseArrangement:
         context = create_context(
             context_class=context_class,
             cls_or_self=cls if self is None else self,
-            params=cls.context_params
+            params=cls.context_params,
         )
         cls._set_supercontext(context, supercontext, bind=bind)
 
@@ -278,7 +284,11 @@ class ClassArrangement(_BaseArrangement):
 
     @classmethod
     def _resolve_context_class(
-        cls, *, context_class: Type[ContextT] | None = None, new_context=None, descent=None
+        cls,
+        *,
+        context_class: Type[ContextT] | None = None,
+        new_context=None,
+        descent=None
     ) -> Type[ContextT]:
         if (
             context_class is not cls.context_class
@@ -613,10 +623,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
 
 
 def create_context(
-        *,
-        context_class: Type[ContextT],
-        cls_or_self: Any,
-        params=ParameterContainer()
+    *, context_class: Type[ContextT], cls_or_self: Any, params=ParameterContainer()
 ) -> ContextT:
     args, kwargs = params.eval(cls_or_self)
     factory = _BaseArrangement._factory_registry.get(context_class, context_class)

@@ -7,7 +7,6 @@ from typing import Any, TYPE_CHECKING
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
-from netcast.tools.collections import AttributeDict
 from netcast.tools.inspection import adjust_kwargs
 
 if TYPE_CHECKING:
@@ -18,6 +17,7 @@ class Serializer:
     """
     A base class for all serializers. A good serializer can dump and load stuff.
     """
+
     load_type = MISSING
     dump_type = MISSING
 
@@ -97,12 +97,7 @@ class Coercion(enum.IntFlag):
 class DriverInterface(Serializer, abc.ABC):
     _impl: Any = None
 
-    def __init__(
-            self,
-            name=None,
-            coercion_flags=0,
-            **settings
-    ):
+    def __init__(self, name=None, coercion_flags=0, **settings):
         super().__init__(name, **settings)
         self.settings["coercion_flags"] = self.coercion_flags = coercion_flags
 
@@ -130,7 +125,7 @@ class DriverInterface(Serializer, abc.ABC):
                 self.driver.lookup(type(dependency)),
                 name=dependency.name,
                 default=dependency.default,
-                **settings
+                **settings,
             ).impl
 
         if impl is NotImplemented:
@@ -143,7 +138,10 @@ class DriverInterface(Serializer, abc.ABC):
         return impl
 
     def get_dependencies(self, dependencies, settings):
-        return (self.get_dependency(dependency, **settings).impl for dependency in dependencies)
+        return (
+            self.get_dependency(dependency, **settings).impl
+            for dependency in dependencies
+        )
 
     def get_impls(self, dependencies, settings):
         return (self.get_impl(dependency, **settings) for dependency in dependencies)
