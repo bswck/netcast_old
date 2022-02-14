@@ -35,17 +35,11 @@ class Number(nc.Number, Interface):
         native_endian=None,
         cpu_sized=True,
         compiled=False,
-        signed=None,
+        signed=True,
         **settings,
     ):
-        if signed is not None:
-            if isinstance(self, nc.FloatingPoint):
-                raise ValueError("there is no distinction of signedness in floats")
-
-            if signed and not self.signed:
-                raise ValueError("signed-unsigned configuration conflict")
-
-            self.signed = signed
+        Interface.__init__(self, name=name, compiled=compiled, **settings)
+        self.signed = signed
 
         if cpu_sized and any(map(callable, (big_endian, little_endian, native_endian))):
             cpu_sized = False
@@ -69,7 +63,6 @@ class Number(nc.Number, Interface):
 
         self._impl = impl
 
-        Interface.__init__(self, name=name, compiled=compiled, **settings)
 
     def get_swapped(self):
         if self.big is None and self.native is None and self.little is not None:

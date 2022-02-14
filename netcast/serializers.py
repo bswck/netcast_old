@@ -102,13 +102,21 @@ class Number(Simple):
     """
 
     bit_size = float("infinity")
-    signed = True
 
 
 class Integer(Number):
     """Base integer type."""
 
     load_type = int
+    signed = True
+
+    def __init__(self, *args, signed=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.signed = signed
+
+        if signed is not None:
+            if signed and not self.signed:
+                raise ValueError("signed-unsigned configuration conflict")
 
 
 class FloatingPoint(Number):

@@ -13,6 +13,19 @@ from netcast.tools import strings
 from netcast.tools.inspection import combined_getattr
 
 
+__all__ = (
+    "ComponentStack",
+    "FilteredComponentStack",
+    "VersionAwareComponentStack",
+    "ComponentDescriptor",
+    "ComponentArgumentT",
+    "ComponentT",
+    "Model",
+    "is_component",
+    "model"
+)
+
+
 class ComponentStack:
     def __init__(self):
         self._components = []
@@ -256,7 +269,7 @@ class Model:
             serializer = serializer.get_dependency(serializer, **self.settings)
         return serializer
 
-    def to_state(self, fill_value=MISSING, **settings):
+    def state(self, fill_value=MISSING, **settings):
         descriptors = self.get_matching_descriptors(**settings)
         state = {}
 
@@ -289,7 +302,7 @@ class Model:
 
     def dump(self, driver_or_serializer: typing.Type[Driver] | Serializer, **context):
         serializer = self.resolve_serializer(driver_or_serializer, context)
-        return serializer.dump(self.to_state(), context=context)
+        return serializer.dump(self.state(), context=context)
 
     def load(
         self, driver_or_serializer: typing.Type[Driver] | Serializer, dump, **context
@@ -340,7 +353,7 @@ class Model:
         object.__setattr__(self, key, value)
 
     def __eq__(self, other):
-        return self.to_state() == other.to_state()
+        return self.state() == other.state()
 
     def __init_subclass__(
         cls,
@@ -351,16 +364,16 @@ class Model:
     ):
         if from_members is None:
             from_members = stack is None
+
         if stack is None:
             stack = stack_class()
+
         cls.stack = stack
         cls.settings = settings
+
         if from_members:
-            for default_name, component in inspect.getmembers(cls):
-                if is_component(component):
-                    cls.stack.add(
-                        component, default_name=default_name, settings=cls.settings
-                    )
+            for default_name, component in inspect.getmembers(cls, is_component):
+                cls.stack.add(component, default_name=default_name, settings=cls.settings)
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
