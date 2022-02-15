@@ -78,9 +78,9 @@ gets dumped nor loaded.
 Not finished.
 
 ## Background
-Serious development of _netcast_ started in December 2021, a few months after my experience and ideas
-that came up to my mind when I had been programming TCP/UDP network protocol for the multiplayer game 
-named _Jazz Jackrabbit 2_.
+Serious development of _netcast_ started in December 2021, a few months after a few ideas
+connected with parsing and building data packets came up to my mind when I had been programming
+the TCP/UDP network protocol for the multiplayer game named _Jazz Jackrabbit 2_.
 
 ## Contributing
 No CoC, no CI; but I will be very pleased if someone wants to help me in developing this library. 
