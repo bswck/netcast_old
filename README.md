@@ -63,7 +63,7 @@ but it is not obligatory – **dependency injection** is welcome.
 This little trick allows to present the model as a list of components. Components can be either
 `Serializer` or `Model` objects. You can nest models and impose custom settings on them
 (like `version_added=2`), which will be propagated to all the components inside, recursively. 
-Those configurations will influence serialization and deserialization of the considered _netcast_ 
+Those configurations will influence serialization and deserialization of any considered _netcast_ 
 data model.
 
 #### Built-in support for backward compatibility
