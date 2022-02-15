@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from typing import Type
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
@@ -9,10 +10,9 @@ from netcast.serializer import Serializer
 __all__ = (
     "float_type",
     "int_type",
-    "AnyFloat",
-    "AnyInt",
+    "FloatingPoint",
+    "Integer",
     "AnySignedInt",
-    "AnyUnsignedInt",
     "Bit",
     "Bool",
     "ModelSerializer",
@@ -86,7 +86,6 @@ __all__ = (
     "UnsignedLongInt",
     "UnsignedLongLong",
     "UnsignedLongLongInt",
-    "UnsignedNumber"
 )
 
 
@@ -103,25 +102,26 @@ class Number(Simple):
     """
 
     bit_size = float("infinity")
+
+
+class Integer(Number):
+    """Base integer type."""
+
+    load_type = int
     signed = True
 
+    def __init__(self, *args, signed=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.signed = signed
 
-class UnsignedNumber(Number):
-    signed = False
-
-
-class AnyInt(Number):
-    """Base integer type."""
-    load_type = int
-
-
-class AnyUnsignedInt(UnsignedNumber):
-    """Base unsigned integer type."""
-    load_type = int
+        if signed is not None:
+            if signed and not self.signed:
+                raise ValueError("signed-unsigned configuration conflict")
 
 
-class AnyFloat(Number):
+class FloatingPoint(Number):
     """Base class for all floats."""
+
     load_type = float
 
 
@@ -131,18 +131,22 @@ class ModelSerializer(Serializer):
 
 class Dict(ModelSerializer):
     """Base class for all dictionaries."""
+
     load_type = dict
 
 
-class MappingProxy(ModelSerializer):
+class MappingProxy(Dict):
     """Base class for all mapping proxies."""
+
     load_type = MappingProxyType
 
 
-class SimpleNamespace(ModelSerializer):
+class SimpleNamespace(Dict):
     """Base class for all simple namespaces."""
+
     load_type = SimpleNamespaceType
 
+    @functools.singledispatchmethod
     def load_type_factory(self, mapping):
         return self.load_type(**mapping)
 
@@ -150,6 +154,7 @@ class SimpleNamespace(ModelSerializer):
 class Sequence(ModelSerializer):
     """Base class for all sequences."""
 
+    @functools.singledispatchmethod
     def load_type_factory(self, obj):
         if callable(getattr(obj, "values", None)):
             return self.load_type(obj.values())
@@ -158,28 +163,34 @@ class Sequence(ModelSerializer):
 
 class List(Sequence):
     """Base class for all lists."""
+
     load_type = list
 
 
 class Tuple(Sequence):
     """Base class for all tuples."""
+
     load_type = tuple
 
 
 class Set(Sequence):
     """Base class for all sets."""
+
     load_type = set
 
 
 class FrozenSet(Sequence):
     """Base class for all frozen sets."""
+
     load_type = frozenset
 
 
 class String(Sequence):
     """Base class for all strings."""
+
     load_type = str
 
+    @functools.singledispatchmethod
     def load_type_factory(self, obj):
         if callable(getattr(obj, "values", None)):
             return self.load_type().join(obj.values())
@@ -188,31 +199,35 @@ class String(Sequence):
 
 class Bytes(String):
     """Base class for all byte strings."""
+
     load_type = bytes
 
 
 class ByteArray(String):
     """Base class for all byte arrays."""
+
     load_type = bytearray
 
 
-def int_type(bit_size, signed=True) -> Type[AnyInt] | type:
-    name = ("Unsigned", "Signed")[signed] + "Int" + str(bit_size)
-    return type(name, ((AnyUnsignedInt, AnySignedInt)[signed],), {"bit_size": bit_size})
+def int_type(bit_size, signed=True) -> Type[Integer] | type:
+    return type(
+        "Int" + str(bit_size), (Integer,), {"bit_size": bit_size, "signed": signed}
+    )
 
 
 def float_type(bit_size):
-    name = "Float" + str(bit_size)
-    return type(name, (AnyFloat,), {"bit_size": bit_size})
+    return type("Float" + str(bit_size), (FloatingPoint,), {"bit_size": bit_size})
 
 
 SignedNumber = Number
-AnySignedInt = AnyInt
+AnySignedInt = Integer
 Bool = Bit = int_type(1, signed=False)
 Nibble = HalfByte = Tetrade = int_type(4, signed=False)
 
+# A few aliases for the easier implementation of serializers in C-associated protocols.
 SignedInt8 = Int8 = int_type(8)
 SignedInt16 = Int16 = int_type(16)
+SignedInt24 = Int24 = int_type(24)
 SignedInt32 = Int32 = int_type(32)
 SignedInt64 = Int64 = int_type(64)
 SignedInt128 = Int128 = int_type(128)
@@ -221,13 +236,13 @@ SignedInt512 = Int512 = int_type(512)
 
 UnsignedInt8 = int_type(8, signed=False)
 UnsignedInt16 = int_type(16, signed=False)
+UnsignedInt24 = int_type(24, signed=False)
 UnsignedInt32 = int_type(32, signed=False)
 UnsignedInt64 = int_type(64, signed=False)
 UnsignedInt128 = int_type(128, signed=False)
 UnsignedInt256 = int_type(256, signed=False)
 UnsignedInt512 = int_type(512, signed=False)
 
-# A few aliases for the easier implementation of serializers in C-associated protocols.
 Byte = SignedByte = Char = SignedChar = SignedInt8
 UnsignedByte = UnsignedChar = UnsignedInt8
 

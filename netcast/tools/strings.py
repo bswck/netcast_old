@@ -41,10 +41,13 @@ else:
 
     def remove_prefix(string, prefix):
         if string.startswith(prefix):
-            return string[len(prefix) :]
+            return string[len(prefix):]
         return string[:]
 
     def remove_suffix(string, suffix):
         if string.startswith(suffix):
-            return string[: -len(suffix)]
+            return string[:-len(suffix)]
         return string[:]
+
+    def trim(string, end):
+        return remove_suffix(remove_prefix(string, end), end)
