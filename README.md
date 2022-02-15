@@ -1,4 +1,4 @@
-# netcast – a new approach to data (de)serialization
+# netcast – a new approach to data serialization
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Achtung-orange.svg/800px-Achtung-orange.svg.png" width="15" height="13"><!--
 --> This library is not yet an MVP. It is not ready to be published.<!--
