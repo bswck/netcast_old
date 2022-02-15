@@ -111,7 +111,7 @@ class DriverInterface(Serializer, abc.ABC):
         """Return the driver here."""
 
     def get_dependency(self, dependency, **settings):
-        settings = {**self.settings, **settings}
+        settings = {**settings, **self.settings}
         if isinstance(dependency, type):
             return dependency(**adjust_kwargs(dependency, settings))
         return dependency

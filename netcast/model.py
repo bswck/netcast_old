@@ -290,7 +290,7 @@ class Model:
         return state
 
     def get_matching_components(self, **settings):
-        settings = {**self.settings, **settings}
+        settings = {**settings, **self.settings}
         return self.stack.get_matching_components(settings)
 
     def get_matching_descriptors(self, **settings):
