@@ -112,11 +112,12 @@ class Integer(Number):
 
     def __init__(self, *args, signed=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.signed = signed
 
         if signed is not None:
             if signed and not self.signed:
                 raise ValueError("signed-unsigned configuration conflict")
+        
+        self.signed = signed
 
 
 class FloatingPoint(Number):
