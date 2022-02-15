@@ -17,7 +17,7 @@ _netcast_ introduces an independent typing system that is roughly similar to the
 data model](https://docs.python.org/3/reference/datamodel.html). With its help, you can easily 
 separate fixed schemas from changing standards, thus applying the principles of 
 [SOLID](https://en.wikipedia.org/wiki/SOLID), [KISS](https://en.wikipedia.org/wiki/KISS_principle) 
-and [DRY](https://pl.wikipedia.org/wiki/DRY).
+and [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself).
 
 ### When it comes to performance
 It depends only on the used driver, i.e. the implementation dealing with 
