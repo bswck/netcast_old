@@ -198,7 +198,12 @@ class VersionAwareComponentStack(FilteredComponentStack):
 class ComponentDescriptor:
     def __init__(self, component: ComponentT):
         self.component = component
-        self.value = MISSING
+        self._value = MISSING
+        self.aliases = []
+
+    @property
+    def value(self):
+        return self._value
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -206,7 +211,32 @@ class ComponentDescriptor:
         return self.value
 
     def __set__(self, instance, value):
-        self.value = value
+        self._value = value
+
+    def __call__(self, value):
+        self.__set__(None, value)
+        return value
+
+
+class AliasDescriptor:
+    def __init__(self, link_to):
+        self.linked_to = link_to
+
+    @property
+    def component(self):
+        return self.linked_to.component
+
+    @property
+    def value(self):
+        return self.linked_to.value
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return self.value
+
+    def __set__(self, instance, value):
+        self.component.__set__(instance, value)
 
     def __call__(self, value):
         self.__set__(None, value)
@@ -217,6 +247,7 @@ class Model:
     stack: typing.ClassVar[ComponentStack]
     settings: typing.ClassVar[dict[str, typing.Any]]
     descriptor_class = ComponentDescriptor
+    descriptor_alias_class = AliasDescriptor
 
     def __init__(
         self,
@@ -230,13 +261,22 @@ class Model:
             defaults = {}
         self._defaults = defaults
         components = self.stack.get_matching_components(common_settings)
+
+        seen = {}
         for key, component in components.items():
-            self._descriptors[key] = self.descriptor_class(component)
-            if is_component(getattr(self, key, None)):
-                object.__setattr__(self, key, self._descriptors[key])
+            if id(component) in seen:
+                self._descriptors[key] = self.descriptor_alias_class(seen[id(component)])
+            else:
+                self._descriptors[key] = self.descriptor_class(component)
+                if is_component(getattr(self, key, None)):
+                    object.__setattr__(self, key, self._descriptors[key])
+            seen[id(component)] = self._descriptors[key]
+        seen.clear()
+
         for key in set(common_settings):
             if key in self._descriptors:
                 self[key] = common_settings.pop(key)
+
         self.settings = common_settings
         self.settings["name"] = self.name
         self.settings["defaults"] = self.default
@@ -275,6 +315,7 @@ class Model:
 
         for name, desc in descriptors.items():
             value = desc.value
+
             if value is MISSING:
                 value = desc.component.default
             if value is MISSING:
