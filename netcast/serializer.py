@@ -25,7 +25,7 @@ class Serializer:
     settings: dict[str, Any]
     default: Any
 
-    def __init__(self, name=None, default=MISSING, **settings):
+    def __init__(self, *, name=None, default=MISSING, **settings):
         self.settings = settings
         self.settings["name"] = self.name = name
         self.settings["default"] = self.default = default
@@ -94,10 +94,11 @@ class Coercion(enum.IntFlag):
     DUMP_TYPE_AFTER_DUMPING = 1 << 3
 
 
-class DriverInterface(Serializer, abc.ABC):
+class Interface(Serializer, abc.ABC):
     _impl: Any = None
+    __netcast_origin__ = None
 
-    def __init__(self, name=None, coercion_flags=0, **settings):
+    def __init__(self, *, name=None, coercion_flags=0, **settings):
         super().__init__(name, **settings)
         self.settings["coercion_flags"] = self.coercion_flags = coercion_flags
 
@@ -135,6 +136,7 @@ class DriverInterface(Serializer, abc.ABC):
             raise NotImplementedError(
                 f"{signature} is not supported by the {self.driver.name} driver"
             )
+
         return impl
 
     def get_dependencies(self, dependencies, settings):

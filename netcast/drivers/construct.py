@@ -4,19 +4,19 @@ import construct
 import netcast as nc
 
 
-class Interface(nc.DriverInterface):
+class Interface(nc.Interface):
     dump_type = bytes
 
-    def __init__(self, name=None, coercion_flags=0, compiled=True, **settings):
+    def __init__(self, name=None, coercion_flags=0, **settings):
         super().__init__(name=name, coercion_flags=coercion_flags, **settings)
-        self.compiled = compiled
+        self.compiled = settings.get("compiled", not driver.DEBUG)
 
     @property
     def impl(self):
         impl = self._impl
         if self.compiled:
             impl = impl.compile()
-        if self.name is not None:
+        if self.name is not None and getattr(impl, "name", None) == self.name:
             impl = construct.Renamed(impl, self.name)
         return impl
 
@@ -25,44 +25,37 @@ class Interface(nc.DriverInterface):
         return driver
 
 
-class Number(nc.Number, Interface):
-    def __init__(
-        self,
-        name=None,
-        *,
-        big_endian=None,
-        little_endian=None,
-        native_endian=None,
-        cpu_sized=True,
-        compiled=False,
-        signed=True,
-        **settings,
-    ):
-        Interface.__init__(self, name=name, compiled=compiled, **settings)
-        self.signed = signed
+class Integer(Interface):
+    __netcast_origin__ = nc.Integer
+
+    def __init__(self, name=None, **settings):
+        super().__init__(self, name=name, **settings)
+
+        self.bit_size = self.settings.get("bit_size")
+        self.signed = self.settings.get("signed")
+
+        cpu_sized = self.settings.get("cpu_sized", True)
+        big_endian = self.settings.get("big_endian", False)
+        little_endian = self.settings.get("little_endian", True)
+        native_endian = self.settings.get("native_endian", False)
 
         if cpu_sized and any(map(callable, (big_endian, little_endian, native_endian))):
             cpu_sized = False
 
+        self.cpu_sized = cpu_sized
         self.little = little_endian
         self.big = big_endian
         self.native = native_endian
-        self.cpu_sized = cpu_sized
 
         impl = None
-
         if cpu_sized:
             impl = self.get_format_field()
             self.cpu_sized = False
-
         if impl is None:
             impl = self.get_bytes_integer()
-
         if impl is None:
             raise NotImplementedError(f"construct does not support {self}")
-
         self._impl = impl
-
 
     def get_swapped(self):
         if self.big is None and self.native is None and self.little is not None:
@@ -78,9 +71,7 @@ class Number(nc.Number, Interface):
         )
 
     def get_format_field(self):
-        type_name = "Int" if self.load_type is int else "Float"
-        type_name += str(self.bit_size)
-        type_name += ("s" if self.signed else "u") if self.load_type is int else ""
+        type_name = "Int" + str(self.bit_size) + "us"[self.signed]
         if self.big:
             type_name += "b"
         elif self.little:
@@ -91,16 +82,25 @@ class Number(nc.Number, Interface):
         return obj
 
 
-class Sequence(nc.ModelSerializer, Interface):
-    def __init__(self, name=None, *fields, compiled=False, **settings):
-        Interface.__init__(self, name=name, compiled=compiled, **settings)
+class FloatingPoint(Interface):
+    __netcast_origin__ = nc.FloatingPoint
+
+
+class Sequence(Interface):
+    __netcast_origin__ = nc.ModelSerializer
+
+    def __init__(self, *fields, name=None, **settings):
+        super().__init__(self, name=name, **settings)
         self._impl = construct.Sequence(*self.get_impls(fields, settings))
 
 
-class Array(nc.ModelSerializer, Interface):
+class Array(Interface):
+    __netcast_origin__ = nc.ModelSerializer
+
     def __init__(
         self,
         data_type,
+        *,
         name=None,
         size=None,
         prefixed=False,
@@ -138,11 +138,13 @@ class Array(nc.ModelSerializer, Interface):
             self._impl = construct.Array(size, data_type_impl)
 
 
-class Struct(nc.ModelSerializer, Interface):
+class Struct(Interface):
+    __netcast_origin__ = nc.ModelSerializer
+
     def __init__(
         self, *fields, name=None, alignment_modulus=None, compiled=False, **settings
     ):
-        Interface.__init__(self, name=name, compiled=compiled, **settings)
+        super().__init__(self, name=name, **settings)
         impls = self.get_impls(fields, settings)
         if alignment_modulus is None:
             impl = construct.Struct(*impls)
@@ -152,43 +154,32 @@ class Struct(nc.ModelSerializer, Interface):
 
 
 class ConstructDriver(nc.Driver):
-    NumberMixin = nc.mixin(Number)
-    SequenceMixin = nc.mixin(Sequence)
-    ArrayMixin = nc.mixin(Array)
-    StructMixin = nc.mixin(Struct)
+    DEBUG = True
 
-    SignedInt8 = NumberMixin(nc.SignedInt8)
-    SignedInt16 = NumberMixin(nc.SignedInt16)
-    SignedInt32 = NumberMixin(nc.SignedInt32)
-    SignedInt64 = NumberMixin(nc.SignedInt64)
-    SignedInt128 = NumberMixin(nc.SignedInt128)
-    SignedInt256 = NumberMixin(nc.SignedInt256)
-    SignedInt512 = NumberMixin(nc.SignedInt512)
-    UnsignedInt8 = NumberMixin(nc.UnsignedInt8)
-    UnsignedInt16 = NumberMixin(nc.UnsignedInt16)
-    UnsignedInt32 = NumberMixin(nc.UnsignedInt32)
-    UnsignedInt64 = NumberMixin(nc.UnsignedInt64)
-    UnsignedInt128 = NumberMixin(nc.UnsignedInt128)
-    UnsignedInt256 = NumberMixin(nc.UnsignedInt256)
-    Float16 = NumberMixin(nc.Float16)
-    Float32 = NumberMixin(nc.Float32)
-    Float64 = NumberMixin(nc.Float64)
+    IntegerInterface = nc.interface(Integer)
+    FloatingPointInterface = nc.interface(FloatingPoint)
+    SequenceInterface = nc.interface(Sequence)
+    ArrayInterface = nc.interface(Array)
+    StructInterface = nc.interface(Struct)
 
-    ListSequence = SequenceMixin(nc.List)
-    TupleSequence = SequenceMixin(nc.Tuple)
-    SetSequence = SequenceMixin(nc.Set)
-    FrozenSetSequence = SequenceMixin(nc.FrozenSet)
+    Integer = IntegerInterface(nc.Integer)
+    FloatingPoint = FloatingPointInterface(nc.FloatingPoint)
+
+    ListSequence = SequenceInterface(nc.List)
+    TupleSequence = SequenceInterface(nc.Tuple)
+    SetSequence = SequenceInterface(nc.Set)
+    FrozenSetSequence = SequenceInterface(nc.FrozenSet)
     Sequence = ListSequence
 
-    ListArray = ArrayMixin(nc.List)
-    TupleArray = ArrayMixin(nc.Tuple)
-    SetArray = ArrayMixin(nc.Set)
-    FrozenSetArray = ArrayMixin(nc.FrozenSet)
+    ListArray = ArrayInterface(nc.List)
+    TupleArray = ArrayInterface(nc.Tuple)
+    SetArray = ArrayInterface(nc.Set)
+    FrozenSetArray = ArrayInterface(nc.FrozenSet)
     Array = ListArray
 
-    DictStruct = StructMixin(nc.Dict)
-    MappingProxyStruct = StructMixin(nc.MappingProxy)
-    SimpleNamespaceStruct = StructMixin(nc.SimpleNamespace)
+    DictStruct = StructInterface(nc.Dict)
+    MappingProxyStruct = StructInterface(nc.MappingProxy)
+    SimpleNamespaceStruct = StructInterface(nc.SimpleNamespace)
     Struct = DictStruct
 
     default_model_serializer = Struct

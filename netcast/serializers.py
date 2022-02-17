@@ -8,8 +8,6 @@ from netcast.serializer import Serializer
 
 
 __all__ = (
-    "float_type",
-    "int_type",
     "FloatingPoint",
     "Integer",
     "AnySignedInt",
@@ -22,6 +20,7 @@ __all__ = (
     "Char",
     "Dict",
     "Double",
+    "Float",
     "Float16",
     "Float32",
     "Float64",
@@ -101,23 +100,11 @@ class Number(Simple):
     but "number" itself sounds better.
     """
 
-    bit_size = float("infinity")
-
 
 class Integer(Number):
     """Base integer type."""
 
     load_type = int
-    signed = True
-
-    def __init__(self, *args, signed=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if signed is not None:
-            if signed and not self.signed:
-                raise ValueError("signed-unsigned configuration conflict")
-        
-        self.signed = signed
 
 
 class FloatingPoint(Number):
@@ -127,7 +114,7 @@ class FloatingPoint(Number):
 
 
 class ModelSerializer(Serializer):
-    """Base class for all types for storing bound models."""
+    """Base class for all types storing models states."""
 
 
 class Dict(ModelSerializer):
@@ -210,39 +197,30 @@ class ByteArray(String):
     load_type = bytearray
 
 
-def int_type(bit_size, signed=True) -> Type[Integer] | type:
-    return type(
-        "Int" + str(bit_size), (Integer,), {"bit_size": bit_size, "signed": signed}
-    )
-
-
-def float_type(bit_size):
-    return type("Float" + str(bit_size), (FloatingPoint,), {"bit_size": bit_size})
-
-
 SignedNumber = Number
 AnySignedInt = Integer
-Bool = Bit = int_type(1, signed=False)
-Nibble = HalfByte = Tetrade = int_type(4, signed=False)
+Bool = Bit = Integer(bit_size=1, signed=False)
+Nibble = HalfByte = Tetrade = Integer(bit_size=4, signed=False)
 
 # A few aliases for the easier implementation of serializers in C-associated protocols.
-SignedInt8 = Int8 = int_type(8)
-SignedInt16 = Int16 = int_type(16)
-SignedInt24 = Int24 = int_type(24)
-SignedInt32 = Int32 = int_type(32)
-SignedInt64 = Int64 = int_type(64)
-SignedInt128 = Int128 = int_type(128)
-SignedInt256 = Int256 = int_type(256)
-SignedInt512 = Int512 = int_type(512)
+# You must support `bit_size` and `signed` settings in your interface to make this work.
+SignedInt8 = Int8 = Integer(bit_size=8, signed=True)
+SignedInt16 = Int16 = Integer(bit_size=16, signed=True)
+SignedInt24 = Int24 = Integer(bit_size=24, signed=True)
+SignedInt32 = Int32 = Integer(bit_size=32, signed=True)
+SignedInt64 = Int64 = Integer(bit_size=64, signed=True)
+SignedInt128 = Int128 = Integer(bit_size=128, signed=True)
+SignedInt256 = Int256 = Integer(bit_size=256, signed=True)
+SignedInt512 = Int512 = Integer(bit_size=512, signed=True)
 
-UnsignedInt8 = int_type(8, signed=False)
-UnsignedInt16 = int_type(16, signed=False)
-UnsignedInt24 = int_type(24, signed=False)
-UnsignedInt32 = int_type(32, signed=False)
-UnsignedInt64 = int_type(64, signed=False)
-UnsignedInt128 = int_type(128, signed=False)
-UnsignedInt256 = int_type(256, signed=False)
-UnsignedInt512 = int_type(512, signed=False)
+UnsignedInt8 = Integer(bit_size=8, signed=False)
+UnsignedInt16 = Integer(bit_size=16, signed=False)
+UnsignedInt24 = Integer(bit_size=24, signed=False)
+UnsignedInt32 = Integer(bit_size=32, signed=False)
+UnsignedInt64 = Integer(bit_size=64, signed=False)
+UnsignedInt128 = Integer(bit_size=128, signed=False)
+UnsignedInt256 = Integer(bit_size=256, signed=False)
+UnsignedInt512 = Integer(bit_size=512, signed=False)
 
 Byte = SignedByte = Char = SignedChar = SignedInt8
 UnsignedByte = UnsignedChar = UnsignedInt8
@@ -254,10 +232,10 @@ Unsigned = UnsignedInt = UnsignedLong = UnsignedLongInt = UnsignedInt32
 LongLong = LongLongInt = SignedLongLong = SignedLongLongInt = Int64
 UnsignedLongLong = UnsignedLongLongInt = UnsignedInt64
 
-Float16 = float_type(16)
-Float32 = float_type(32)
-Float64 = float_type(64)
+Float16 = FloatingPoint(bit_size=16)
+Float32 = FloatingPoint(bit_size=32)
+Float64 = FloatingPoint(bit_size=64)
 
 Half = Float16
-Single = Float32
+Single = Float = Float32
 Double = Float64

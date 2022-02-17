@@ -12,8 +12,10 @@ __all__ = (
     "Driver",
     "DriverMeta",
     "serializer",
-    "mixin"
+    "interface"
 )
+
+ORIGIN_FIELD = "__netcast_origin__"
 
 
 class DriverMeta(type):
@@ -85,16 +87,18 @@ def _is_impl(member):
     return isinstance(member, type) and issubclass(member, Serializer)
 
 
-def serializer(implementation, serializer_class=None, origin=None):
+def serializer(interface_class, serializer_class=None, origin=None):
     if serializer_class is None:
         raise NetcastError("no serializer has been set on this adapter")
     impl = type(
         serializer_class.__name__,
-        (serializer_class, implementation),
-        {"__netcast_origin__": serializer_class if origin is None else origin},
+        (serializer_class, interface_class),
+        {ORIGIN_FIELD: (serializer_class if origin is None else origin)},
     )
     return impl
 
 
-def mixin(implementation, origin=None):
-    return functools.partial(serializer, implementation, origin=origin)
+def interface(interface_class, origin=None):
+    if origin is None:
+        origin = getattr(interface_class, ORIGIN_FIELD, None)
+    return functools.partial(serializer, interface_class, origin=origin)
