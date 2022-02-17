@@ -418,6 +418,7 @@ class Model:
                     alias_descriptor = cls.descriptor_alias_class(descriptor)
                     setattr(cls, attr_name, alias_descriptor)
                 seen[id(component)] = descriptor
+            seen.clear()
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
