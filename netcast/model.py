@@ -261,12 +261,6 @@ class Model:
         if defaults is None:
             defaults = {}
         self._defaults = defaults
-        components = self.stack.get_matching_components(common_settings)
-
-        for key, component in components.items():
-            self._descriptors[key] = self.descriptor_class(component)
-            if is_component(getattr(self, key, None)):
-                object.__setattr__(self, key, self._descriptors[key])
 
         for key in set(common_settings):
             if key in self._descriptors:
@@ -409,17 +403,21 @@ class Model:
 
         if from_members:
             seen = {}
-            for default_name, component in inspect.getmembers(cls, is_component):
-                seen_transformed = seen.get(id(component))
-                if seen_transformed is None:
+            for attr_name, component in inspect.getmembers(cls, is_component):
+                seen_descriptor = seen.get(id(component))
+                if seen_descriptor is None:
                     transformed = cls.stack.add(
                         component,
-                        default_name=default_name,
+                        default_name=attr_name,
                         settings=cls.settings
                     )
+                    descriptor = cls.descriptor_class(transformed)
+                    setattr(cls, transformed.name, descriptor)
                 else:
-                    transformed = seen_transformed
-                seen[id(component)] = transformed
+                    descriptor = seen_descriptor
+                    alias_descriptor = cls.descriptor_alias_class(descriptor)
+                    setattr(cls, attr_name, alias_descriptor)
+                seen[id(component)] = descriptor
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
