@@ -31,8 +31,8 @@ import netcast as nc
 
 
 class Foo(nc.Model):
-    bar = nc.String
-    baz = nc.Int
+    bar = nc.String()
+    baz = nc.Int()
     biz = nc.Char(unsigned=False)
     ext = nc.Int(version_added=2, default=20)
 
