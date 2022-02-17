@@ -11,12 +11,12 @@
 This pull request is:
 
 - [ ] A documentation / typographical error fix
-	- Good to go, no issue or tests are needed
+	- Good to go, no issue or tests are needed.
 - [ ] A short code fix
 - [ ] A new feature implementation
 	- Please include the issue number, and create an issue if none exists, which must
 	  include a complete example of how the feature would look.
-	- Please include: `Fixes: #<issue number>` in the commit message
+	- Please include: `Fixes: #<issue number>` in the commit message.
 	- Please include tests.
 
 **Have a great day!**
