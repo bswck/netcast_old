@@ -75,6 +75,7 @@ class ComponentStack:
             component=component, default_name=default_name, settings=settings
         )
         self.push(transformed)
+        return transformed
 
     def insert(self, idx: int, component: ComponentT):
         self._lock.acquire()
@@ -262,16 +263,10 @@ class Model:
         self._defaults = defaults
         components = self.stack.get_matching_components(common_settings)
 
-        seen = {}
         for key, component in components.items():
-            if id(component) in seen:
-                self._descriptors[key] = self.descriptor_alias_class(seen[id(component)])
-            else:
-                self._descriptors[key] = self.descriptor_class(component)
-                if is_component(getattr(self, key, None)):
-                    object.__setattr__(self, key, self._descriptors[key])
-            seen[id(component)] = self._descriptors[key]
-        seen.clear()
+            self._descriptors[key] = self.descriptor_class(component)
+            if is_component(getattr(self, key, None)):
+                object.__setattr__(self, key, self._descriptors[key])
 
         for key in set(common_settings):
             if key in self._descriptors:
@@ -413,8 +408,18 @@ class Model:
         cls.settings = settings
 
         if from_members:
+            seen = {}
             for default_name, component in inspect.getmembers(cls, is_component):
-                cls.stack.add(component, default_name=default_name, settings=cls.settings)
+                seen_transformed = seen.get(id(component))
+                if seen_transformed is None:
+                    transformed = cls.stack.add(
+                        component,
+                        default_name=default_name,
+                        settings=cls.settings
+                    )
+                else:
+                    transformed = seen_transformed
+                seen[id(component)] = transformed
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
