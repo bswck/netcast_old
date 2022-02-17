@@ -419,6 +419,9 @@ class Model:
                     setattr(cls, attr_name, alias_descriptor)
                 seen[id(component)] = descriptor
             seen.clear()
+        else:
+            for name, component in cls.stack.get_matching_components(**settings):
+                setattr(cls, name, cls.descriptor_class(component))
 
 
 ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
