@@ -120,6 +120,7 @@ class Interface(Serializer, abc.ABC):
     def get_impl(self, dependency, **settings):
         dependency = self.get_dependency(dependency, **settings)
         impl = dependency.impl
+        settings = {**settings, **self.settings}
 
         if impl is NotImplemented:
             impl = self.get_dependency(

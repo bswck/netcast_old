@@ -289,7 +289,7 @@ class Model:
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
             components = self.get_matching_components(**invoked_settings)
-            settings = {**self.settings, **invoked_settings}
+            settings = {**invoked_settings, **self.settings}
             serializer = driver.get_model_serializer(
                 None, components=components.values(), settings=settings
             )
