@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # Python 3.8
 
 import collections.abc
 import functools

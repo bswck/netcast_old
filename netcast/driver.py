@@ -1,3 +1,5 @@
+from __future__ import annotations  # Python 3.8
+
 import functools
 import inspect
 import sys

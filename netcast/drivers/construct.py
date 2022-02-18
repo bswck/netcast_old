@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # Python 3.8
 
 import construct
 import netcast as nc
@@ -142,7 +142,7 @@ class Struct(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
     def __init__(
-        self, *fields, name=None, alignment_modulus=None, compiled=False, **settings
+        self, *fields, name=None, alignment_modulus=None, **settings
     ):
         super().__init__(self, name=name, **settings)
         impls = self.get_impls(fields, settings)
