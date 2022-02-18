@@ -2,12 +2,12 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-import functools
 from typing import Any, ClassVar, Generator, TypeVar, TYPE_CHECKING
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools.inspection import force_compliant_kwargs
+from netcast.tools.symbol import Symbol
 
 if TYPE_CHECKING:
     from netcast.driver import DriverMeta
@@ -96,10 +96,6 @@ class Serializer:
     @property
     def impl(self):
         return NotImplemented
-
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj):
-        raise NotImplementedError
 
 
 class Coercion(enum.IntFlag):
