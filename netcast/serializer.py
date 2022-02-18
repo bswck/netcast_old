@@ -30,7 +30,7 @@ class Serializer:
         self.settings["name"] = self.name = name
         self.settings["default"] = self.default = default
 
-    def dump(self, load, *, context: Any = None, **kwargs):
+    def dump(self, load, *, settings: Any = None, **kwargs):
         """
         Dump a loaded object.
 
@@ -43,11 +43,11 @@ class Serializer:
             raise NotImplementedError from e
         else:
             try:
-                return dump(load, context=context, **kwargs)
+                return dump(load, settings=settings, **kwargs)
             except Exception as exc:
                 raise NetcastError(f"dumping failed: {exc}") from exc
 
-    def load(self, dump, *, context: Any = None, **kwargs):
+    def load(self, dump, *, settings: Any = None, **kwargs):
         """
         Load from a dumped object.
 
@@ -60,7 +60,7 @@ class Serializer:
             raise NotImplementedError
         else:
             try:
-                return load(dump, context=context, **kwargs)
+                return load(dump, settings=settings, **kwargs)
             except Exception as exc:
                 raise NetcastError(f"loading failed: {exc}") from exc
 
@@ -149,22 +149,22 @@ class Interface(Serializer, abc.ABC):
     def get_impls(self, dependencies, settings):
         return (self.get_impl(dependency, **settings) for dependency in dependencies)
 
-    def _load(self, dump, *, context=None):
-        if context is None:
-            context = {}
+    def _load(self, dump, *, settings=None):
+        if settings is None:
+            settings = {}
         if self.coercion_flags & Coercion.DUMP_TYPE_BEFORE_LOADING:
             dump = self._coerce_load_type(dump)
-        load = self.impl.parse(dump, **context)
+        load = self.impl.parse(dump, **settings)
         if self.coercion_flags & Coercion.LOAD_TYPE_AFTER_LOADING:
             load = self._coerce_load_type(load)
         return load
 
-    def _dump(self, load, *, context=None):
-        if context is None:
-            context = {}
+    def _dump(self, load, *, settings=None):
+        if settings is None:
+            settings = {}
         if self.coercion_flags & Coercion.LOAD_TYPE_BEFORE_DUMPING:
             load = self._coerce_load_type(load)
-        dump = self.impl.build(load, **context)
+        dump = self.impl.build(load, **settings)
         if self.coercion_flags & Coercion.DUMP_TYPE_AFTER_DUMPING:
             dump = self._coerce_dump_type(dump)
         return dump

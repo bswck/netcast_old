@@ -41,6 +41,11 @@ class DriverMeta(type):
         except KeyError:
             return NotImplemented
 
+    def __call__(self, model, return_serializer=True):
+        if return_serializer:
+            return model.resolve_serializer(self)
+        return super().__call__()
+
 
 class Driver(metaclass=DriverMeta):
     __drivers_registry__ = {}
@@ -77,12 +82,6 @@ class Driver(metaclass=DriverMeta):
     def register(cls, member):
         link_to = getattr(member, "__netcast_origin__", member.__base__)
         cls._lookup_dict[link_to] = member
-
-    def __getattr__(self, item):
-        return getattr(self.state, item)
-
-    def __getitem__(self, item):
-        return self.state[item]
 
 
 def _is_impl(member):

@@ -330,15 +330,22 @@ class Model:
         }
         return descriptors
 
-    def dump(self, driver_or_serializer: typing.Type[Driver] | Serializer, **context):
-        serializer = self.resolve_serializer(driver_or_serializer, context)
-        return serializer.dump(self.state(), context=context)
+    def dump(
+            self,
+            driver_or_serializer: typing.Type[Driver] | Serializer,
+            **settings
+    ):
+        serializer = self.resolve_serializer(driver_or_serializer, settings)
+        return serializer.dump(self.state(), settings=settings)
 
     def load(
-        self, driver_or_serializer: typing.Type[Driver] | Serializer, dump, **context
+            self,
+            driver_or_serializer: typing.Type[Driver] | Serializer,
+            dump,
+            **settings
     ):
-        serializer = self.resolve_serializer(driver_or_serializer, context)
-        load = serializer.load(dump, context=context)
+        serializer = self.resolve_serializer(driver_or_serializer, settings)
+        load = serializer.load(dump, settings=settings)
         state = self.get_state(load)
         self.set_state(state)
         return self
