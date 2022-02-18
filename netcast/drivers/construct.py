@@ -98,17 +98,17 @@ class Array(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
     def __init__(
-        self,
-        data_type,
-        *,
-        name=None,
-        size=None,
-        prefixed=False,
-        lazy=False,
-        compiled=False,
-        **settings,
+            self,
+            data_type,
+            *,
+            name=None,
+            **settings
     ):
-        Interface.__init__(self, name=name, compiled=compiled, **settings)
+        Interface.__init__(self, name=name, **settings)
+        size = self.settings.get("size")
+        prefixed = self.settings.get("prefixed", False)
+        lazy = self.settings.get("lazy", False)
+        compiled = self.settings.get("compiled", False)
 
         if prefixed and lazy:
             raise ValueError("array can't be prefixed and lazy at the same time")
@@ -142,10 +142,11 @@ class Struct(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
     def __init__(
-        self, *fields, name=None, alignment_modulus=None, **settings
+            self, *fields, name=None, **settings
     ):
         super().__init__(self, name=name, **settings)
-        impls = self.get_impls(fields, settings)
+        impls = self.get_impls(fields, self.settings)
+        alignment_modulus = self.settings.get("alignment_modulus")
         if alignment_modulus is None:
             impl = construct.Struct(*impls)
         else:
