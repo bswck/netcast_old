@@ -3,7 +3,7 @@ from typing import ClassVar, Type
 
 import pytest
 
-from netcast import ArrangementConstructionError
+from netcast.exceptions import ArrangementConstructionError
 from netcast.tools.arrangements import DefaultContextT, ArrangementT
 from netcast.tools.arrangements import ClassArrangement
 from netcast.tools.contexts import ContextT
@@ -185,7 +185,7 @@ class TestClassArrangement:
 
         ca2.one()
 
-        assert ca2.context.next() == 1
+        assert ca2.context.pop() == 1
         assert ca2.context == [1, 2]
 
     def test_class_queue_arrangement(self):
@@ -345,7 +345,7 @@ class TestArrangement:
 
         class LP(ListArrangement, descent=LA):
             def __call__(self, x=-1):
-                return self.context.next(x)
+                return self.context.pop(x)
 
         class LE(ListArrangement, descent=LA):
             def __call__(self, x):

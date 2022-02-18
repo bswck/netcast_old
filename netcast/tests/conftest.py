@@ -29,7 +29,3 @@ arrangements.discard(SSLSocketArrangement)
 @pytest.fixture(params=arrangements, scope="session")
 def injected_arrangement(request) -> ArrangementT:
     yield request.param
-
-
-def pytest_configure(config):
-    config.inicfg["asyncio_mode"] = "auto"

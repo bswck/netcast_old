@@ -1,5 +1,6 @@
 from .constants import *
 from .driver import *
+from .exceptions import *
 from .engine import *
 from .model import *
 from .serializer import *

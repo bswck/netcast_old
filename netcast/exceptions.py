@@ -12,7 +12,3 @@ class ArrangementConstructionError(ArrangementError, ValueError):
 
 class ArrangementTypeError(ArrangementError, TypeError):
     pass
-
-
-class ConstraintError(NetcastError, ValueError):
-    """A constraint failed."""
