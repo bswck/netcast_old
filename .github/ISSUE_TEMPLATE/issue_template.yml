@@ -36,7 +36,7 @@ Provide your [Minimal, Complete, and Verifiable](https://stackoverflow.com/help/
 
   - type: textarea
     attributes:
-      label: Error
+      label: bug
       description: "
 Provide the complete text of any errors received **including the complete stack trace**.
 If the message is a warning, run your program with the ``-Werror`` flag:   ``python -Werror myprogram.py``
