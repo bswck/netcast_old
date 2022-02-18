@@ -7,7 +7,7 @@ import netcast as nc
 class Interface(nc.Interface):
     dump_type = bytes
 
-    def __init__(self, name=None, coercion_flags=0, **settings):
+    def __init__(self, *, name=None, coercion_flags=0, **settings):
         super().__init__(name=name, coercion_flags=coercion_flags, **settings)
         self.compiled = settings.get("compiled", not driver.DEBUG)
 
@@ -16,7 +16,7 @@ class Interface(nc.Interface):
         impl = self._impl
         if self.compiled:
             impl = impl.compile()
-        if self.name is not None and getattr(impl, "name", None) == self.name:
+        if self.name is not None and getattr(impl, "name", None) != self.name:
             impl = construct.Renamed(impl, self.name)
         return impl
 
@@ -29,10 +29,9 @@ class Integer(Interface):
     __netcast_origin__ = nc.Integer
 
     def __init__(self, name=None, **settings):
-        super().__init__(self, name=name, **settings)
-
+        super().__init__(name=name, **settings)
         self.bit_size = self.settings.get("bit_size")
-        self.signed = self.settings.get("signed")
+        self.signed = self.settings.get("signed", True)
 
         cpu_sized = self.settings.get("cpu_sized", True)
         big_endian = self.settings.get("big_endian", False)
@@ -48,13 +47,14 @@ class Integer(Interface):
         self.native = native_endian
 
         impl = None
-        if cpu_sized:
-            impl = self.get_format_field()
-            self.cpu_sized = False
+        if self.bit_size:
+            if cpu_sized:
+                impl = self.get_format_field()
+                self.cpu_sized = False
+            if impl is None:
+                impl = self.get_bytes_integer()
         if impl is None:
-            impl = self.get_bytes_integer()
-        if impl is None:
-            raise NotImplementedError(f"construct does not support {self}")
+            raise NotImplementedError(f"construct does not support {type(self).__name__}")
         self._impl = impl
 
     def get_swapped(self):
@@ -90,7 +90,7 @@ class Sequence(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
     def __init__(self, *fields, name=None, **settings):
-        super().__init__(self, name=name, **settings)
+        super().__init__(name=name, **settings)
         self._impl = construct.Sequence(*self.get_impls(fields, settings))
 
 
@@ -104,7 +104,7 @@ class Array(Interface):
             name=None,
             **settings
     ):
-        Interface.__init__(self, name=name, **settings)
+        super().__init__(name=name, **settings)
         size = self.settings.get("size")
         prefixed = self.settings.get("prefixed", False)
         lazy = self.settings.get("lazy", False)
@@ -116,6 +116,7 @@ class Array(Interface):
         if size is None:
             size = driver.UnsignedInt8(compiled=compiled).impl
 
+        self.data_type = data_type
         self.data_type_impl = data_type_impl = self.get_impl(data_type, **settings)
 
         if prefixed:
@@ -144,19 +145,20 @@ class Struct(Interface):
     def __init__(
             self, *fields, name=None, **settings
     ):
-        super().__init__(self, name=name, **settings)
+        super().__init__(name=name, **settings)
+
         impls = self.get_impls(fields, self.settings)
         alignment_modulus = self.settings.get("alignment_modulus")
+
         if alignment_modulus is None:
             impl = construct.Struct(*impls)
         else:
             impl = construct.AlignedStruct(alignment_modulus, *impls)
+
         self._impl = impl
 
 
 class ConstructDriver(nc.Driver):
-    DEBUG = True
-
     IntegerInterface = nc.interface(Integer)
     FloatingPointInterface = nc.interface(FloatingPoint)
     SequenceInterface = nc.interface(Sequence)

@@ -338,7 +338,7 @@ thread_safe = functools.partial(append_exit_pool, cm_class=threading.RLock)
 async_safe = functools.partial(append_exit_pool, cm_class=asyncio.Lock)
 
 
-class Context(metaclass=abc.ABCMeta):
+class Context:  # (metaclass=abc.ABCMeta):
     """
     All context classes must derive from this class.
 

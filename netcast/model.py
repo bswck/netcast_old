@@ -4,7 +4,7 @@ import collections.abc
 import functools
 import inspect
 import threading
-import typing
+from typing import Any, ClassVar, Type, TypeVar, Union
 
 from netcast.constants import LEAST, GREATEST, MISSING
 from netcast.driver import Driver, DriverMeta
@@ -165,7 +165,7 @@ class VersionAwareComponentStack(FilteredComponentStack):
     def __init__(
         self,
         *,
-        context_version_field="version",
+        settings_version_field="version",
         since_field="settings[version_added]",
         until_field="settings[version_removed]",
         default_version=GREATEST,
@@ -173,15 +173,15 @@ class VersionAwareComponentStack(FilteredComponentStack):
         default_until_version=GREATEST,
     ):
         super().__init__()
-        self.context_version_field = context_version_field
+        self.settings_version_field = settings_version_field
         self.since_version_field = since_field
         self.until_version_field = until_field
         self.default_version = default_version
         self.default_since_version = default_since_version
         self.default_until_version = default_until_version
 
-    def predicate_version(self, component, context):
-        version = context.get(self.context_version_field, self.default_version)
+    def predicate_version(self, component, settings):
+        version = settings.get(self.settings_version_field, self.default_version)
         since_version = combined_getattr(
             component, self.since_version_field, self.default_since_version
         )
@@ -196,7 +196,14 @@ class VersionAwareComponentStack(FilteredComponentStack):
         return self.predicate_version(component, settings)
 
 
-class ComponentDescriptor:
+class _BaseDescriptor:
+    component: ComponentT
+
+    def __getattr__(self, item):
+        return getattr(self.component, item)
+
+
+class ComponentDescriptor(_BaseDescriptor):
     def __init__(self, component: ComponentT):
         self.component = component
         self._value = MISSING
@@ -219,17 +226,13 @@ class ComponentDescriptor:
         return value
 
 
-class AliasDescriptor:
+class AliasDescriptor(_BaseDescriptor):
     def __init__(self, link_to):
         self.linked_to = link_to
 
     @property
     def component(self):
         return self.linked_to.component
-
-    @property
-    def value(self):
-        return self.linked_to.value
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -245,30 +248,27 @@ class AliasDescriptor:
 
 
 class Model:
-    stack: typing.ClassVar[ComponentStack]
-    settings: typing.ClassVar[dict[str, typing.Any]]
+    stack: ClassVar[ComponentStack]
+    settings: ClassVar[dict[str, Any]]
     descriptor_class = ComponentDescriptor
     descriptor_alias_class = AliasDescriptor
 
     def __init__(
         self,
         name: str | None = None,
-        defaults: dict[str, typing.Any] | None = None,
-        **common_settings,
+        defaults: dict[str, Any] | None = None,
+        **settings,
     ):
-        self._descriptors = {}
         self._name = name
         if defaults is None:
             defaults = {}
         self._defaults = defaults
 
-        for key in set(common_settings):
+        for key in set(settings):
             if key in self._descriptors:
-                self[key] = common_settings.pop(key)
+                self[key] = settings.pop(key)
 
-        self.settings = common_settings
-        self.settings["name"] = self.name
-        self.settings["defaults"] = self.default
+        self.settings = settings
 
     @property
     def name(self):
@@ -285,20 +285,35 @@ class Model:
                 defaults[name] = default
         return defaults
 
-    def resolve_serializer(self, driver_or_serializer, invoked_settings):
+    def resolve_serializer(self, driver_or_serializer, settings=None):
+        if settings is None:
+            settings = {}
+        settings = {**settings, **self.settings}
+
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
-            components = self.get_matching_components(**invoked_settings)
-            settings = {**invoked_settings, **self.settings}
+            components = self.get_matching_components(**settings).values()
+            serializer_arg = None
             serializer = driver.get_model_serializer(
-                None, components=components.values(), settings=settings
+                serializer_arg,
+                components=components,
+                settings=settings
             )
         else:
             serializer = driver_or_serializer
-            serializer = serializer.get_dependency(serializer, **self.settings)
+            serializer = serializer.get_dependency(
+                serializer,
+                name=self.name,
+                default=self.default,
+                **self.settings
+            )
         return serializer
 
-    def state(self, fill_value=MISSING, **settings):
+    @property
+    def state(self):
+        return self.get_state()
+
+    def get_state(self, fill_value=MISSING, **settings):
         descriptors = self.get_matching_descriptors(**settings)
         state = {}
 
@@ -315,6 +330,7 @@ class Model:
                         f"missing required {type(desc.component).__name__} "
                         f"value for serializer named {desc.component.name}"
                     )
+
             state[name] = value
 
         return state
@@ -332,36 +348,36 @@ class Model:
 
     def dump(
             self,
-            driver_or_serializer: typing.Type[Driver] | Serializer,
+            driver_or_serializer: Type[Driver] | Serializer,
             **settings
     ):
         serializer = self.resolve_serializer(driver_or_serializer, settings)
-        return serializer.dump(self.state(), settings=settings)
+        return serializer.dump(self.get_state(), settings=settings)
 
     def load(
             self,
-            driver_or_serializer: typing.Type[Driver] | Serializer,
+            driver_or_serializer: Type[Driver] | Serializer,
             dump,
             **settings
     ):
         serializer = self.resolve_serializer(driver_or_serializer, settings)
         load = serializer.load(dump, settings=settings)
-        state = self.get_state(load)
+        state = self.load_state(load)
         self.set_state(state)
         return self
 
     @functools.singledispatchmethod
-    def get_state(self, load) -> dict | tuple[tuple[str, typing.Any], ...]:
+    def load_state(self, load) -> dict | tuple[tuple[str, Any], ...]:
         raise TypeError(
             f"unsupported state type: {strings.truncate(type(load).__name__)}"
         )
 
-    @get_state.register
-    def get_state_from_sequence(self, load: collections.abc.Sequence) -> dict:
+    @load_state.register
+    def load_state_from_sequence(self, load: collections.abc.Sequence) -> dict:
         return dict(zip(self._descriptors, load))
 
-    @get_state.register
-    def get_state_from_mapping(self, load: collections.abc.Mapping) -> dict:
+    @load_state.register
+    def load_state_from_mapping(self, load: collections.abc.Mapping) -> dict:
         return dict(load)
 
     def set_state(self, state):
@@ -390,7 +406,7 @@ class Model:
         object.__setattr__(self, key, value)
 
     def __eq__(self, other):
-        return self.state() == other.state()
+        return self.get_state() == other.get_state()
 
     def __init_subclass__(
         cls,
@@ -407,10 +423,11 @@ class Model:
 
         cls.stack = stack
         cls.settings = settings
-
+        descriptors = {}
         if from_members:
             seen = {}
             for attr_name, component in inspect.getmembers(cls, is_component):
+                name = attr_name
                 seen_descriptor = seen.get(id(component))
                 if seen_descriptor is None:
                     transformed = cls.stack.add(
@@ -419,20 +436,23 @@ class Model:
                         settings=cls.settings
                     )
                     descriptor = cls.descriptor_class(transformed)
+
                     setattr(cls, transformed.name, descriptor)
                 else:
                     descriptor = seen_descriptor
                     alias_descriptor = cls.descriptor_alias_class(descriptor)
                     setattr(cls, attr_name, alias_descriptor)
+                descriptors[name] = descriptor
                 seen[id(component)] = descriptor
             seen.clear()
         else:
             for name, component in cls.stack.get_matching_components(**settings):
                 setattr(cls, name, cls.descriptor_class(component))
+        cls._descriptors = descriptors
 
 
-ComponentT = typing.TypeVar("ComponentT", Serializer, Model)
-ComponentArgumentT = typing.Union[ComponentT, typing.Type[ComponentT]]
+ComponentT = TypeVar("ComponentT", Serializer, Model)
+ComponentArgumentT = Union[ComponentT, Type[ComponentT]]
 
 
 def is_component(maybe_component, accept_type=True):

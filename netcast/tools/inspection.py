@@ -9,20 +9,30 @@ def is_classmethod(cls, method):
     return getattr(method, "__self__", None) is cls
 
 
-def adjust_kwargs(func, kwargs):
-    adapted = {}
-    parameters = inspect.signature(func).parameters
-    is_variadic = any(
-        param.kind is inspect.Parameter.VAR_KEYWORD for param in parameters.values()
-    )
-    if is_variadic:
-        adapted.update(kwargs)
+def force_compliant_kwargs(func, kwargs):
+    """
+    def foo(baz, /, bar, biz):
+        pass
+
+    def bar(foo, **baz):
+        pass
+
+    kwds = {"bar": "bar", "biz": "biz", "baz": "baz"}
+
+    force_compliant_kwargs(foo, kwds) -> {"bar": "bar", "biz": "biz"}
+    force_compliant_kwargs(bar, kwds) -> {"bar": "bar", "biz": "biz", "baz": "baz"}
+    """
+    adj = {}
+    pms = inspect.signature(func).parameters
+    var = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in pms.values())
+    if var:
+        adj.update(kwargs)
     else:
         for name, value in kwargs.items():
-            param = parameters.get(name)
+            param = pms.get(name)
             if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
-                adapted[name] = value
-    return adapted
+                adj[name] = value
+    return adj
 
 
 def onefold_combined_getattr(obj, combined_attr, default=MISSING):

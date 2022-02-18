@@ -1,16 +1,18 @@
 from __future__ import annotations  # Python 3.8
 
 import abc
-import copy
 import enum
-from typing import Any, TYPE_CHECKING
+from typing import Any, Generator, TypeVar, TYPE_CHECKING
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
-from netcast.tools.inspection import adjust_kwargs
+from netcast.tools.inspection import force_compliant_kwargs
 
 if TYPE_CHECKING:
     from netcast.driver import DriverMeta
+
+
+_DependencyT = TypeVar("_DependencyT")
 
 
 class Serializer:
@@ -26,9 +28,9 @@ class Serializer:
     default: Any
 
     def __init__(self, *, name=None, default=MISSING, **settings):
+        self.name = name
+        self.default = default
         self.settings = settings
-        self.settings["name"] = self.name = name
-        self.settings["default"] = self.default = default
 
     def dump(self, load, *, settings: Any = None, **kwargs):
         """
@@ -76,11 +78,17 @@ class Serializer:
             raise TypeError("incomplete data type")
         return factory(dump)
 
-    def __call__(self, **overridden_settings) -> Serializer:
-        new = copy.copy(self)
-        for attr, value in overridden_settings.items():
-            setattr(new, attr, value)
-        return new
+    def __call__(self, *, name=None, default=MISSING, **overridden_settings) -> Serializer:
+        if name is None:
+            name = self.name
+        if default is MISSING:
+            default = self.default
+        settings = {**self.settings, **overridden_settings}
+        return type(self)(
+            name=name,
+            default=default,
+            **settings
+        )
 
     @property
     def impl(self):
@@ -94,12 +102,12 @@ class Coercion(enum.IntFlag):
     DUMP_TYPE_AFTER_DUMPING = 1 << 3
 
 
-class Interface(Serializer, abc.ABC):
+class Interface(Serializer):  # abc.ABC
     _impl: Any = None
     __netcast_origin__ = None
 
-    def __init__(self, *, name=None, coercion_flags=0, **settings):
-        super().__init__(name, **settings)
+    def __init__(self, *, name, coercion_flags=0, **settings):
+        super().__init__(name=name, **settings)
         self.settings["coercion_flags"] = self.coercion_flags = coercion_flags
 
     @property
@@ -111,23 +119,38 @@ class Interface(Serializer, abc.ABC):
     def driver(self) -> DriverMeta:
         """Return the driver here."""
 
-    def get_dependency(self, dependency, **settings):
-        settings = {**settings, **self.settings}
+    def get_dependency(
+            self,
+            dependency: _DependencyT,
+            *,
+            name: str | None = None,
+            default: Any = MISSING,
+            **dependency_settings
+    ) -> _DependencyT:
+        dependency_settings = {**self.settings, **dependency_settings}
         if isinstance(dependency, type):
-            return dependency(**adjust_kwargs(dependency, settings))
+            return dependency(
+                name=name,
+                default=default,
+                **force_compliant_kwargs(dependency, dependency_settings)
+            )
         return dependency
 
-    def get_impl(self, dependency, **settings):
+    def get_impl(
+            self,
+            dependency: _DependencyT,
+            **settings
+    ):
         dependency = self.get_dependency(dependency, **settings)
+        settings = {**settings, **self.settings, **dependency.settings}
         impl = dependency.impl
-        settings = {**settings, **self.settings}
 
         if impl is NotImplemented:
             impl = self.get_dependency(
                 self.driver.lookup(type(dependency)),
                 name=dependency.name,
                 default=dependency.default,
-                **settings,
+                **settings
             ).impl
 
         if impl is NotImplemented:
@@ -140,9 +163,18 @@ class Interface(Serializer, abc.ABC):
 
         return impl
 
-    def get_dependencies(self, dependencies, settings):
+    def get_dependencies(
+            self,
+            dependencies: tuple[_DependencyT, ...],
+            settings: dict
+    ) -> Generator[_DependencyT]:
         return (
-            self.get_dependency(dependency, **settings).impl
+            self.get_dependency(
+                dependency,
+                name=dependency.name,
+                default=dependency.default,
+                **settings
+            )
             for dependency in dependencies
         )
 

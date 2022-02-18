@@ -3,11 +3,15 @@ from __future__ import annotations  # Python 3.8
 import functools
 import inspect
 import sys
-from typing import ClassVar, Type
+from typing import ClassVar, Type, TypeVar, TYPE_CHECKING
 
 from netcast import serializers
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer
+
+
+if TYPE_CHECKING:
+    from netcast.serializers import ModelSerializer
 
 
 __all__ = (
@@ -19,14 +23,10 @@ __all__ = (
 
 ORIGIN_FIELD = "__netcast_origin__"
 
+_M = TypeVar("_M", bound="Model")
+
 
 class DriverMeta(type):
-    def __getattr__(cls, item):
-        alias = getattr(serializers, item, None)
-        if alias is None or not issubclass(alias, Serializer):
-            raise AttributeError(item)
-        return object.__getattribute__(cls, alias.__name__)
-
     @functools.singledispatchmethod
     def get_model_serializer(cls, model_serializer, /, components=(), settings=None):
         if settings is None:
@@ -41,9 +41,24 @@ class DriverMeta(type):
         except KeyError:
             return NotImplemented
 
-    def __call__(self, model, return_serializer=True):
+    def __getattr__(cls, item):
+        alias = getattr(serializers, item, None)
+        if alias is None or not issubclass(alias, Serializer):
+            raise AttributeError(item)
+        return object.__getattribute__(cls, alias.__name__)
+
+    def __call__(
+            self,
+            model: _M = None,
+            return_serializer=True,
+            **settings
+    ) -> ModelSerializer:
         if return_serializer:
-            return model.resolve_serializer(self)
+            if model is None:
+                raise ValueError("`Model` type or instance expected")
+            if isinstance(model, type):
+                model = model()
+            return model.resolve_serializer(self, settings)
         return super().__call__()
 
 
@@ -69,6 +84,8 @@ class Driver(metaclass=DriverMeta):
 
         for _, member in inspect.getmembers(cls, _is_impl):
             cls.register(member)
+
+        cls.DEBUG = __debug__
 
     @staticmethod
     def _conjure_driver_name(stack_level=1):
