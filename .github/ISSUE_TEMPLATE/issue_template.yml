@@ -20,13 +20,13 @@ body:
   - type: textarea
     attributes:
       label: Describe the bug
-      description: A clear and succint description of what the bug is.
+      description: A clear and succinct description of what the bug is.
     validations:
       required: true
 
   - type: textarea
     attributes:
-      label: To Reproduce
+      label: To reproduce
       description: "
 Provide your [Minimal, Complete, and Verifiable](https://stackoverflow.com/help/mcve) example here."
       placeholder: "# Insert code here"
