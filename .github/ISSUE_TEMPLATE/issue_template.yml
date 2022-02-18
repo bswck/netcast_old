@@ -41,7 +41,7 @@ Provide your [Minimal, Complete, and Verifiable](https://stackoverflow.com/help/
 Provide the complete text of any errors received **including the complete stack trace**.
 If the message is a warning, run your program with the ``-Werror`` flag:   ``python -Werror myprogram.py``
 "
-      placeholder: "# Copy complete stack trace and error message here.
+      placeholder: "# Copy complete stack trace and error message here."
       value: "\
 ```
 
