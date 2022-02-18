@@ -74,6 +74,10 @@ gets dumped nor loaded.
 ## License
 [GNU General Public License v3](LICENSE)
 
+## Contributing
+**Looking for developers!**
+Please feel free to contribute in any way – issues, PRs, suggestions. 
+
 ## Documentation
 Not finished.
 
@@ -82,6 +86,4 @@ Serious development of _netcast_ started in December 2021, a few months after a 
 connected with parsing and building data packets came up to my mind when I had been programming
 the TCP/UDP network protocol for the multiplayer game named _Jazz Jackrabbit 2_.
 
-## Contributing
-No CoC, no CI; but I will be very pleased if someone wants to help me in developing this library. 
-I have less and less time but a lot of further ideas and openness to cooperation. ~bswck
+
