@@ -27,6 +27,8 @@ class Serializer:
     settings: dict[str, Any]
     default: Any
 
+    __taken__: bool
+
     def __init__(self, *, name=None, default=MISSING, **settings):
         self.name = name
         self.default = default
