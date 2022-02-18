@@ -227,12 +227,12 @@ class ComponentDescriptor(_BaseDescriptor):
 
 
 class AliasDescriptor(_BaseDescriptor):
-    def __init__(self, link_to):
-        self.linked_to = link_to
+    def __init__(self, refer_to):
+        self.reference = refer_to
 
     @property
     def component(self):
-        return self.linked_to.component
+        return self.reference.component
 
     def __get__(self, instance, owner):
         if instance is None:
