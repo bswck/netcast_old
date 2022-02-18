@@ -4,13 +4,17 @@ import collections.abc
 import functools
 import inspect
 import threading
-from typing import Any, ClassVar, Type, TypeVar, Union
+from typing import Any, ClassVar, Type, TypeVar, TYPE_CHECKING, Union
 
 from netcast.constants import LEAST, GREATEST, MISSING
 from netcast.driver import Driver, DriverMeta
 from netcast.serializer import Serializer
 from netcast.tools import strings
 from netcast.tools.inspection import combined_getattr
+
+
+if TYPE_CHECKING:
+    from netcast.serializers import ModelSerializer
 
 
 __all__ = (
@@ -457,7 +461,7 @@ ComponentT = TypeVar("ComponentT", Serializer, Model)
 ComponentArgumentT = Union[ComponentT, Type[ComponentT]]
 
 
-def is_component(maybe_component, accept_type=True):
+def is_component(maybe_component: Any, accept_type: bool = True) -> bool:
     ok_instance = isinstance(maybe_component, (Serializer, Model))
     ok_type = accept_type and (
         isinstance(maybe_component, type)
@@ -467,12 +471,12 @@ def is_component(maybe_component, accept_type=True):
 
 
 def model(
-    *components,
-    stack=None,
-    name=None,
-    model_class=Model,
-    stack_class=VersionAwareComponentStack,
-    serializer=None,
+    *components: ComponentArgumentT,
+    stack: ComponentStack | None = None,
+    name: str | None = None,
+    model_class: Type[Model] = Model,
+    stack_class: Type[ComponentStack] = VersionAwareComponentStack,
+    serializer: ModelSerializer | None = None,
     **settings,
 ):
     if stack is None:

@@ -35,7 +35,7 @@ from netcast.tools.collections import (
 try:
     import ssl
 except ImportError:
-    ssl = None
+    ssl = None  # type: ignore
 
 
 __all__ = (
@@ -455,16 +455,13 @@ def wrap_method(
     return functools.update_wrapper(wrapper, func)
 
 
-BasesT = TypeVar("BasesT", type, Tuple[type, ...])
-
-
 def wrap_to_context(
-    bases: BasesT,
+    bases: Union[type, Tuple[type, ...]],
     methods: Iterable = (),
     name: str | None = None,
     doc: str | None = None,
     init_subclass: dict[str, Any] | None = None,
-) -> Type[Context] | BasesT:
+) -> Type[Context] | Union[type, Tuple[type, ...]]:
     """Build a context class and its modification hooks."""
 
     if isinstance(bases, Sequence):

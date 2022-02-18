@@ -1,6 +1,6 @@
 from __future__ import annotations  # Python 3.8
 
-from typing import Callable
+from typing import Any, Callable
 
 from jaraco.collections import (
     KeyTransformingDict as _KeyTransformingDict,
@@ -30,7 +30,7 @@ class IDLookupDictionary(KeyTransformingDict):
     A dictionary that uses id() for storing and lookup.
     """
 
-    _pointers = {}
+    _pointers: dict[int, Any] = {}
 
     def restore_key(self, key):
         return self._pointers.pop(key)

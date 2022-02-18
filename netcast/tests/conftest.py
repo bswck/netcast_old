@@ -17,8 +17,8 @@ class_arrangements.discard(ClassSSLSocketArrangement)
 
 
 @pytest.fixture(params=class_arrangements, scope="session")
-def injected_class_arrangement(request) -> ArrangementT:
-    yield request.param
+def inj_class_arrangement(request) -> ArrangementT:
+    return request.param
 
 
 arrangements = {Arrangement, *Arrangement.__subclasses__()}
@@ -27,5 +27,5 @@ arrangements.discard(SSLSocketArrangement)
 
 
 @pytest.fixture(params=arrangements, scope="session")
-def injected_arrangement(request) -> ArrangementT:
-    yield request.param
+def inj_arrangement(request) -> ArrangementT:
+    return request.param

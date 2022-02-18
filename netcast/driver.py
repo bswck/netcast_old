@@ -65,7 +65,7 @@ class DriverMeta(type):
 
 
 class Driver(metaclass=DriverMeta):
-    __drivers_registry__ = {}
+    __drivers_registry__: dict[str, Driver] = {}
     _lookup_dict: ClassVar[dict[Type[Serializer], Type[Serializer]]]
 
     default_model_serializer = None

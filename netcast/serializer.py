@@ -2,7 +2,8 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-from typing import Any, Generator, TypeVar, TYPE_CHECKING
+import functools
+from typing import Any, ClassVar, Generator, TypeVar, TYPE_CHECKING
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
@@ -20,8 +21,8 @@ class Serializer:
     A base class for all serializers. A good serializer can dump and load stuff.
     """
 
-    load_type = MISSING
-    dump_type = MISSING
+    load_type: ClassVar[Symbol | type] = MISSING
+    dump_type: ClassVar[Symbol | type] = MISSING
 
     name: str | None
     settings: dict[str, Any]
@@ -95,6 +96,10 @@ class Serializer:
     @property
     def impl(self):
         return NotImplemented
+
+    @functools.singledispatchmethod
+    def load_type_factory(self, obj):
+        raise NotImplementedError
 
 
 class Coercion(enum.IntFlag):
