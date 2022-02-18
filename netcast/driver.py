@@ -12,6 +12,7 @@ from netcast.serializer import Serializer
 
 if TYPE_CHECKING:
     from netcast.serializers import ModelSerializer
+    from netcast.model import Model  # noqa: F401
 
 
 __all__ = (
@@ -22,6 +23,7 @@ __all__ = (
 )
 
 ORIGIN_FIELD = "__netcast_origin__"
+
 
 _M = TypeVar("_M", bound="Model")
 
