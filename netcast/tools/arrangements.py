@@ -68,8 +68,6 @@ __all__ = (
     "SSLSocketArrangement",
     "SocketArrangement",
     "StringIOArrangement",
-    "_BaseArrangement",
-    "_init",
     "Arrangement",
     "AsyncioLifoQueueArrangement",
     "AsyncioPriorityQueueArrangement",
@@ -93,6 +91,7 @@ __all__ = (
     "ClassSSLSocketArrangement",
     "ClassSocketArrangement",
     "ClassStringIOArrangement",
+    "context_alias",
     "CounterArrangement",
     "DequeArrangement",
     "DictArrangement",
@@ -104,7 +103,6 @@ __all__ = (
     "SSLSocketArrangement",
     "SocketArrangement",
     "StringIOArrangement",
-    "_init",
     "wrap_to_arrangement",
 )
 
@@ -620,6 +618,27 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
     @property
     def has_new_context(self: Arrangement) -> bool:
         return self._new_context
+
+
+class DynamicContextAlias:
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return instance.context
+
+
+AliasTypeT = Literal["static", "dynamic"]
+
+
+def context_alias(kind: AliasTypeT = "static") -> ClassVar[property] | DynamicContextAlias:
+    alias = None
+    if kind == "static":
+        alias = Arrangement.context
+    if kind == "dynamic":
+        alias = DynamicContextAlias()
+    if alias is None:
+        raise ValueError("invalid context alias kind")
+    return alias
 
 
 def create_context(
