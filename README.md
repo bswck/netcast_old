@@ -40,7 +40,7 @@ class Foo(nc.Model):
 driver = nc.bin.driver()  # the default driver of the binary engine
 
 foo = Foo(bar="bar", baz=1, biz=2, ext=3)
-serializer = driver(Foo)
+serializer = driver(foo)
 
 # Dumping - returned values are :attr:`serializer.dump_type` instances (bytes)
 dump_v1 = serializer.dump(version=1)  #  b"\x03bar\x00\x00\x00\x01\x02"
