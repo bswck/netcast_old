@@ -37,7 +37,7 @@ class Foo(nc.Model):
     ext = nc.Int(version_added=2, default=20)
 
 
-driver = nc.engine("bin").driver()  # the default driver of the binary engine
+driver = nc.bin.driver()  # the default driver of the binary engine
 
 foo = Foo(bar="bar", baz=1, biz=2, ext=3)
 serializer = driver(Foo)
