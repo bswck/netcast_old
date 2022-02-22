@@ -5,17 +5,14 @@ from typing import TYPE_CHECKING
 
 from netcast import GREATEST, LEAST
 from netcast.tools.inspection import combined_getattr
+from netcast.serializer import Serializer
+
 
 if TYPE_CHECKING:
     from netcast.model import Model, ComponentArgumentT, ComponentT
-    from netcast.serializer import Serializer
 
 
-__all__ = (
-    "ComponentStack",
-    "FilteredComponentStack",
-    "VersionAwareComponentStack"
-)
+__all__ = ("ComponentStack", "FilteredComponentStack", "VersionAwareComponentStack")
 
 
 class ComponentStack:
@@ -42,6 +39,7 @@ class ComponentStack:
     def transform_component(
         self, component: ComponentArgumentT, *, settings=None, default_name=None
     ) -> ComponentT | None:
+        from netcast.model import Model
         if settings is None:
             settings = {}
         settings.setdefault("name", default_name)
@@ -61,6 +59,7 @@ class ComponentStack:
         settings: dict | None = None,
         default_name: str | None = None,
     ):
+        """Push with transform."""
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(

@@ -15,12 +15,7 @@ if TYPE_CHECKING:
     from netcast.model import Model  # noqa: F401
 
 
-__all__ = (
-    "Driver",
-    "DriverMeta",
-    "serializer",
-    "interface"
-)
+__all__ = ("Driver", "DriverMeta", "serializer", "interface")
 
 ORIGIN_FIELD = "__netcast_origin__"
 
@@ -50,10 +45,7 @@ class DriverMeta(type):
         return object.__getattribute__(cls, alias.__name__)
 
     def __call__(
-            self,
-            model: _M = None,
-            return_serializer=True,
-            **settings
+        self, model: _M = None, return_serializer=True, **settings
     ) -> ModelSerializer:
         if return_serializer:
             if model is None:

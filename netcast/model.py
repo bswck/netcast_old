@@ -21,7 +21,7 @@ __all__ = (
     "ComponentT",
     "Model",
     "is_component",
-    "model"
+    "model",
 )
 
 
@@ -91,6 +91,7 @@ class Model:
         **settings,
     ):
         self._name = name
+
         if defaults is None:
             defaults = {}
         self._defaults = defaults
@@ -124,20 +125,16 @@ class Model:
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
             components = self.get_matching_components(**settings).values()
-            serializer_arg = None
+            model_serializer = None
             serializer = driver.get_model_serializer(
-                serializer_arg,
-                components=components,
-                settings=settings
+                model_serializer, components=components, settings=settings
             )
         else:
             serializer = driver_or_serializer
             serializer = serializer.get_dependency(
-                serializer,
-                name=self.name,
-                default=self.default,
-                **self.settings
+                serializer, name=self.name, default=self.default, **self.settings
             )
+
         return serializer
 
     @property
@@ -177,20 +174,11 @@ class Model:
         }
         return descriptors
 
-    def dump(
-            self,
-            driver_or_serializer: Type[Driver] | Serializer,
-            **settings
-    ):
+    def dump(self, driver_or_serializer: Type[Driver] | Serializer, **settings):
         serializer = self.resolve_serializer(driver_or_serializer, settings)
         return serializer.dump(self.get_state(), settings=settings)
 
-    def load(
-            self,
-            driver_or_serializer: Type[Driver] | Serializer,
-            dump,
-            **settings
-    ):
+    def load(self, driver_or_serializer: Type[Driver] | Serializer, dump, **settings):
         serializer = self.resolve_serializer(driver_or_serializer, settings)
         load = serializer.load(dump, settings=settings)
         state = self.load_state(load)
@@ -262,9 +250,7 @@ class Model:
                 seen_descriptor = seen.get(id(component))
                 if seen_descriptor is None:
                     transformed = cls.stack.add(
-                        component,
-                        default_name=attr_name,
-                        settings=cls.settings
+                        component, default_name=attr_name, settings=cls.settings
                     )
                     descriptor = cls.descriptor_class(transformed)
 

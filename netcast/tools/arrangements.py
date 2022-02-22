@@ -286,7 +286,7 @@ class ClassArrangement(_BaseArrangement):
         *,
         context_class: Type[ContextT] | None = None,
         new_context=None,
-        descent=None
+        descent=None,
     ) -> Type[ContextT]:
         if (
             context_class is not cls.context_class
@@ -328,7 +328,7 @@ class ClassArrangement(_BaseArrangement):
         processed_context_class,
         descent_context_class,
         descent=None,
-        new_context=None
+        new_context=None,
     ):
         if descent is None:
             descent = cls._get_descent_type()
@@ -460,10 +460,10 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
     When :class:`Arrangement` is subclassed, that subclass then produces instances that access
     a distinct context. Each context is created per-instance, but instances may share
     their context with each other, when they are passed to the constructor.
-    
+
     If :attr:`new_context` is set to `True` on a subclass, each instance will enter a subcontext
-    of the context of the instance passed to the instance (called descent). 
-    
+    of the context of the instance passed to the instance (called descent).
+
     You might find arrangements useful for example if you want to maintain multiple connections.
     Having an arrangement class that uses context to store the connection data,
     you might create different instances to store per-connection, contextual data.
@@ -630,7 +630,9 @@ class DynamicContextAlias:
 AliasTypeT = Literal["static", "dynamic"]
 
 
-def context_alias(kind: AliasTypeT = "static") -> ClassVar[property] | DynamicContextAlias:
+def context_alias(
+    kind: AliasTypeT = "static",
+) -> ClassVar[property] | DynamicContextAlias:
     alias = None
     if kind == "static":
         alias = Arrangement.context

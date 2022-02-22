@@ -221,7 +221,9 @@ async def _call_observer_async(observer, context, params):
 
 def _call_observer(observer, context, params):
     try:
-        observer(context,)
+        observer(
+            context,
+        )
     except Exception as e:
         raise NetcastError("observer failed") from e
 
@@ -486,7 +488,9 @@ def wrap_to_context(
             trailing_hook = hook_caller.trailing_hook
 
         attrs[method.__name__] = wrap_method(
-            method, preceding_hook=preceding_hook, trailing_hook=trailing_hook,
+            method,
+            preceding_hook=preceding_hook,
+            trailing_hook=trailing_hook,
         )
 
     if name is None:
@@ -577,7 +581,7 @@ class SinglyDownwardContextMixin(Context):
     """
     A context that can access its subcontext via '__' key.
     You can set your own subcontext key, however.
-    
+
     Used solely, it behaves like a linked list.
     """
 

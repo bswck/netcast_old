@@ -54,7 +54,9 @@ class Integer(Interface):
             if impl is None:
                 impl = self.get_bytes_integer()
         if impl is None:
-            raise NotImplementedError(f"construct does not support {type(self).__name__}")
+            raise NotImplementedError(
+                f"construct does not support {type(self).__name__}"
+            )
         self._impl = impl
 
     def get_swapped(self):
@@ -97,13 +99,7 @@ class Sequence(Interface):
 class Array(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
-    def __init__(
-            self,
-            data_type,
-            *,
-            name=None,
-            **settings
-    ):
+    def __init__(self, data_type, *, name=None, **settings):
         super().__init__(name=name, **settings)
         size = self.settings.get("size")
         prefixed = self.settings.get("prefixed", False)
@@ -142,9 +138,7 @@ class Array(Interface):
 class Struct(Interface):
     __netcast_origin__ = nc.ModelSerializer
 
-    def __init__(
-            self, *fields, name=None, **settings
-    ):
+    def __init__(self, *fields, name=None, **settings):
         super().__init__(name=name, **settings)
 
         impls = self.get_impls(fields, self.settings)

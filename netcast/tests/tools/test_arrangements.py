@@ -6,10 +6,37 @@ from typing import ClassVar, Type
 import pytest
 
 from netcast.exceptions import ArrangementConstructionError
+from netcast.tools.arrangements import (
+    ClassArrangement,
+    ClassFileIOArrangement,
+    Arrangement,
+    FileIOArrangement,
+    ClassSSLSocketArrangement,
+    SSLSocketArrangement,
+)
 from netcast.tools.arrangements import DefaultContextT, ArrangementT
-from netcast.tools.arrangements import ClassArrangement
-from netcast.tools.contexts import ContextT
 from netcast.tools.collections import ForwardDependency, parameters
+from netcast.tools.contexts import ContextT
+
+class_arrangements = {ClassArrangement, *ClassArrangement.__subclasses__()}
+class_arrangements.discard(Arrangement)
+class_arrangements.discard(ClassFileIOArrangement)
+class_arrangements.discard(ClassSSLSocketArrangement)
+
+
+@pytest.fixture(params=class_arrangements, scope="session")
+def class_arrangement_class(request) -> ArrangementT:
+    return request.param
+
+
+arrangements = {Arrangement, *Arrangement.__subclasses__()}
+arrangements.discard(FileIOArrangement)
+arrangements.discard(SSLSocketArrangement)
+
+
+@pytest.fixture(params=arrangements, scope="session")
+def arrangement_class(request) -> ArrangementT:
+    return request.param
 
 
 class _TestContextType:
@@ -48,25 +75,24 @@ class TestClassArrangement:
         from netcast.tools.contexts import QueueContext as SomeOtherContext
 
         with pytest.raises(ArrangementConstructionError):
-
             class E(ClassArrangement, descent=F):
                 context_class = SomeOtherContext
 
         CA1().test()
         CA2().test()
 
-    def test_context_type(self, inj_class_arrangement):
-        class CA1(inj_class_arrangement, _TestContextType):
+    def test_context_type(self, class_arrangement_class):
+        class CA1(class_arrangement_class, _TestContextType):
             pass
 
-        class CA2(inj_class_arrangement, _TestContextType, descent=CA1):
+        class CA2(class_arrangement_class, _TestContextType, descent=CA1):
             new_context = True
 
-        CA1().test(inj_class_arrangement)
-        CA2().test(inj_class_arrangement)
+        CA1().test(class_arrangement_class)
+        CA2().test(class_arrangement_class)
 
-    def test_descent(self, inj_class_arrangement):
-        class CA1(inj_class_arrangement):
+    def test_descent(self, class_arrangement_class):
+        class CA1(class_arrangement_class):
             pass
 
         class CA2(CA1):
@@ -79,7 +105,7 @@ class TestClassArrangement:
                 assert self.descent_type is CA2
                 assert self.context is CA1.context
 
-        class CA4(inj_class_arrangement, descent=CA1):
+        class CA4(class_arrangement_class, descent=CA1):
             def test(self):
                 assert self.descent_type is CA1
                 assert self.context is CA2.context
@@ -88,36 +114,36 @@ class TestClassArrangement:
         CA3().test()
         CA4().test()
 
-    def test_new_context(self, inj_class_arrangement):
-        class CA1(inj_class_arrangement):
+    def test_new_context(self, class_arrangement_class):
+        class CA1(class_arrangement_class):
             def test(self):
                 assert self.supercontext is None
 
-        class CA2(inj_class_arrangement, descent=CA1):
+        class CA2(class_arrangement_class, descent=CA1):
             new_context = True
 
             def test(self):
                 assert self.supercontext is CA1.context
                 assert self.context is CA2.context
 
-        class CA3(inj_class_arrangement, descent=CA1):
+        class CA3(class_arrangement_class, descent=CA1):
             new_context = None  # default one
 
             def test(self):
                 assert self.context is CA1.context
 
-        class CA4(inj_class_arrangement, descent=CA3):
+        class CA4(class_arrangement_class, descent=CA3):
             new_context = True
 
             def test(self):
                 assert self.supercontext is CA3.context is CA1.context
                 assert self.context is CA4.context
 
-        class CA5(inj_class_arrangement, descent=CA4):
+        class CA5(class_arrangement_class, descent=CA4):
             def test(self):
                 CA4.test(self)  # type: ignore
 
-        class CA6(inj_class_arrangement, descent=CA5):
+        class CA6(class_arrangement_class, descent=CA5):
             new_context = True
 
             def test(self):
@@ -246,29 +272,29 @@ class TestClassArrangement:
 
 
 class TestArrangement:
-    def test_context_type(self, inj_arrangement):
-        class A1(inj_arrangement, _TestContextType):
+    def test_context_type(self, arrangement_class):
+        class A1(arrangement_class, _TestContextType):
             pass
 
-        class A2(inj_arrangement, _TestContextType, descent=A1):
+        class A2(arrangement_class, _TestContextType, descent=A1):
             new_context = True
 
         a1 = A1()
-        a1.test(inj_arrangement)
-        A2(a1).test(inj_arrangement)  # noqa
+        a1.test(arrangement_class)
+        A2(a1).test(arrangement_class)  # noqa
 
-    def test_new_context(self, inj_arrangement):
-        class A1(inj_arrangement):
+    def test_new_context(self, arrangement_class):
+        class A1(arrangement_class):
             def test(self):
                 assert self.supercontext is None
                 assert not self.has_new_context
 
-        class A2(inj_arrangement, descent=A1):
+        class A2(arrangement_class, descent=A1):
             def test(self):
                 assert self.context is self.descent.context
                 assert not self.has_new_context
 
-        class A3(inj_arrangement, descent=A2):
+        class A3(arrangement_class, descent=A2):
             new_context = True
 
             def test(self):
@@ -278,7 +304,7 @@ class TestArrangement:
                 assert self.context is not self.descent.context
                 assert self.has_new_context
 
-        class A4(inj_arrangement, descent=A3):
+        class A4(arrangement_class, descent=A3):
             def test(self):
                 assert self.supercontext is self.descent.supercontext
                 assert self.context is self.descent.context

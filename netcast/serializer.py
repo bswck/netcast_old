@@ -81,17 +81,15 @@ class Serializer:
             raise TypeError("incomplete data type")
         return factory(dump)
 
-    def __call__(self, *, name=None, default=MISSING, **overridden_settings) -> Serializer:
+    def __call__(
+        self, *, name=None, default=MISSING, **overridden_settings
+    ) -> Serializer:
         if name is None:
             name = self.name
         if default is MISSING:
             default = self.default
         settings = {**self.settings, **overridden_settings}
-        return type(self)(
-            name=name,
-            default=default,
-            **settings
-        )
+        return type(self)(name=name, default=default, **settings)
 
     @property
     def impl(self):
@@ -123,27 +121,23 @@ class Interface(Serializer):  # abc.ABC
         """Return the driver here."""
 
     def get_dependency(
-            self,
-            dependency: _DependencyT,
-            *,
-            name: str | None = None,
-            default: Any = MISSING,
-            **dependency_settings
+        self,
+        dependency: _DependencyT,
+        *,
+        name: str | None = None,
+        default: Any = MISSING,
+        **dependency_settings,
     ) -> _DependencyT:
         dependency_settings = {**self.settings, **dependency_settings}
         if isinstance(dependency, type):
             return dependency(
                 name=name,
                 default=default,
-                **force_compliant_kwargs(dependency, dependency_settings)
+                **force_compliant_kwargs(dependency, dependency_settings),
             )
         return dependency
 
-    def get_impl(
-            self,
-            dependency: _DependencyT,
-            **settings
-    ):
+    def get_impl(self, dependency: _DependencyT, **settings):
         dependency = self.get_dependency(dependency, **settings)
         settings = {**settings, **self.settings, **dependency.settings}
         impl = dependency.impl
@@ -153,7 +147,7 @@ class Interface(Serializer):  # abc.ABC
                 self.driver.lookup(type(dependency)),
                 name=dependency.name,
                 default=dependency.default,
-                **settings
+                **settings,
             ).impl
 
         if impl is NotImplemented:
@@ -167,16 +161,11 @@ class Interface(Serializer):  # abc.ABC
         return impl
 
     def get_dependencies(
-            self,
-            dependencies: tuple[_DependencyT, ...],
-            settings: dict
+        self, dependencies: tuple[_DependencyT, ...], settings: dict
     ) -> Generator[_DependencyT]:
         return (
             self.get_dependency(
-                dependency,
-                name=dependency.name,
-                default=dependency.default,
-                **settings
+                dependency, name=dependency.name, default=dependency.default, **settings
             )
             for dependency in dependencies
         )
