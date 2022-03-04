@@ -82,8 +82,6 @@ class Model:
     descriptor_class = ComponentDescriptor
     descriptor_alias_class = AliasDescriptor
 
-    __taken__: bool
-
     def __init__(
         self,
         name: str | None = None,
@@ -100,6 +98,7 @@ class Model:
             if key in self._descriptors:
                 self[key] = settings.pop(key)
 
+        self.taken: bool = False
         self.settings = settings
 
     @property

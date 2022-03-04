@@ -30,10 +30,10 @@ class ComponentStack:
     ) -> Serializer:
         if settings is None:
             settings = {}
-        if getattr(component, "__taken__", False):
+        if getattr(component, "taken", False):
             return component
         component = component(**settings)
-        component.__taken__ = True
+        component.taken = True
         return component
 
     def transform_component(
@@ -124,7 +124,7 @@ class ComponentStack:
 
     def __del__(self):
         for component in self._components:
-            component.__taken__ = False
+            component.taken = False
         self._components.clear()
 
     def __repr__(self) -> str:

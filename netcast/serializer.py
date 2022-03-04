@@ -24,16 +24,11 @@ class Serializer:
     load_type: ClassVar[Symbol | type] = MISSING
     dump_type: ClassVar[Symbol | type] = MISSING
 
-    name: str | None
-    settings: dict[str, Any]
-    default: Any
-
-    __taken__: bool
-
     def __init__(self, *, name=None, default=MISSING, **settings):
-        self.name = name
-        self.default = default
-        self.settings = settings
+        self.name: str | None = name
+        self.default: Any = default
+        self.settings: dict[str, Any] = settings
+        self.taken: bool = False
 
     def dump(self, load, *, settings: Any = None, **kwargs):
         """
