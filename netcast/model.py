@@ -229,6 +229,7 @@ class Model:
         stack=None,
         from_members=None,
         stack_class=VersionAwareComponentStack,
+        default_name_template="field_%d",
         **settings,
     ):
         if from_members is None:
@@ -266,7 +267,9 @@ class Model:
                 cls.stack.get_matching_components(**settings).items()
             ):
                 if name is None:
-                    name = f"field_{idx}"
+                    name = default_name_template
+                    if "%d" in name:
+                        name %= idx
                 setattr(cls, name, cls.descriptor_class(component))
         cls._descriptors = descriptors
 
