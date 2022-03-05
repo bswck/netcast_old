@@ -31,8 +31,7 @@ class ComponentStack:
         if settings is None:
             settings = {}
         if getattr(component, "taken", False):
-            return component
-        component = component(**settings)
+            component = component(**settings)
         component.taken = True
         return component
 
@@ -44,7 +43,7 @@ class ComponentStack:
             settings = {}
         settings.setdefault("name", default_name)
         if isinstance(component, type) and not issubclass(component, Model):
-            component = component(**settings)
+            component = self.transform_serializer(component(**settings), settings)
         elif isinstance(component, type) and issubclass(component, Model):
             component = self.transform_submodel(component)
         else:

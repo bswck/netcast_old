@@ -11,11 +11,9 @@ from netcast.serializer import Serializer
 from netcast.tools import strings
 from netcast.stack import ComponentStack, VersionAwareComponentStack
 
-if TYPE_CHECKING:
-    from netcast.serializers import ModelSerializer
-
 
 __all__ = (
+    "AliasDescriptor",
     "ComponentDescriptor",
     "ComponentArgumentT",
     "ComponentT",
@@ -262,7 +260,13 @@ class Model:
                 seen[id(component)] = descriptor
             seen.clear()
         else:
-            for name, component in cls.stack.get_matching_components(**settings):
+            for (
+                idx, (name, component)
+            ) in enumerate(
+                cls.stack.get_matching_components(**settings).items()
+            ):
+                if name is None:
+                    name = f"field_{idx}"
                 setattr(cls, name, cls.descriptor_class(component))
         cls._descriptors = descriptors
 
@@ -285,8 +289,8 @@ def model(
     stack: ComponentStack | None = None,
     name: str | None = None,
     model_class: Type[Model] = Model,
+    model_metaclass: Type[Type] = type,
     stack_class: Type[ComponentStack] = VersionAwareComponentStack,
-    serializer: ModelSerializer | None = None,
     **settings,
 ):
     if stack is None:
@@ -295,4 +299,4 @@ def model(
         stack.add(component, settings=settings)
     if name is None:
         name = "model_" + str(id(stack))
-    return type(name, (model_class,), {}, stack=stack, serializer=serializer)
+    return model_metaclass(name, (model_class,), {}, stack=stack, **settings)
