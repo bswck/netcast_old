@@ -40,7 +40,7 @@ def onefold_combined_getattr(obj, combined_attr, default=MISSING):
     if match is None:
         raise ValueError("invalid sole combined getattr attribute indicator")
     attr, item = match.group("attr"), match.groupdict().get("item")
-    accessed_attr = getattr(obj, attr, default)
+    accessed_attr = getattr(obj, attr)
     if item:
         if item.startswith('"') or item.startswith("'"):
             item = item[1:-1]

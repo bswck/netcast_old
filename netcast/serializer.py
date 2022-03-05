@@ -86,6 +86,13 @@ class Serializer:
         settings = {**self.settings, **overridden_settings}
         return type(self)(name=name, default=default, **settings)
 
+    def __repr__(self) -> str:
+        return (
+            f"<{'' if self.default is MISSING else 'default '}{type(self).__name__}"
+            f"{'' if self.name is None else ' ' + repr(self.name)} (settings -> {self.settings})"
+            ">"
+        )
+
     @property
     def impl(self):
         return NotImplemented

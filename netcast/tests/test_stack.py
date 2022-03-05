@@ -63,3 +63,52 @@ class TestComponentStack:
         offset = random.randint(0, stack.size - 1)
         stack.insert(offset, mock)
         assert stack.get(offset) is mock
+
+
+class TestVersionAwareComponentStack:
+    def duplex_factory(
+            self,
+            serializer,
+            version_added=None,
+            version_removed=None
+    ):
+        stack = VersionAwareComponentStack()
+        serializer_settings = {
+            stack.since_version_field: version_added,
+            stack.until_version_field: version_removed
+        }
+        component = serializer(**serializer_settings)
+        stack.add(component)
+        return stack, component
+
+    @pytest.mark.parametrize(
+        "compatible_version, incompatible_version, version_added, version_removed",
+        [
+            (1, 0, 1, None),
+            (0, 1, None, 1),
+            (2, 1, 1.5, 2.5),
+            ("c", "f", "b", "e"),
+            ((1, "alpha"), (2, "alpha"), (1, "alpha"), (1, "beta"))
+        ]
+    )
+    def test(
+            self,
+            serializer,
+            compatible_version,
+            incompatible_version,
+            version_added,
+            version_removed,
+    ):
+        stack, component = self.duplex_factory(
+            serializer=serializer,
+            version_added=version_added,
+            version_removed=version_removed
+        )
+        settings = {stack.settings_version_field: compatible_version}
+
+        assert stack.predicate(component, settings=settings)
+        assert stack.get(settings=settings) is not None
+
+        settings[stack.settings_version_field] = incompatible_version
+        assert not stack.predicate(component, settings=settings)
+        assert stack.get(settings=settings) is None

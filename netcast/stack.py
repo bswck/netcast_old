@@ -137,8 +137,6 @@ class FilteredComponentStack(ComponentStack):
         return True
 
     def get(self, index=-1, settings=None):
-        if settings is None:
-            settings = {}
         component = super().get(index, settings)
         if component is None:
             return component
@@ -150,18 +148,19 @@ class FilteredComponentStack(ComponentStack):
 class VersionAwareComponentStack(FilteredComponentStack):
     """
     A very simple and basic versioning layer.  `foo = Int64(version_added=1, version_removed=5)`
-    will inform the model to include `foo` component only if `1 <= <version> <= 5`.
+    will inform the model to include `foo` component only if `1 <= <version> < 5`.
     """
 
     def __init__(
         self,
         *,
         settings_version_field="version",
-        since_field="settings[version_added]",
-        until_field="settings[version_removed]",
+        since_field="version_added",
+        until_field="version_removed",
         default_version=GREATEST,
         default_since_version=LEAST,
         default_until_version=GREATEST,
+        versioning_namespace="settings"
     ):
         super().__init__()
         self.settings_version_field = settings_version_field
@@ -170,17 +169,29 @@ class VersionAwareComponentStack(FilteredComponentStack):
         self.default_version = default_version
         self.default_since_version = default_since_version
         self.default_until_version = default_until_version
+        if versioning_namespace is None:
+            versioning_namespace = ""
+        self.versioning_namespace = versioning_namespace
 
     def predicate_version(self, component, settings):
+        if settings is None:
+            settings = {}
         version = settings.get(self.settings_version_field, self.default_version)
-        since_version = combined_getattr(
-            component, self.since_version_field, self.default_since_version
-        )
-        until_version = combined_getattr(
-            component, self.until_version_field, self.default_until_version
-        )
-        introduced = since_version <= version
-        up_to_date = until_version >= version
+        since_version_field = f"{self.versioning_namespace}[{self.since_version_field}]"
+        until_version_field = f"{self.versioning_namespace}[{self.until_version_field}]"
+        if not self.versioning_namespace:
+            since_version_field = since_version_field[1:-1]
+            until_version_field = until_version_field[1:-1]
+        default_since_version = self.default_since_version
+        default_until_version = self.default_until_version
+        version_added = combined_getattr(component, since_version_field, default_since_version)
+        if version_added is None:
+            version_added = default_since_version
+        version_removed = combined_getattr(component, until_version_field, default_until_version)
+        if version_removed is None:
+            version_removed = default_until_version
+        introduced = version_added <= version
+        up_to_date = version_removed > version
         return introduced and up_to_date
 
     def predicate(self, component, settings):
