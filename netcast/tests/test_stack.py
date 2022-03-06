@@ -3,7 +3,7 @@ from typing import Type
 
 import pytest
 
-from netcast.stack import ComponentStack, FilteredComponentStack, VersionAwareComponentStack
+from netcast.stack import Stack, SelectiveStack, VersionAwareStack
 from netcast.serializers import FloatingPoint, Integer, String
 
 
@@ -20,18 +20,18 @@ def serializer(serializer_class):
     return serializer_class()
 
 
-@pytest.fixture(params=(ComponentStack, FilteredComponentStack, VersionAwareComponentStack))
-def stack_class(request) -> Type[ComponentStack]:
+@pytest.fixture(params=(Stack, SelectiveStack, VersionAwareStack))
+def stack_class(request) -> Type[Stack]:
     return request.param
 
 
 @pytest.fixture
-def stack(stack_class) -> ComponentStack:
+def stack(stack_class) -> Stack:
     return stack_class()
 
 
-class TestComponentStack:
-    """Generic, abstract test for all valid component stack implementations."""
+class TestStack:
+    """Generic, abstract test that must succeed for all valid component stack implementations."""
 
     def test_init(self, stack_class):
         assert stack_class()
@@ -65,14 +65,14 @@ class TestComponentStack:
         assert stack.get(offset) is mock
 
 
-class TestVersionAwareComponentStack:
+class TestVersionAwareStack:
     def duplex_factory(
             self,
             serializer,
             version_added=None,
             version_removed=None
     ):
-        stack = VersionAwareComponentStack()
+        stack = VersionAwareStack()
         serializer_settings = {
             stack.since_version_field: version_added,
             stack.until_version_field: version_removed

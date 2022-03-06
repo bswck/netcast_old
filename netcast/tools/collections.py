@@ -1,13 +1,18 @@
 from __future__ import annotations  # Python 3.8
 
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, TypeVar, runtime_checkable
 
-from jaraco.collections import (
-    KeyTransformingDict as _KeyTransformingDict,
-    ItemsAsAttributes,
-)
+from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
 
 from netcast.constants import MISSING
+
+
+@runtime_checkable
+class Comparable(Protocol):
+    def __lt__(self: _ComparableT, other: _ComparableT) -> bool | NotImplemented: ...
+
+
+_ComparableT = TypeVar("_ComparableT", bound=Comparable)
 
 
 class KeyTransformingDict(_KeyTransformingDict):
@@ -44,7 +49,7 @@ class IDLookupDictionary(KeyTransformingDict):
 class AttributeDict(dict, ItemsAsAttributes):
     """A modern dictionary with attribute-as-item access."""
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: Any):
         """self[key] = value, but via attribute setting"""
         self.__setitem__(key, value)
 
@@ -114,20 +119,20 @@ parameters = ParameterContainer.from_call
 
 
 class ForwardDependency:
-    def __init__(self, dependent_class=None, unbound=None):
+    def __init__(self, dependent_class: type | None = None, unbound: bool | None = None):
         self.__dependent_class = None
         self.__cache = IDLookupDictionary()
         self.__unbound = unbound
 
         self.dependency(dependent_class)
 
-    def dependency(self, dependent_class=None):
+    def dependency(self, dependent_class: type | None = None):
         if self.__dependent_class is not None:
             raise TypeError("dynamic dependency already bound")
         self.__dependent_class = dependent_class
         return dependent_class
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Any, owner: type | None):
         if instance is None:
             return self
         if instance not in self.__cache:
@@ -147,7 +152,7 @@ class ForwardDependency:
 
 
 class ClassProperty(classmethod):
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance: Any, owner: type | None = None):
         if instance is None:
             cls = owner
         else:

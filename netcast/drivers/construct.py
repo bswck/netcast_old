@@ -26,7 +26,7 @@ class Interface(nc.Interface):
 
 
 class Integer(Interface):
-    __netcast_origin__ = nc.Integer
+    nc_origin = nc.Integer
 
     def __init__(self, name=None, **settings):
         super().__init__(name=name, **settings)
@@ -85,11 +85,11 @@ class Integer(Interface):
 
 
 class FloatingPoint(Interface):
-    __netcast_origin__ = nc.FloatingPoint
+    nc_origin = nc.FloatingPoint
 
 
 class Sequence(Interface):
-    __netcast_origin__ = nc.ModelSerializer
+    nc_origin = nc.ModelSerializer
 
     def __init__(self, *fields, name=None, **settings):
         super().__init__(name=name, **settings)
@@ -97,7 +97,7 @@ class Sequence(Interface):
 
 
 class Array(Interface):
-    __netcast_origin__ = nc.ModelSerializer
+    nc_origin = nc.ModelSerializer
 
     def __init__(self, data_type, *, name=None, **settings):
         super().__init__(name=name, **settings)
@@ -136,7 +136,7 @@ class Array(Interface):
 
 
 class Struct(Interface):
-    __netcast_origin__ = nc.ModelSerializer
+    nc_origin = nc.ModelSerializer
 
     def __init__(self, *fields, name=None, **settings):
         super().__init__(name=name, **settings)
@@ -153,14 +153,12 @@ class Struct(Interface):
 
 
 class ConstructDriver(nc.Driver):
-    IntegerInterface = nc.interface(Integer)
-    FloatingPointInterface = nc.interface(FloatingPoint)
     SequenceInterface = nc.interface(Sequence)
     ArrayInterface = nc.interface(Array)
     StructInterface = nc.interface(Struct)
 
-    Integer = IntegerInterface(nc.Integer)
-    FloatingPoint = FloatingPointInterface(nc.FloatingPoint)
+    Integer = Integer
+    FloatingPoint = FloatingPoint
 
     ListSequence = SequenceInterface(nc.List)
     TupleSequence = SequenceInterface(nc.Tuple)

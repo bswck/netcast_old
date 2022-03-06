@@ -27,8 +27,10 @@ def truncate(
     if stats is None:
         stats = ""
     if stats:
-        if "%d" in stats:
+        try:
             stats %= truncated
+        except TypeError:
+            pass
         if truncated:
             string += stats
     return string
@@ -37,17 +39,19 @@ def truncate(
 if sys.version_info[:2] >= (3, 10):
     remove_prefix = str.removeprefix
     remove_suffix = str.removesuffix
-else:
 
-    def remove_prefix(string, prefix):
+else:
+    def remove_prefix(string: str, prefix: str) -> str:
         if string.startswith(prefix):
             return string[len(prefix) :]
         return string[:]
 
-    def remove_suffix(string, suffix):
+
+    def remove_suffix(string: str, suffix: str) -> str:
         if string.startswith(suffix):
             return string[: -len(suffix)]
         return string[:]
 
-    def trim(string, end):
-        return remove_suffix(remove_prefix(string, end), end)
+
+def trim(string: str, end: str) -> str:
+    return remove_suffix(remove_prefix(string, end), end)

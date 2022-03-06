@@ -1,7 +1,7 @@
 from __future__ import annotations  # Python 3.8
 
 import functools
-from typing import Type
+from typing import Type, Any, Mapping
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
@@ -88,7 +88,23 @@ __all__ = (
 )
 
 
-class Simple(Serializer):
+class Object(Serializer):
+    """Base class for all objects."""
+
+    def __class_getitem__(cls, size):
+        from netcast import model
+        name = cls.__name__
+        components = (cls(name=f"{name}_{i}") for i in range(size))
+        return model(*components, name=name)
+
+    def __getitem__(self, size):
+        from netcast import model
+        name = self.name
+        components = (self(name=f"{name}_{i}") for i in range(size))
+        return model(*components, name=name)
+
+
+class Simple(Object):
     """Base class for all primitive types."""
 
 
@@ -113,7 +129,7 @@ class FloatingPoint(Number):
     load_type = float
 
 
-class ModelSerializer(Serializer):
+class ModelSerializer(Object):
     """Base class for all types storing models states."""
 
 
@@ -135,7 +151,7 @@ class SimpleNamespace(Dict):
     load_type = SimpleNamespaceType
 
     @functools.singledispatchmethod
-    def load_type_factory(self, mapping):
+    def load_type_factory(self, mapping: Mapping):
         return self.load_type(**mapping)
 
 
@@ -143,7 +159,7 @@ class Sequence(ModelSerializer):
     """Base class for all sequences."""
 
     @functools.singledispatchmethod
-    def load_type_factory(self, obj):
+    def load_type_factory(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type(obj.values())
         return self.load_type(obj)
@@ -179,7 +195,7 @@ class String(Sequence):
     load_type = str
 
     @functools.singledispatchmethod
-    def load_type_factory(self, obj):
+    def load_type_factory(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type().join(obj.values())
         return self.load_type(obj)

@@ -1,61 +1,39 @@
 from __future__ import annotations
 
+import string
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 from netcast import GREATEST, LEAST
+from netcast.tools.collections import Comparable
 from netcast.tools.inspection import combined_getattr
-from netcast.serializer import Serializer
-
+from netcast.serializer import Serializer, SettingsT
 
 if TYPE_CHECKING:
     from netcast.model import Model, ComponentArgumentT, ComponentT
 
 
-__all__ = ("ComponentStack", "FilteredComponentStack", "VersionAwareComponentStack")
+__all__ = ("Stack", "SelectiveStack", "VersionAwareStack")
 
 
-class ComponentStack:
-    def __init__(self):
+class Stack:
+    def __init__(
+            self,
+            name: str | None = None,
+            default_name_template: str | string.Template = "unnamed_%(index)d",
+    ):
+        if name is None:
+            name = f"{type(self).__name__.casefold()}_{id(self)}"
+        self.name = name
+        self.default_name_template = default_name_template
         self._components = []
         self._lock = threading.RLock()
-
-    @classmethod
-    def transform_submodel(cls, submodel) -> Model:
-        return submodel
-
-    @classmethod
-    def transform_serializer(
-        cls, component: Serializer, settings: dict | None = None
-    ) -> Serializer:
-        if settings is None:
-            settings = {}
-        if getattr(component, "taken", False):
-            component = component(**settings)
-        component.taken = True
-        return component
-
-    def transform_component(
-        self, component: ComponentArgumentT, *, settings=None, default_name=None
-    ) -> ComponentT | None:
-        from netcast.model import Model
-        if settings is None:
-            settings = {}
-        settings.setdefault("name", default_name)
-        if isinstance(component, type) and not issubclass(component, Model):
-            component = self.transform_serializer(component(**settings), settings)
-        elif isinstance(component, type) and issubclass(component, Model):
-            component = self.transform_submodel(component)
-        else:
-            assert isinstance(component, Serializer)
-            component = self.transform_serializer(component, settings)
-        return component
 
     def add(
         self,
         component: ComponentArgumentT,
         *,
-        settings: dict | None = None,
+        settings: SettingsT = None,
         default_name: str | None = None,
     ):
         """Push with transform."""
@@ -84,16 +62,33 @@ class ComponentStack:
 
     def push(self, component: ComponentT):
         self._lock.acquire()
+        if component.name is None:
+            fmt = {"name": self.name, "index": len(self._components)}
+            template = self.default_name_template
+            if isinstance(template, str):
+                name = template % fmt  # may raise a KeyError
+            elif isinstance(template, string.Template):
+                name = template.substitute(fmt)  # may raise a KeyError
+            else:
+                raise TypeError(f"cannot format type {type(template).__name__}")
+            component.name = name
         self._components.append(component)
         self._lock.release()
 
-    def pop(self, index: int = -1) -> ComponentT | None:
+    def pop(
+            self,
+            index: int = -1
+    ) -> ComponentT | None:
         self._lock.acquire()
         obj = self._components.pop(index)
         self._lock.release()
         return obj
 
-    def get(self, index: int = -1, settings: dict | None = None) -> ComponentT | None:
+    def get(
+            self,
+            index: int = -1,
+            settings: SettingsT = None
+    ) -> ComponentT | None:
         self._lock.acquire()
         try:
             obj = self._components[index]
@@ -111,19 +106,58 @@ class ComponentStack:
     def size(self) -> int:
         return len(self._components)
 
-    def get_matching_components(self, settings=None) -> dict[str, ComponentT]:
+    def get_related_components(
+            self,
+            settings: SettingsT = None
+    ) -> dict[str, ComponentT]:
         if settings is None:
             settings = {}
-        matched = {}
+        related = {}
         for idx in range(self.size):
             component = self.get(idx, settings)
             if component is not None:
-                matched[component.name] = component
-        return matched
+                related[component.name] = component
+        return related
+
+    @classmethod
+    def transform_submodel(cls, submodel: Type[Model]) -> Type[Model]:
+        return submodel
+
+    @classmethod
+    def transform_serializer(
+            cls,
+            component: Serializer,
+            settings: SettingsT = None
+    ) -> Serializer:
+        if settings is None:
+            settings = {}
+        if getattr(component, "contained", False):
+            component = component(**settings)
+        component.contained = True
+        return component
+
+    def transform_component(
+            self,
+            component: ComponentArgumentT, *,
+            settings: SettingsT = None,
+            default_name: str | None = None
+    ) -> ComponentT | None:
+        from netcast.model import Model
+        if settings is None:
+            settings = {}
+        settings.setdefault("name", default_name)
+        if isinstance(component, type) and not issubclass(component, Model):
+            component = self.transform_serializer(component(**settings), settings)
+        elif isinstance(component, type) and issubclass(component, Model):
+            component = self.transform_submodel(component)
+        else:
+            assert isinstance(component, Serializer)
+            component = self.transform_serializer(component, settings)
+        return component
 
     def __del__(self):
         for component in self._components:
-            component.taken = False
+            component.contained = False
         self._components.clear()
 
     def __repr__(self) -> str:
@@ -131,11 +165,11 @@ class ComponentStack:
         return f"<{name} {self._components}>"
 
 
-class FilteredComponentStack(ComponentStack):
-    def predicate(self, component, settings):
+class SelectiveStack(Stack):
+    def predicate(self, component, settings: SettingsT):
         return True
 
-    def get(self, index=-1, settings=None):
+    def get(self, index: int = -1, settings: SettingsT = None):
         component = super().get(index, settings)
         if component is None:
             return component
@@ -144,7 +178,7 @@ class FilteredComponentStack(ComponentStack):
         return component
 
 
-class VersionAwareComponentStack(FilteredComponentStack):
+class VersionAwareStack(SelectiveStack):
     """
     A very simple and basic versioning layer.  `foo = Int64(version_added=1, version_removed=5)`
     will inform the model to include `foo` component only if `1 <= <version> < 5`.
@@ -153,13 +187,13 @@ class VersionAwareComponentStack(FilteredComponentStack):
     def __init__(
         self,
         *,
-        settings_version_field="version",
-        since_field="version_added",
-        until_field="version_removed",
-        default_version=GREATEST,
-        default_since_version=LEAST,
-        default_until_version=GREATEST,
-        versioning_namespace="settings"
+        settings_version_field: str = "version",
+        since_field: str = "version_added",
+        until_field: str = "version_removed",
+        default_version: Comparable = GREATEST,
+        default_since_version: Comparable = LEAST,
+        default_until_version: Comparable = GREATEST,
+        versioning_namespace: str | None = "settings"
     ):
         super().__init__()
         self.settings_version_field = settings_version_field
@@ -172,7 +206,7 @@ class VersionAwareComponentStack(FilteredComponentStack):
             versioning_namespace = ""
         self.versioning_namespace = versioning_namespace
 
-    def predicate_version(self, component, settings):
+    def predicate_version(self, component: ComponentT, settings: SettingsT):
         if settings is None:
             settings = {}
         version = settings.get(self.settings_version_field, self.default_version)
@@ -193,5 +227,5 @@ class VersionAwareComponentStack(FilteredComponentStack):
         up_to_date = version_removed > version
         return introduced and up_to_date
 
-    def predicate(self, component, settings):
+    def predicate(self, component: ComponentT, settings: SettingsT):
         return self.predicate_version(component, settings)

@@ -3,12 +3,11 @@ from __future__ import annotations  # Python 3.8
 import functools
 import inspect
 import sys
-from typing import ClassVar, Type, TypeVar, TYPE_CHECKING
+from typing import ClassVar, Type, TypeVar, TYPE_CHECKING, Any
 
 from netcast import serializers
 from netcast.exceptions import NetcastError
-from netcast.serializer import Serializer
-
+from netcast.serializer import Serializer, SettingsT
 
 if TYPE_CHECKING:
     from netcast.serializers import ModelSerializer
@@ -17,22 +16,30 @@ if TYPE_CHECKING:
 
 __all__ = ("Driver", "DriverMeta", "serializer", "interface")
 
-ORIGIN_FIELD = "__netcast_origin__"
+ORIGIN_FIELD = "nc_origin"
 
 
 _M = TypeVar("_M", bound="Model")
 
 
 class DriverMeta(type):
-    @functools.singledispatchmethod
-    def get_model_serializer(cls, model_serializer, /, components=(), settings=None):
+    def _get_model_serializer(
+            cls,
+            model_serializer: Type[ModelSerializer], /,
+            components: tuple[Any, ...] = (),
+            settings: SettingsT = None
+    ) -> ModelSerializer:
         if settings is None:
             settings = {}
         if model_serializer is None:
             model_serializer = cls.default_model_serializer
         return model_serializer(*components, **settings)
 
-    def lookup(cls, serializer_type):
+    # Manual decoration due to some type-checking problems.
+    # To be checked in detail.
+    get_model_serializer = functools.singledispatchmethod(_get_model_serializer)
+
+    def lookup(cls, serializer_type: type[Serializer]):
         try:
             return cls._lookup_dict[serializer_type]
         except KeyError:
@@ -61,8 +68,9 @@ class Driver(metaclass=DriverMeta):
     _lookup_dict: ClassVar[dict[Type[Serializer], Type[Serializer]]]
 
     default_model_serializer = None
+    DEBUG: ClassVar[bool]
 
-    def __init_subclass__(cls, driver_name=None, config=False):
+    def __init_subclass__(cls, driver_name: str | None = None, config: bool = False):
         if config:
             return
 
@@ -82,7 +90,7 @@ class Driver(metaclass=DriverMeta):
         cls.DEBUG = __debug__
 
     @staticmethod
-    def _conjure_driver_name(stack_level=1):
+    def _conjure_driver_name(stack_level: int = 1):
         f_globals = inspect.stack()[stack_level][0].f_globals
         driver_name = f_globals.get("DRIVER_NAME", f_globals.get("__name__"))
         if driver_name is None:
@@ -90,16 +98,20 @@ class Driver(metaclass=DriverMeta):
         return sys.intern(driver_name)
 
     @classmethod
-    def register(cls, member):
-        link_to = getattr(member, "__netcast_origin__", member.__base__)
+    def register(cls, member: type):
+        link_to = getattr(member, "nc_origin", member.__base__)
         cls._lookup_dict[link_to] = member
 
 
-def _is_impl(member):
+def _is_impl(member: Any):
     return isinstance(member, type) and issubclass(member, Serializer)
 
 
-def serializer(interface_class, serializer_class=None, origin=None):
+def serializer(
+        interface_class: type,
+        serializer_class: type | None = None,
+        origin: type | None = None
+):
     if serializer_class is None:
         raise NetcastError("no serializer has been set on this adapter")
     impl = type(
@@ -110,7 +122,10 @@ def serializer(interface_class, serializer_class=None, origin=None):
     return impl
 
 
-def interface(interface_class, origin=None):
+def interface(
+        interface_class: type,
+        origin: type | None = None
+):
     if origin is None:
         origin = getattr(interface_class, ORIGIN_FIELD, None)
     return functools.partial(serializer, interface_class, origin=origin)
