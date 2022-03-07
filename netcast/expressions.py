@@ -5,9 +5,15 @@ import functools
 import operator
 from typing import Any, Callable, Union
 
-from jaraco.collections import BijectiveMap
+try:
+    import numpy
+except ImportError:
+    NUMPY = False
+else:
+    NUMPY = True
 
 from netcast import ComponentT
+
 
 
 class EvaluationOrder(enum.IntFlag):
@@ -73,8 +79,8 @@ class Expression:
 class DelegateExpression(Expression):
     op_func: _DelegateT
     iop_func: _DelegateT
-    rop_func: _DelegateT
-    irop_func: _DelegateT
+    oprev_func: _DelegateT
+    ioprev_func: _DelegateT
 
     def __init__(
         self,
@@ -85,7 +91,7 @@ class DelegateExpression(Expression):
         super().__init__(component, evaluation_order)
         self.inplace = inplace
 
-    def eval_reduce_func(self, *operands) -> Any:
+    def cumulative_eval_func(self, *operands) -> Any:
         """Compute op(...(op(numbers[0], numbers[1])), numbers[len(numbers) - 1])"""
         op_func = self.op_func
         if self.inplace:
@@ -93,8 +99,16 @@ class DelegateExpression(Expression):
         return functools.reduce(op_func, operands)
 
     def eval_func(self, *operands) -> Any:
-        return self.eval_reduce_func(*operands)
+        return self.cumulative_eval_func(*operands)
 
+    def revert_func(self, *operands):
+        if self.inplace:
+            oprev_func = getattr(self, "ioprev_func", None)
+        else:
+            oprev_func = getattr(self, "oprev_func", None)
+        if oprev_func is None:
+            raise NotImplementedError
+        return functools.reduce(oprev_func, operands)
 
 _DelegateT = Union[Callable[[Any, Any], Any], Callable[[DelegateExpression, Any, Any], Any]]
 
@@ -117,87 +131,79 @@ def _revert_divmod(a, b):
     return n * b + r
 
 
-# Reversible operations
-OP_REVERSE_MAP = dict(BijectiveMap({
-    operator.add: operator.sub,
-    operator.iadd: operator.isub,
-    operator.mul: operator.truediv,
-    operator.imul: operator.itruediv,
-    operator.pow: _revert_pow,
-    operator.ipow: _irevert_pow,
-    divmod: _revert_divmod,
-}))
-
-# Reversible with loss
-OP_REVERSE_MAP[operator.floordiv] = operator.mul
-
-# Irreversible operations
-OP_REVERSE_MAP[operator.and_] = _null_delegate
-OP_REVERSE_MAP[operator.iand] = _null_delegate
-
-OP_REVERSE_MAP[operator.or_] = _null_delegate
-OP_REVERSE_MAP[operator.ior] = _null_delegate
-
-OP_REVERSE_MAP[operator.mod] = _null_delegate
-OP_REVERSE_MAP[operator.imod] = _null_delegate
-
-
 class Add(DelegateExpression):
     """Addition expression."""
     op_func = operator.add
     iop_func = operator.iadd
+    oprev_func = operator.sub
+    ioprev_func = operator.isub
 
     def eval_func(self, *operands) -> Any:
         if not self.inplace:
             return sum(*operands)
-        return self.eval_reduce_func(*operands)
+        return self.cumulative_eval_func(*operands)
 
 
 class Concat(DelegateExpression):
     """Concatenation expression."""
     op_func = operator.concat
     iop_func = operator.iconcat
+    oprev_func = _null_delegate
+    ioprev_func = _null_delegate
 
 
 class Subtract(DelegateExpression):
     """Subtraction expression."""
     op_func = operator.sub
     iop_func = operator.isub
+    oprev_func = operator.add
+    ioprev_func = operator.iadd
 
 
 class Multiply(DelegateExpression):
     """Multiplication expression."""
     op_func = operator.mul
     iop_func = operator.imul
+    oprev_func = operator.truediv
+    ioprev_func = operator.itruediv
 
 
 class Divide(DelegateExpression):
     """Division expression."""
     op_func = operator.truediv
     iop_func = operator.itruediv
+    oprev_func = operator.mul
+    ioprev_func = operator.imul
 
 
 class FloorDivide(DelegateExpression):
     """Floor division expression."""
     op_func = operator.floordiv
     iop_func = operator.ifloordiv
+    oprev_func = operator.mul
+    ioprev_func = operator.imul
 
 
 class LShift(DelegateExpression):
     """Shift left (a << b) expression."""
     op_func = operator.lshift
     iop_func = operator.ilshift
+    oprev_func = operator.rshift
+    ioprev_func = operator.irshift
 
 
 class RShift(DelegateExpression):
     """Shift right (a >> b) expression."""
     op_func = operator.rshift
     iop_func = operator.irshift
+    oprev_func = operator.lshift
+    ioprev_func = operator.ilshift
 
 
 class MatMultiply(DelegateExpression):
     """Matrix multiplication (a @ b) expression."""
     op_func = operator.rshift
     iop_func = operator.irshift
-
-
+    # TODO: matrix division?
+    if NUMPY:
+        oprev_func = ioprev_func = numpy.divide
