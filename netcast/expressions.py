@@ -5,6 +5,7 @@ import operator
 from typing import Any, Callable, Union, Literal, TYPE_CHECKING
 
 from netcast.constants import MISSING
+from netcast.tools import strings
 
 try:
     # noinspection PyUnresolvedReferences
@@ -65,6 +66,10 @@ POSTRECOV = POST_LOAD_RECOVER = EvaluationFlags.POST_LOAD_RECOVER
 class ExpressionOpsMeta(type):
     def __add__(cls, other): return Add(cls, other)
     def __radd__(cls, other): return Add(other, cls)
+    def concat(cls, other): return Concatenate(cls, other)
+    with_suffix = concat
+    def concat_left(cls, other): return ConcatenateLeft(cls, other)
+    with_prefix = concat_left
     def __sub__(cls, other): return Subtract(cls, other)
     def __rsub__(cls, other): return Subtract(other, cls)
     def __mul__(cls, other): return Multiply(cls, other)
@@ -102,12 +107,16 @@ class ExpressionOpsMeta(type):
     get = getitem
     def getattr(cls, other): return GetAttr(cls, other)
     def call(cls, other): return Call(cls, other)
-    def rcall(cls, other): return Call(other, cls)
+    def called_by(cls, other): return Call(other, cls)
 
 
 class ExpressionOps:
     def __add__(self, other): return Add(self, other)
     def __radd__(self, other): return Add(other, self)
+    def concat(self, other): return Concatenate(self, other)
+    with_suffix = concat
+    def concat_left(self, other): return ConcatenateLeft(self, other)
+    with_prefix = concat_left
     def __sub__(self, other): return Subtract(self, other)
     def __rsub__(self, other): return Subtract(other, self)
     def __mul__(self, other): return Multiply(self, other)
@@ -145,7 +154,7 @@ class ExpressionOps:
     get = getitem
     def getattr(self, other): return GetAttr(self, other)
     def call(self, other): return Call(self, other)
-    def rcall(self, other): return Call(other, self)
+    def called_by(self, other): return Call(other, self)
 
 
 class Expression(ExpressionOps):
@@ -336,11 +345,18 @@ class Add(Expression):
     iopback_func = staticmethod(operator.isub)
 
 
-class Concat(Expression):
+class Concatenate(Expression):
     """Concatenation expression."""
     op_func = staticmethod(operator.concat)
     iop_func = staticmethod(operator.iconcat)
-    opback_func = staticmethod(_left)
+    opback_func = staticmethod(strings.remove_suffix)
+
+
+class ConcatenateLeft(Expression):
+    """Left concatenation expression."""
+    op_func = staticmethod(operator.concat)
+    iop_func = staticmethod(operator.iconcat)
+    opback_func = staticmethod(strings.remove_prefix)
 
 
 class Subtract(Expression):
