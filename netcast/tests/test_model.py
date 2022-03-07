@@ -10,7 +10,7 @@ class TestModel:
         assert Foo().name == Foo.__name__
         assert isinstance(Foo.abc, nc.ComponentDescriptor)
         assert isinstance(Foo.bar, nc.ComponentDescriptor)
-        assert isinstance(Foo.alias, nc.AliasDescriptor)
+        assert isinstance(Foo.alias, nc.ProxyDescriptor)
         assert Foo.bar.contained
         assert Foo.stack.size == 2
 
@@ -20,7 +20,7 @@ class TestModel:
         assert Foo().name == Foo.__name__
         assert isinstance(Foo.abc, nc.ComponentDescriptor)
         assert isinstance(Foo.bar, nc.ComponentDescriptor)
-        assert isinstance(Foo.alias, nc.AliasDescriptor)
+        assert isinstance(Foo.alias, nc.ProxyDescriptor)
         assert Foo.bar.contained
         assert Foo.stack.size == 2
 

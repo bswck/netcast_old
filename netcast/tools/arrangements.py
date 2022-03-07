@@ -141,8 +141,8 @@ class _BaseArrangement:
 
     new_context: bool | None = None
     """
-    Indicates whether to inherit the context directly from the superclass
-    or create a new context for this class and mark the upper as a supercontext.
+    Indicates whether to create a new context for this class and mark the upper as a supercontext
+    or inherit the context directly from the superclass.
 
     Defaults to False.
     """
@@ -526,7 +526,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         if validate_type and descent is not None and expected_type is not None:
             if not isinstance(descent, expected_type):
                 raise ArrangementTypeError(
-                    "passed descent's type " "and the fixed descent type are not equal"
+                    "passed descent's type and the fixed descent type are not equal"
                 )
 
         return descent
@@ -538,7 +538,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         if descent is not None and not new_context:
             context = contexts.get(descent)
             if context is None:
-                context = descent.get_context()[descent]
+                context = descent._get_context()[descent]
             contexts[self] = context
 
         elif descent is not None:
@@ -580,7 +580,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         )
         return self
 
-    def setup_context(self, context: ContextT) -> Generator[ContextT]:
+    def setup_context(self, context: ContextT) -> ContextT:
         return context
 
     @classmethod
@@ -632,7 +632,7 @@ AliasTypeT = Literal["static", "dynamic"]
 
 def context_alias(
     kind: AliasTypeT = "static",
-) -> ClassVar[property] | DynamicContextAlias:
+) -> Context:
     alias = None
     if kind == "static":
         alias = Arrangement.context
@@ -640,7 +640,7 @@ def context_alias(
         alias = DynamicContextAlias()
     if alias is None:
         raise ValueError("invalid context alias kind")
-    return alias
+    return alias  # type: ignore
 
 
 def create_context(

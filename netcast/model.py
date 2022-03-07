@@ -12,7 +12,7 @@ from netcast.stack import Stack, VersionAwareStack
 
 
 __all__ = (
-    "AliasDescriptor",
+    "ProxyDescriptor",
     "ComponentDescriptor",
     "ComponentArgumentT",
     "ComponentT",
@@ -32,45 +32,45 @@ class _BaseDescriptor:
 class ComponentDescriptor(_BaseDescriptor):
     def __init__(self, component: ComponentT):
         self.component = component
-        self._value = MISSING
-        self.aliases = []
+        self.proxies = []
+        self._state = MISSING
 
     @property
-    def value(self):
-        return self._value
+    def state(self):
+        return self._state
 
     def __get__(self, instance: Model | None, owner: Type[Model] | None):
         if instance is None:
             return self
-        return self.value
+        return self.state
 
-    def __set__(self, instance: Model | None, value: Any):
-        self._value = value
+    def __set__(self, instance: Model | None, new_state: Any):
+        self._state = new_state
 
-    def __call__(self, value):
-        self.__set__(None, value)
-        return value
+    def __call__(self, state):
+        self.__set__(None, state)
+        return state
 
 
-class AliasDescriptor(_BaseDescriptor):
-    def __init__(self, referred_to: ComponentDescriptor):
-        self.reference = referred_to
+class ProxyDescriptor(_BaseDescriptor):
+    def __init__(self, ancestor: ComponentDescriptor):
+        self.ancestor = ancestor
 
     @property
     def component(self) -> ComponentT:
-        return self.reference.component
+        return self.ancestor.component
 
     def __get__(self, instance: Model | None, owner: Type[Model] | None):
         if instance is None:
             return self
-        return self.value
+        return self.state
 
-    def __set__(self, instance: Model | None, value: Any):
-        self.component.__set__(instance, value)
+    def __set__(self, instance: Model | None, new_state: Any):
+        self.component.__set__(instance, new_state)
 
-    def __call__(self, value: Any) -> Any:
-        self.__set__(None, value)
-        return value
+    def __call__(self, new_state: Any) -> Any:
+        self.__set__(None, new_state)
+        return new_state
 
 
 @functools.total_ordering
@@ -78,7 +78,7 @@ class Model:
     stack: ClassVar[Stack]
     settings: ClassVar[dict[str, Any]]
     descriptor_class = ComponentDescriptor
-    descriptor_alias_class = AliasDescriptor
+    descriptor_alias_class = ProxyDescriptor
     name: str
 
     def __init__(
@@ -87,6 +87,8 @@ class Model:
         defaults: dict[str, Any] | None = None,
         **settings,
     ):
+        super().__init__()
+
         if name is None:
             name = type(self).__name__
         self.name = name
@@ -119,10 +121,7 @@ class Model:
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
             components = self.get_related_components(**settings).values()
-            model_serializer = None
-            serializer = driver.get_model_serializer(
-                model_serializer, components=components, settings=settings
-            )
+            serializer = driver.get_model_serializer(components=components, settings=settings)
         else:
             serializer = driver_or_serializer
             serializer = serializer.get_dependency(
@@ -140,7 +139,7 @@ class Model:
         state = {}
 
         for name, desc in descriptors.items():
-            value = desc.value
+            value = desc.state
 
             if value is MISSING:
                 value = desc.component.default

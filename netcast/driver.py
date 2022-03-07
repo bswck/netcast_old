@@ -25,7 +25,7 @@ _M = TypeVar("_M", bound="Model")
 class DriverMeta(type):
     def _get_model_serializer(
             cls,
-            model_serializer: Type[ModelSerializer], /,
+            model_serializer: Type[ModelSerializer] | None = None, /,
             components: tuple[Any, ...] = (),
             settings: SettingsT = None
     ) -> ModelSerializer:

@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Generator, TypeVar, TYPE_CHECKING, Dict
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
+from netcast.expressions import ExpressionOps
 from netcast.tools.inspection import force_compliant_kwargs
 from netcast.tools.symbol import Symbol
 
@@ -17,13 +18,14 @@ SettingsT = TypeVar("SettingsT", Dict[str, Any], type(None))
 DependencyT = TypeVar("DependencyT")
 
 
-class Serializer:
+class Serializer(ExpressionOps):
     """A base class for all serializers. A good serializer can dump and load stuff."""
 
     load_type: ClassVar[Symbol | type] = MISSING
     dump_type: ClassVar[Symbol | type] = MISSING
 
     def __init__(self, *, name=None, default=MISSING, **settings: Any):
+        super().__init__()
         self.name: str | None = name
         self.default: Any = default
         self.settings: dict[str, Any] = settings
