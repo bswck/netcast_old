@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Type, TypeVar, Union
 
 from netcast.constants import MISSING, GREATEST
 from netcast.driver import Driver, DriverMeta
+from netcast.expressions import ExpressionOps
 from netcast.serializer import Serializer, SettingsT
 from netcast.stack import Stack, VersionAwareStack
 
@@ -74,7 +75,7 @@ class ProxyDescriptor(_BaseDescriptor):
 
 
 @functools.total_ordering
-class Model:
+class Model(ExpressionOps):
     stack: ClassVar[Stack]
     settings: ClassVar[dict[str, Any]]
     descriptor_class = ComponentDescriptor
