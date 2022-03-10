@@ -158,14 +158,14 @@ class Expression(ExpressionOps):
             self.__cache = result
         return result
 
-    def is_reverse_context(self, procedure):
+    def is_reversed(self, procedure):
         return (
             (procedure == PRE and self.flags & PREREVERSE)
             or (procedure == POST and self.flags & POSTREVERSE)
         )
 
     def _eval(self, procedure, **kwargs) -> Any:
-        if self.is_reverse_context(procedure):
+        if self.is_reversed(procedure):
             if self.irreversible:
                 processor = _left
             else:
