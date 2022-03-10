@@ -16,7 +16,7 @@ class EvalFlags(enum.IntFlag):
 
     @classmethod
     def validate(cls, flags: int | EvalFlags):
-        mutex_msg = "mutually exclusive listed execution flags flags: %s"
+        mutex_msg = "mutually exclusive listed execution flags: %s"
         mutex_flags = []
 
         flags &= 0b1111
@@ -248,11 +248,11 @@ class Variable(Expression):
         if name is None:
             raise ValueError("variable must be identified with a name")
         self.name = name
-        if "right" in kwargs:
-            raise ValueError("variable takes only the left value")
         if kwargs.get("reverse"):
             self._require_left = True
         super().__init__(*args, **kwargs)
+        if self.right is not MISSING:
+            raise ValueError("variable takes only the left value")
 
     def set(self, expr):
         self.left = expr
