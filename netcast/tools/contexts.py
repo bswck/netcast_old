@@ -1,6 +1,5 @@
 from __future__ import annotations  # Python 3.8
 
-import abc
 import asyncio
 import collections.abc
 import functools
@@ -211,12 +210,14 @@ def _exit_context(cm, exc_info=None):
 
 
 async def _call_observer_async(observer, context, params):
+    awaiting = False
     try:
         trigger = observer(context, *params.arguments, **params.keywords)
         if inspect.isawaitable(trigger):
+            awaiting = True
             await trigger
     except Exception as e:
-        raise NetcastError("(async?) observer failed") from e
+        raise NetcastError(f"{'async ' if awaiting else ''}observer failed") from e
 
 
 def _call_observer(observer, context, params):

@@ -2,7 +2,7 @@ from __future__ import annotations  # Python 3.8
 
 import enum
 import operator
-from typing import Any, Callable, Union, Literal, TYPE_CHECKING
+from typing import Any, Callable, Union, Literal
 
 from netcast.constants import MISSING
 from netcast.tools import strings
@@ -15,26 +15,23 @@ except ImportError:
 else:
     NUMPY = True
 
-if TYPE_CHECKING:
-    from netcast.tools.symbol import Symbol
 
-
-class EvaluationFlags(enum.IntFlag):
+class EvalFlags(enum.IntFlag):
     PRE_DUMP = 1 << 0
-    PRE_DUMP_RECOVER = 1 << 1
+    PRE_DUMP_REVERSE = 1 << 1
     POST_LOAD = 1 << 2
-    POST_LOAD_RECOVER = 1 << 3
+    POST_LOAD_REVERSE = 1 << 3
 
     @classmethod
-    def validate(cls, flags: int | EvaluationFlags):
+    def validate(cls, flags: int | EvalFlags):
         mutex_msg = "mutually exclusive listed execution flags flags: %s"
         mutex_flags = []
 
-        if (flags & cls.PRE_DUMP) and (flags & cls.PRE_DUMP_RECOVER):
-            mutex_flags.append("PRE_DUMP and PRE_DUMP_RECOVER")
+        if (flags & cls.PRE_DUMP) and (flags & cls.PRE_DUMP_REVERSE):
+            mutex_flags.append("PRE_DUMP and PRE_DUMP_REVERSE")
 
-        if (flags & cls.POST_LOAD) and (flags & cls.POST_LOAD_RECOVER):
-            mutex_flags.append("POST_LOAD and POST_LOAD_RECOVER")
+        if (flags & cls.POST_LOAD) and (flags & cls.POST_LOAD_REVERSE):
+            mutex_flags.append("POST_LOAD and POST_LOAD_REVERSE")
 
         if mutex_flags:
             raise ValueError(mutex_msg % ", ".join(mutex_flags))
@@ -48,19 +45,20 @@ class EvaluationFlags(enum.IntFlag):
         if (flags & cls.PRE_DUMP) and (flags & cls.POST_LOAD):
             mutex_flags.append("PRE_DUMP and POST_LOAD")
         if (
-                (flags & cls.PRE_DUMP_RECOVER)
-                and (flags & cls.POST_LOAD_RECOVER)
+                (flags & cls.PRE_DUMP_REVERSE)
+                and (flags & cls.POST_LOAD_REVERSE)
         ):
-            mutex_flags.append("PRE_DUMP_RECOVER and POST_LOAD_RECOVER")
+            mutex_flags.append("PRE_DUMP_REVERSE and POST_LOAD_REVERSE")
 
         if mutex_flags:
             raise ValueError(ambiguity_msg % ", ".join(mutex_flags))
+        return flags
 
 
-PRE = PRE_DUMP = EvaluationFlags.PRE_DUMP
-PRERECOV = PRE_DUMP_RECOVER = EvaluationFlags.PRE_DUMP_RECOVER
-POST = POST_LOAD = EvaluationFlags.POST_LOAD
-POSTRECOV = POST_LOAD_RECOVER = EvaluationFlags.POST_LOAD_RECOVER
+PRE = PRE_DUMP = EvalFlags.PRE_DUMP
+PREREVERSE = PRE_DUMP_REVERSE = EvalFlags.PRE_DUMP_REVERSE
+POST = POST_LOAD = EvalFlags.POST_LOAD
+POSTREVERSE = POST_LOAD_REVERSE = EvalFlags.POST_LOAD_REVERSE
 
 
 class ExpressionOpsMeta(type):
@@ -87,7 +85,7 @@ class ExpressionOpsMeta(type):
     def __lshift__(cls, other): return ShiftLeft(cls, other)
     def __rlshift__(cls, other): return ShiftLeft(other, cls)
     def __rshift__(cls, other): return ShiftRight(cls, other)
-    def __rrshift__(cls, other): return ShiftLeft(other, cls)
+    def __rrshift__(cls, other): return ShiftRight(other, cls)
     def __and__(cls, other): return AND(cls, other)
     def __rand__(cls, other): return AND(other, cls)
     def nand(cls, other): return NAND(cls, other)
@@ -134,7 +132,7 @@ class ExpressionOps:
     def __lshift__(self, other): return ShiftLeft(self, other)
     def __rlshift__(self, other): return ShiftLeft(other, self)
     def __rshift__(self, other): return ShiftRight(self, other)
-    def __rrshift__(self, other): return ShiftLeft(other, self)
+    def __rrshift__(self, other): return ShiftRight(other, self)
     def __and__(self, other): return AND(self, other)
     def __rand__(self, other): return AND(other, self)
     def nand(self, other): return NAND(self, other)
@@ -164,9 +162,10 @@ class Expression(ExpressionOps):
     """
     op_func: _DelegateT
     iop_func: _DelegateT
-    opback_func: _DelegateT
-    iopback_func: _DelegateT
+    opreverse_func: _DelegateT
+    iopreverse_func: _DelegateT
 
+    irreversible = False
     _require_left = True
 
     def __init__(
@@ -175,59 +174,68 @@ class Expression(ExpressionOps):
             right: Any | Expression = MISSING,
             *,
             const: bool = False,
-            flags: int = PRE | POSTRECOV,
+            flags: int = PRE | POSTREVERSE,
             inplace: bool = False,
-            back: bool = False,
-            _back_right: bool = True,
-            _back_kwargs: dict[str, Any] | None = None
     ):
         if self._require_left and left is MISSING:
             raise ValueError("missing required value to create an expression")
 
-        if back:
-            if _back_kwargs is None:
-                _back_kwargs = {}
-            self.parse_kwargs(**_back_kwargs)
-            if isinstance(left, Expression):
-                left = self._back_node(left, _back_kwargs)
-            if _back_right and isinstance(right, Expression):
-                right = self._back_node(right, _back_kwargs)
-
         self.left = left
         self.right = right
         self.const = const
-        self.flags = flags
-        EvaluationFlags.validate(flags)
+        self.flags = EvalFlags.validate(flags)
         self.inplace = inplace
-        self.__back = back
+        self.__cache = MISSING
 
-    def configure(self, **kwargs):
-        configurable = {"const", "flags"}
-        for key in (kwargs.keys() & configurable):
+    def conf(self, **kwargs):
+        configurable_keys = {"const", "flags"}
+        for key in (kwargs.keys() & configurable_keys):
             new_value = kwargs.get(key, MISSING)
+            if key == "flags":
+                new_value = EvalFlags.validate(new_value)
             if new_value is not MISSING:
                 setattr(self, key, new_value)
+        return self
 
-    def parse_kwargs(self, **kwargs):
+    def parametrize(self, **kwargs):
         pass
 
-    def eval(self, procedure: Literal[PRE, POST] = PRE, **kwargs):
-        if procedure in (PRERECOV, POSTRECOV):
-            raise ValueError("back flags are invalid in this context")
-        self.parse_kwargs(**kwargs)
-        return self._eval(procedure, **kwargs)
+    def eval(self, procedure: Literal[PRE, POST] = PRE, **params):
+        if self.__cache is not MISSING:
+            return self.__cache
+        if procedure in (PREREVERSE, POSTREVERSE):
+            raise ValueError("reverse flags are invalid in this context")
+        self.parametrize(**params)
+        result = self._eval(procedure, **params)
+        if self.const:
+            self.__cache = result
+        return result
+
+    def is_reverse_context(self, procedure):
+        return (
+            (procedure == PRE and self.flags & PREREVERSE)
+            or (procedure == POST and self.flags & POSTREVERSE)
+        )
 
     def _eval(self, procedure, **kwargs) -> Any:
-        if self.__back:
-            processor = self._get_processor("opback_func")
+        if self.is_reverse_context(procedure):
+            if self.irreversible:
+                processor = _left
+            else:
+                processor = self._get_processor("opreverse_func")
+                if processor is None:
+                    raise NotImplementedError(
+                        "cannot reverse an expression that is marked reversible. "
+                        "Consider using `irreversible = True` setting"
+                    )
         else:
             processor = self._get_processor("op_func")
         if not callable(processor):
             raise ValueError("value processor was not declared (and thus is not callable)")
-        left, right = self._resolve_operands(procedure, **kwargs)
+        left, right = self._eval_branches(procedure, **kwargs)
         return processor(left, right)
 
-    def _resolve_operands(self, procedure, **kwargs):
+    def _eval_branches(self, procedure, **kwargs):
         operands = []
         for node_name in ("left", "right"):
             operand = node = getattr(self, node_name)
@@ -243,32 +251,8 @@ class Expression(ExpressionOps):
         fallback = getattr(self, attr_name) if self.inplace else None
         return getattr(self, iattr_name, fallback)
 
-    def back(self, _back_right=True, _back_kwargs=None):
-        back = type(self)(
-            left=self.left,
-            right=self.right,
-            const=self.const,
-            flags=self.flags,
-            inplace=self.inplace,
-            back=True,
-            _back_right=_back_right,
-            _back_kwargs=_back_kwargs
-        )
-        return back
-
-    @staticmethod
-    def _back_node(node, kwargs=None):
-        if kwargs is None:
-            kwargs = {}
-        node.parse_kwargs(**kwargs)
-        if isinstance(node, Variable):
-            node = node.back(node.name, _back_right=True, **kwargs)
-        else:
-            node = node.back(_back_kwargs=kwargs)
-        return node
-
     def __repr__(self):
-        return ("", "^")[self.__back] + (
+        return (
             f"{type(self).__name__}({self.left}, {self.right})".lstrip("~")
         )
 
@@ -279,16 +263,16 @@ def _left(left, _):
     return left
 
 
-def _back_pow(left, right):
+def _reverse_pow(left, right):
     return left ** (1 / right)
 
 
-def _iback_pow(left, right):
+def _ireverse_pow(left, right):
     left **= (1 / right)
     return left
 
 
-def _back_divmod(left, right):
+def _reverse_divmod(left, right):
     n, remainder = left
     return n * right + remainder
 
@@ -301,123 +285,138 @@ def _nor(left, right):
     return ~(left | right)
 
 
+def _concat_left(left, right):
+    if not hasattr(right, '__getitem__'):
+        msg = "%r object can't be concatenated" % type(right).__name__
+        raise TypeError(msg)
+    return right + left
+
+
 class Variable(Expression):
-    op_func = opback_func = staticmethod(_left)
     _require_left = False
+    op_func = staticmethod(_left)
 
     def __init__(self, *args, **kwargs):
-        self._back = MISSING
         name = kwargs.pop("name", None)
         if name is None:
             raise ValueError("variable must be identified with a name")
         self.name = name
         if "right" in kwargs:
             raise ValueError("variable takes only the left value")
-        if kwargs.get("back"):
+        if kwargs.get("reverse"):
             self._require_left = True
         super().__init__(*args, **kwargs)
 
     def set(self, expr):
         self.left = expr
 
-    def parse_kwargs(self, **kwargs):
+    def clear(self):
+        self.left = MISSING
+
+    @property
+    def value(self):
+        return self.left
+
+    value.setter(set)
+
+    def parametrize(self, **kwargs):
         self.left = kwargs.get(self.name, self.left)
         if self.left is MISSING:
             raise ValueError(f"variable {self.name} was not set but requested usage")
 
-    def back(self, name: str = "y", focus: str | Symbol = MISSING, _back_right=False, **kwargs):
-        if self._back is MISSING:
-            left = self.left
-            if isinstance(left, Expression):
-                left = left.back(_back_right=_back_right, _back_kwargs=kwargs)
-            self._back = type(self)(left, name=name)
-        return self._back
-
     def __repr__(self):
-        return self.name + "=" + repr(self.left)
+        return self.name + ("" if self.left is MISSING else ("=" + repr(self.left)))
+
+
+def variable(name, init=MISSING):
+    return Variable(init, name=name)
+
+
+def variables(names):
+    variable_names = names.replace(",", " ").split()
+    return map(variable, variable_names)
 
 
 class Add(Expression):
     """Addition expression."""
     op_func = staticmethod(operator.add)
     iop_func = staticmethod(operator.iadd)
-    opback_func = staticmethod(operator.sub)
-    iopback_func = staticmethod(operator.isub)
+    opreverse_func = staticmethod(operator.sub)
+    iopreverse_func = staticmethod(operator.isub)
 
 
 class Concatenate(Expression):
     """Concatenation expression."""
     op_func = staticmethod(operator.concat)
     iop_func = staticmethod(operator.iconcat)
-    opback_func = staticmethod(strings.remove_suffix)
+    opreverse_func = staticmethod(strings.remove_suffix)
 
 
 class ConcatenateLeft(Expression):
     """Left concatenation expression."""
-    op_func = staticmethod(operator.concat)
-    iop_func = staticmethod(operator.iconcat)
-    opback_func = staticmethod(strings.remove_prefix)
+    op_func = staticmethod(_concat_left)
+    opreverse_func = staticmethod(strings.remove_prefix)
 
 
 class Subtract(Expression):
     """Subtraction expression."""
     op_func = staticmethod(operator.sub)
     iop_func = staticmethod(operator.isub)
-    opback_func = staticmethod(operator.add)
-    iopback_func = staticmethod(operator.iadd)
+    opreverse_func = staticmethod(operator.add)
+    iopreverse_func = staticmethod(operator.iadd)
 
 
 class Multiply(Expression):
     """Multiplication expression."""
     op_func = staticmethod(operator.mul)
     iop_func = staticmethod(operator.imul)
-    opback_func = staticmethod(operator.truediv)
-    iopback_func = staticmethod(operator.itruediv)
+    opreverse_func = staticmethod(operator.truediv)
+    iopreverse_func = staticmethod(operator.itruediv)
 
 
 class Divide(Expression):
     """Division expression."""
     op_func = staticmethod(operator.truediv)
     iop_func = staticmethod(operator.itruediv)
-    opback_func = staticmethod(operator.mul)
-    iopback_func = staticmethod(operator.imul)
+    opreverse_func = staticmethod(operator.mul)
+    iopreverse_func = staticmethod(operator.imul)
 
 
 class FloorDivide(Expression):
     """Floor division expression."""
     op_func = staticmethod(operator.floordiv)
     iop_func = staticmethod(operator.ifloordiv)
-    opback_func = staticmethod(operator.mul)
-    iopback_func = staticmethod(operator.imul)
+    opreverse_func = staticmethod(operator.mul)
+    iopreverse_func = staticmethod(operator.imul)
 
 
 class Power(Expression):
     """Exponentiation expression."""
     op_func = staticmethod(operator.pow)
     iop_func = staticmethod(operator.pow)
-    opback_func = staticmethod(_back_pow)
-    iopback_func = staticmethod(_iback_pow)
+    opreverse_func = staticmethod(_reverse_pow)
+    iopreverse_func = staticmethod(_ireverse_pow)
 
 
 class Root(Expression):
     """Root expression."""
-    op_func = staticmethod(_back_pow)
-    iop_func = staticmethod(_iback_pow)
-    opback_func = staticmethod(operator.pow)
-    iopback_func = staticmethod(operator.pow)
+    op_func = staticmethod(_reverse_pow)
+    iop_func = staticmethod(_ireverse_pow)
+    opreverse_func = staticmethod(operator.pow)
+    iopreverse_func = staticmethod(operator.pow)
 
 
 class Modulo(Expression):
     """Division and modulo expression."""
+    irreversible = True
     op_func = staticmethod(operator.mod)
     iop_func = staticmethod(operator.imod)
-    opback_func = staticmethod(_left)
 
 
 class DivMod(Expression):
     """Division and modulo expression."""
     op_func = staticmethod(divmod)
-    opback_func = staticmethod(_back_divmod)
+    opreverse_func = staticmethod(_reverse_divmod)
 
 
 class MatrixMultiply(Expression):
@@ -430,108 +429,107 @@ class ShiftLeft(Expression):
     """Shift left (a << b) expression."""
     op_func = staticmethod(operator.lshift)
     iop_func = staticmethod(operator.ilshift)
-    opback_func = staticmethod(operator.rshift)
-    iopback_func = staticmethod(operator.irshift)
+    opreverse_func = staticmethod(operator.rshift)
+    iopreverse_func = staticmethod(operator.irshift)
 
 
 class ShiftRight(Expression):
     """Shift right (a >> b) expression."""
     op_func = staticmethod(operator.rshift)
     iop_func = staticmethod(operator.irshift)
-    opback_func = staticmethod(operator.lshift)
-    iopback_func = staticmethod(operator.ilshift)
+    opreverse_func = staticmethod(operator.lshift)
+    iopreverse_func = staticmethod(operator.ilshift)
 
 
 class AND(Expression):
     """Bitwise AND (a & b) expression."""
+    irreversible = True
     op_func = staticmethod(operator.and_)
     iop_func = staticmethod(operator.iand)
-    opback_func = staticmethod(_left)
 
 
 class NAND(Expression):
     """Bitwise NAND (~(a & b)) expression."""
+    irreversible = True
     op_func = staticmethod(_nand)
-    opback_func = staticmethod(_left)
 
 
 class OR(Expression):
     """Bitwise OR (a | b) expression."""
+    irreversible = True
     op_func = staticmethod(operator.or_)
     iop_func = staticmethod(operator.ior)
-    opback_func = staticmethod(_left)
 
 
 class NOR(Expression):
     """Bitwise NOR (~(a | b)) expression."""
+    irreversible = True
     op_func = staticmethod(_nor)
-    opback_func = staticmethod(_left)
 
 
 class XOR(Expression):
     """Bitwise XOR (a ^ b) expression."""
+    irreversible = True
     op_func = staticmethod(operator.xor)
     iop_func = staticmethod(operator.ixor)
-    opback_func = staticmethod(_left)
 
 
 class EQU(Expression):
     """Bitwise EQU (~(a ^ b)) expression."""
-    op_func = staticmethod(operator.xor)
-    iop_func = staticmethod(operator.ixor)
-    opback_func = staticmethod(_left)
+    irreversible = True
+    op_func = staticmethod(lambda left, right: ~(left ^ right))
 
 
 class And(Expression):
     """Logical AND (a and b) expression."""
+    irreversible = True
     op_func = staticmethod(lambda left, right: left and right)
-    opback_func = staticmethod(_left)
 
 
 class NAnd(Expression):
     """Logical NAND (not (a and right)) expression."""
+    irreversible = True
     op_func = staticmethod(lambda left, right: (left, right)[(left and right) is left])
-    opback_func = staticmethod(_left)
 
 
 class Or(Expression):
     """Logical OR (a or right) expression."""
     op_func = staticmethod(lambda left, right: left or right)
-    opback_func = staticmethod(_left)
+    irreversible = True
 
 
 class NOr(Expression):
     """Logical NOR (not (a or right)) expression."""
+    irreversible = True
     op_func = staticmethod(lambda left, right: (left, right)[(left or right) is left])
-    opback_func = staticmethod(_left)
 
 
 class XOr(Expression):
     """Logical XOR (a ^ right) expression."""
+    irreversible = True
     op_func = staticmethod(lambda left, right: bool(left) ^ bool(right))
-    opback_func = staticmethod(_left)
 
 
 class Equal(Expression):
     """Logical EQU (a == right) expression."""
     op_func = staticmethod(lambda left, right: left == right)
-    opback_func = staticmethod(_left)
+    irreversible = True
 
 
 class GetItem(Expression):
+    irreversible = True
     op_func = staticmethod(lambda left, right: left[right])
-    opback_func = staticmethod(_left)
 
 
 class GetAttr(Expression):
+    irreversible = True
     op_func = staticmethod(getattr)
-    opback_func = staticmethod(_left)
 
 
 class Call(Expression):
+    irreversible = True
     op_func = staticmethod(lambda left, right: (
         left(*right.args, **right.kwargs)
         if hasattr(right, "args") and hasattr(right, "kwargs")
         else left(right)
     ))
-    opback_func = staticmethod(_left)
