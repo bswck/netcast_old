@@ -19,6 +19,8 @@ class EvalFlags(enum.IntFlag):
         mutex_msg = "mutually exclusive listed execution flags flags: %s"
         mutex_flags = []
 
+        flags &= 0b1111
+
         if (flags & cls.PRE_DUMP) and (flags & cls.PRE_DUMP_REVERSE):
             mutex_flags.append("PRE_DUMP and PRE_DUMP_REVERSE")
 
