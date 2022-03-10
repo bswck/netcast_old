@@ -121,7 +121,7 @@ class Model(ExpressionOps):
 
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
-            components = self.get_related_components(**settings).values()
+            components = self.get_suitable_components(**settings).values()
             serializer = driver.get_model_serializer(components=components, settings=settings)
         else:
             serializer = driver_or_serializer
@@ -135,34 +135,35 @@ class Model(ExpressionOps):
     def state(self) -> dict:
         return self.get_state()
 
-    def get_state(self, fill_value=MISSING, **settings: Any) -> dict:
-        descriptors = self.get_related_descriptors(**settings)
+    def get_state(self, filling=MISSING, **settings: Any) -> dict:
+        descriptors = self.get_suitable_descriptors(**settings)
         state = {}
 
-        for name, desc in descriptors.items():
-            value = desc.state
+        for name, descriptor in descriptors.items():
+            value = descriptor.state
 
             if value is MISSING:
-                value = desc.component.default
+                value = descriptor.component.default
+
             if value is MISSING:
-                if fill_value is not MISSING:
-                    value = fill_value
+                if filling is not MISSING:
+                    value = filling
                 else:
                     raise ValueError(
-                        f"missing required {type(desc.component).__name__} "
-                        f"value for serializer named {desc.component.name}"
+                        f"missing required {type(descriptor.component).__name__} "
+                        f"value for serializer named {descriptor.component.name}"
                     )
 
             state[name] = value
 
         return state
 
-    def get_related_components(self, **settings: Any) -> dict[Any, ComponentT]:
+    def get_suitable_components(self, **settings: Any) -> dict[Any, ComponentT]:
         settings = {**settings, **self.settings}
-        return self.stack.get_related_components(settings)
+        return self.stack.get_suitable_components(settings)
 
-    def get_related_descriptors(self, **settings: Any) -> dict[Any, ComponentDescriptor]:
-        namespace = set(self.get_related_components(**settings))
+    def get_suitable_descriptors(self, **settings: Any) -> dict[Any, ComponentDescriptor]:
+        namespace = set(self.get_suitable_components(**settings))
         descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
         return descriptors
 
@@ -296,9 +297,9 @@ class Model(ExpressionOps):
             seen.clear()
 
         else:
-            related_components = cls.stack.get_related_components(**settings)
+            suitable_components = cls.stack.get_suitable_components(**settings)
 
-            for idx, (name, component) in enumerate(related_components.items()):
+            for idx, (name, component) in enumerate(suitable_components.items()):
                 setattr(cls, name, cls.descriptor_class(component))
 
         cls._descriptors = descriptors

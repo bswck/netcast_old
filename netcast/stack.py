@@ -106,7 +106,7 @@ class Stack:
     def size(self) -> int:
         return len(self._components)
 
-    def get_related_components(
+    def get_suitable_components(
             self,
             settings: SettingsT = None
     ) -> dict[str, ComponentT]:
