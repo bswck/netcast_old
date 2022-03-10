@@ -55,53 +55,6 @@ POST = POST_LOAD = EvalFlags.POST_LOAD
 POSTREVERSE = POST_LOAD_REVERSE = EvalFlags.POST_LOAD_REVERSE
 
 
-class ExpressionOpsMeta(type):
-    def __add__(cls, other): return Add(cls, other)
-    def __radd__(cls, other): return Add(other, cls)
-    def concat(cls, other): return Concatenate(cls, other)
-    with_suffix = concat
-    def concat_left(cls, other): return ConcatenateLeft(cls, other)
-    with_prefix = concat_left
-    def __sub__(cls, other): return Subtract(cls, other)
-    def __rsub__(cls, other): return Subtract(other, cls)
-    def __mul__(cls, other): return Multiply(cls, other)
-    def __rmul__(cls, other): return Multiply(other, cls)
-    def __truediv__(cls, other): return Divide(cls, other)
-    def __rtruediv__(cls, other): return Divide(other, cls)
-    def __floordiv__(cls, other): return FloorDivide(cls, other)
-    def __rfloordiv__(cls, other): return FloorDivide(other, cls)
-    def __pow__(cls, other): return Power(cls, other)
-    def __rpow__(cls, other): return Power(other, cls)
-    def root(cls, other): return Root(cls, other)
-    def __mod__(cls, other): return Modulo(cls, other)
-    def __rmod__(cls, other): return Modulo(other, cls)
-    def divmod(cls, other): return DivMod(cls, other)
-    def __lshift__(cls, other): return ShiftLeft(cls, other)
-    def __rlshift__(cls, other): return ShiftLeft(other, cls)
-    def __rshift__(cls, other): return ShiftRight(cls, other)
-    def __rrshift__(cls, other): return ShiftRight(other, cls)
-    def __and__(cls, other): return AND(cls, other)
-    def __rand__(cls, other): return AND(other, cls)
-    def nand(cls, other): return NAND(cls, other)
-    def __or__(cls, other): return OR(cls, other)
-    def __ror__(cls, other): return OR(other, cls)
-    def nor(cls, other): return NOR(cls, other)
-    def __xor__(cls, other): return XOR(cls, other)
-    def __rxor__(cls, other): return XOR(other, cls)
-    def equ(cls, other): return EQU(cls, other)
-    def and_(cls, other): return And(cls, other)
-    def nand_(cls, other): return NAnd(cls, other)
-    def or_(cls, other): return Or(cls, other)
-    def nor_(cls, other): return NOr(cls, other)
-    def xor_(cls, other): return XOr(cls, other)
-    def __eq__(cls, other): return Equal(cls, other)
-    def getitem(cls, other): return GetItem(cls, other)
-    get = getitem
-    def getattr(cls, other): return GetAttr(cls, other)
-    def call(cls, other): return Call(cls, other)
-    def called_by(cls, other): return Call(other, cls)
-
-
 class ExpressionOps:
     def __add__(self, other): return Add(self, other)
     def __radd__(self, other): return Add(other, self)
