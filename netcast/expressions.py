@@ -7,14 +7,6 @@ from typing import Any, Callable, Union, Literal
 from netcast.constants import MISSING
 from netcast.tools import strings
 
-try:
-    # noinspection PyUnresolvedReferences
-    import numpy
-except ImportError:
-    NUMPY = False
-else:
-    NUMPY = True
-
 
 class EvalFlags(enum.IntFlag):
     PRE_DUMP = 1 << 0
