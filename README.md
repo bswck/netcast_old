@@ -55,7 +55,7 @@ assert loaded_v2 == foo
 ```
 
 #### Mutability of components
-_netcast_ models are build upon special `ComponentStack` objects, which are accessible from the
+_netcast_ models are build upon special `Stack` objects, which are accessible from the
 `Model.stack` attribute. In the case shown above, fields `bar`, `baz`, `biz` and `ext` 
 created the stack automatically thanks to the `Model` class inheritance magic inspection, 
 but it is not obligatory – **dependency injection** is welcome.
