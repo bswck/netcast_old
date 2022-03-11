@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Generator, TypeVar, TYPE_CHECKING, Dict
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
+from netcast.expressions import Expression, PRE, POST
 from netcast.tools.inspection import force_compliant_kwargs
 
 if TYPE_CHECKING:
@@ -16,20 +17,43 @@ SettingsT = TypeVar("SettingsT", Dict[str, Any], type(None))
 DependencyT = TypeVar("DependencyT")
 
 
+def _validate_identifier(identifier):
+    if identifier is not None and not isinstance(identifier, str):
+        raise TypeError("identifier must be a string")
+    return identifier
+
+
 class Serializer:
     """A base class for all serializers. A good serializer can dump and load stuff."""
 
     load_type: ClassVar[type] = None
     dump_type: ClassVar[type] = None
 
-    def __init__(self, *, name=None, default=MISSING, **settings: Any):
+    def __init__(
+            self, *,
+            name: str | None = None,
+            expr: Expression | None = None,
+            default: Any = MISSING,
+            identifier: str | MISSING = MISSING,
+            **settings: Any
+    ):
         super().__init__()
-        self.name: str | None = name
-        self.default: Any = default
+        self.name = name
+        self.default = default
+        self.expr = expr
+        if identifier is MISSING:
+            identifier = self.name
+        self.identifier = _validate_identifier(identifier)
         self.settings: dict[str, Any] = settings
         self.contained: bool = False
 
-    def dump(self, load, *, settings: SettingsT = None, **kwargs: Any):
+    def dump(
+            self,
+            load, *,
+            identifier: str | MISSING = MISSING,
+            settings: SettingsT = None,
+            **kwargs: Any
+    ):
         """
         Dump a loaded object.
 
@@ -38,17 +62,24 @@ class Serializer:
         """
         try:
             dump = getattr(self, "_dump")
-        except AttributeError as e:
+        except AttributeError:
             raise NotImplementedError from None
-        else:
-            try:
-                return dump(load, settings=settings, **kwargs)
-            except Exception as exc:
-                raise NetcastError(f"dumping failed: {exc}") from exc
+        obj = self._evaluate_object(identifier, load, PRE, settings)
+        try:
+            obj = dump(obj, settings=settings, **kwargs)
+        except Exception as exc:
+            raise NetcastError(f"dumping failed: {exc}") from exc
+        return obj
 
-    def load(self, dump, *, settings: SettingsT = None, **kwargs):
+    def load(
+            self,
+            dump, *,
+            identifier: str | MISSING = MISSING,
+            settings: SettingsT = None,
+            **kwargs
+    ):
         """
-        Load from a dumped object.
+        Load a dumped object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
@@ -57,19 +88,41 @@ class Serializer:
             load = getattr(self, "_load")
         except AttributeError:
             raise NotImplementedError from None
+        try:
+            obj = load(dump, settings=settings, **kwargs)
+        except Exception as exc:
+            raise NetcastError(f"loading failed: {exc}") from exc
         else:
-            try:
-                return load(dump, settings=settings, **kwargs)
-            except Exception as exc:
-                raise NetcastError(f"loading failed: {exc}") from exc
+            obj = self._evaluate_object(identifier, obj, POST, settings)
+        return obj
 
-    def _to_load_type(self, load: Any) -> load_type:
+    def _sanitize_settings(self, settings: SettingsT) -> SettingsT:
+        if settings is None:
+            settings = self.settings.copy()
+        else:
+            settings = {**self.settings, **settings}
+        return settings
+
+    def _evaluate_object(self, identifier, obj, procedure, settings):
+        if self.expr is not None:
+            settings = self._sanitize_settings(settings)
+            if identifier is MISSING:
+                identifier = self.identifier
+            if _validate_identifier(identifier) is not None:
+                settings.update({self.identifier: obj})
+            try:
+                obj = self.expr.eval(procedure, **settings)
+            except Exception as exc:
+                raise NetcastError(f"expression evaluation failed: {exc}") from exc
+        return obj
+
+    def _to_load_type(self, load: Any) -> Any:
         factory = getattr(self, "load_type_factory", self.load_type)
         if not callable(factory):
             raise TypeError("incomplete data type")
         return factory(load)
 
-    def _to_dump_type(self, dump: Any) -> dump_type:
+    def _to_dump_type(self, dump: Any) -> Any:
         factory = getattr(self, "dump_type_factory", self.dump_type)
         if not callable(factory):
             raise TypeError("incomplete data type")
@@ -187,7 +240,7 @@ class Interface(Serializer):  # abc.ABC
         if settings is None:
             settings = {}
         if self.coercion_flags & Coercion.DUMP_TYPE_BEFORE_LOADING:
-            dump = self._to_load_type(dump)
+            dump = self._to_dump_type(dump)
         load = self.impl.parse(dump, **settings)
         if self.coercion_flags & Coercion.LOAD_TYPE_AFTER_LOADING:
             load = self._to_load_type(load)

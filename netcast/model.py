@@ -7,7 +7,6 @@ from typing import Any, ClassVar, Type, TypeVar, Union
 
 from netcast.constants import MISSING, GREATEST
 from netcast.driver import Driver, DriverMeta
-from netcast.expressions import ExpressionOps
 from netcast.serializer import Serializer, SettingsT
 from netcast.stack import Stack, VersionAwareStack
 
@@ -75,7 +74,7 @@ class ProxyDescriptor(_BaseDescriptor):
 
 
 @functools.total_ordering
-class Model(ExpressionOps):
+class Model:
     stack: ClassVar[Stack]
     settings: ClassVar[dict[str, Any]]
     descriptor_class = ComponentDescriptor
@@ -103,7 +102,7 @@ class Model(ExpressionOps):
                 self[key] = settings.pop(key)
 
         self.contained: bool = False
-        self.settings = settings
+        self.settings = {**self.settings, **settings}
 
     @property
     def default(self) -> Any:
@@ -122,7 +121,12 @@ class Model(ExpressionOps):
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
             components = self.get_suitable_components(**settings).values()
-            serializer = driver.get_model_serializer(components=components, settings=settings)
+            dispatch_key = None
+            serializer = driver.get_model_serializer(
+                dispatch_key,
+                components=components,
+                settings=settings
+            )
         else:
             serializer = driver_or_serializer
             serializer = serializer.get_dependency(
@@ -285,7 +289,6 @@ class Model(ExpressionOps):
                     )
                     descriptor = cls.descriptor_class(transformed)
                     setattr(cls, transformed.name, descriptor)
-
                 else:
                     descriptor = seen_descriptor
                     alias_descriptor = cls.descriptor_alias_class(descriptor)
@@ -300,7 +303,8 @@ class Model(ExpressionOps):
             suitable_components = cls.stack.get_suitable_components(**settings)
 
             for idx, (name, component) in enumerate(suitable_components.items()):
-                setattr(cls, name, cls.descriptor_class(component))
+                descriptor = descriptors[name] = cls.descriptor_class(component)
+                setattr(cls, name, descriptor)
 
         cls._descriptors = descriptors
 

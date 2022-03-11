@@ -1,28 +1,32 @@
+import inspect
+
 import netcast as nc
 
 
 class TestModel:
     def test_subclass_creation(self):
         class Foo(nc.Model):
-            abc = alias = nc.String
+            abc = alias = nc.String()
             bar = nc.Integer
 
         assert Foo().name == Foo.__name__
         assert isinstance(Foo.abc, nc.ComponentDescriptor)
+        assert Foo.abc.name == "abc"
         assert isinstance(Foo.bar, nc.ComponentDescriptor)
+        assert Foo.bar.name == "bar"
         assert isinstance(Foo.alias, nc.ProxyDescriptor)
+        assert Foo.alias.name == "abc"
         assert Foo.bar.contained
         assert Foo.stack.size == 2
 
-        class Bar(nc.Model):
+        my_settings = {"setting": "value"}
+        class Bar(nc.Model, **my_settings):
             foo = nc.List
 
-        assert Foo().name == Foo.__name__
-        assert isinstance(Foo.abc, nc.ComponentDescriptor)
-        assert isinstance(Foo.bar, nc.ComponentDescriptor)
-        assert isinstance(Foo.alias, nc.ProxyDescriptor)
-        assert Foo.bar.contained
-        assert Foo.stack.size == 2
+        assert Bar().name == Bar.__name__
+        assert isinstance(Bar.foo, nc.ComponentDescriptor)
+        assert Bar.settings == my_settings
+        assert Bar().settings == my_settings
 
     def test_functional_creation(self):
         model_name = "Foo"

@@ -40,7 +40,9 @@ class Stack:
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(
-            component=component, default_name=default_name, settings=settings
+            component=component,
+            default_name=default_name,
+            settings=settings
         )
         self.push(transformed)
         return transformed
@@ -126,14 +128,17 @@ class Stack:
     @classmethod
     def transform_serializer(
             cls,
-            component: Serializer,
+            component: Serializer | Type,  # [Serializer],
             settings: SettingsT = None
     ) -> Serializer:
         if settings is None:
             settings = {}
-        if getattr(component, "contained", False):
+        if isinstance(component, type) or getattr(component, "contained", False):
             component = component(**settings)
         component.contained = True
+        for key in set(settings).intersection({"name", "default"}):
+            setattr(component, key, settings.pop(key))
+        component.settings = settings
         return component
 
     def transform_component(
@@ -147,12 +152,12 @@ class Stack:
             settings = {}
         settings.setdefault("name", default_name)
         if isinstance(component, type) and not issubclass(component, Model):
-            component = self.transform_serializer(component(**settings), settings)
+            component = self.transform_serializer(component, settings=settings)
         elif isinstance(component, type) and issubclass(component, Model):
             component = self.transform_submodel(component)
         else:
             assert isinstance(component, Serializer)
-            component = self.transform_serializer(component, settings)
+            component = self.transform_serializer(component, settings=settings)
         return component
 
     def __del__(self):
