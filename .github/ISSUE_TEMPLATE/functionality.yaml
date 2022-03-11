@@ -3,7 +3,7 @@
 
 name: Request a new functionality
 description: Plan features for the library to implement in the future.
-labels: [new functionality]
+labels: [enhancement]
 body:
   - type: textarea
     attributes:
