@@ -35,40 +35,35 @@ def force_compliant_kwargs(func, kwargs):
     return adj
 
 
-def onefold_combined_getattr(obj, combined_attr, default=MISSING):
-    match = re.match("(?P<attr>\\w+)?(\\[(?P<item>.+)])?", combined_attr)
+def getattr_or_getitem(obj, attrs, default=MISSING):
+    match = re.match("(?P<attr>\\w+)?(\\[(?P<item>.+)])?", attrs)
     if match is None:
         raise ValueError("invalid sole combined getattr attribute indicator")
     attr, item = match.group("attr"), match.groupdict().get("item")
-    accessed_attr = getattr(obj, attr)
+    got = getattr(obj, attr)
     if item:
-        if item.startswith('"') or item.startswith("'"):
-            item = item[1:-1]
-        if accessed_attr is default:
-            if accessed_attr is MISSING:
-                raise AttributeError(accessed_attr)
+        if got is default:
+            if got is MISSING:
+                raise AttributeError(got)
         try:
-            accessed_item = accessed_attr[item]
+            got_item = got[item]
         except (LookupError, AttributeError):
             if default is MISSING:
                 raise
-            accessed_item = default
+            got_item = default
     else:
-        accessed_item = default
-        if accessed_item is MISSING:
-            raise KeyError(accessed_attr)
-    return accessed_item
+        got_item = default
+        if got_item is MISSING:
+            raise KeyError(got)
+    return got_item
 
 
-def combined_getattr(obj, combined_attr, default=MISSING):
-    *path, end = combined_attr.split(".")
+def get_attrs(obj, attrs, default=MISSING):
+    *path, end = attrs.split(".")
+    trailing = obj
     if path:
-        trailing = functools.reduce(
-            functools.partial(onefold_combined_getattr), path, obj
-        )
-    else:
-        trailing = obj
-    result = onefold_combined_getattr(trailing, end, default)
-    if result is MISSING:
-        raise AttributeError(type(obj).__name__ + "." + combined_attr)
-    return result
+        trailing = functools.reduce(functools.partial(getattr_or_getitem), path, obj)
+    got = getattr_or_getitem(trailing, end, default)
+    if got is MISSING:
+        raise AttributeError(type(obj).__name__ + "." + attrs)
+    return got

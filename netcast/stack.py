@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Type
 
 from netcast import GREATEST, LEAST
 from netcast.tools.collections import Comparable
-from netcast.tools.inspection import combined_getattr
+from netcast.tools.inspection import get_attrs
 from netcast.serializer import Serializer, SettingsT
 
 if TYPE_CHECKING:
@@ -223,10 +223,10 @@ class VersionAwareStack(SelectiveStack):
             until_version_field = until_version_field[1:-1]
         default_since_version = self.default_since_version
         default_until_version = self.default_until_version
-        version_added = combined_getattr(component, since_version_field, None)
+        version_added = get_attrs(component, since_version_field, None)
         if version_added is None:
             version_added = default_since_version
-        version_removed = combined_getattr(component, until_version_field, None)
+        version_removed = get_attrs(component, until_version_field, None)
         if version_removed is None:
             version_removed = default_until_version
         introduced = version_added <= version
