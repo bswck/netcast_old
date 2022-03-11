@@ -138,7 +138,7 @@ class Stack:
         component.contained = True
         for key in set(settings).intersection({"name", "default"}):
             setattr(component, key, settings.pop(key))
-        component.settings = settings
+        component.settings.update(settings)
         return component
 
     def transform_component(
@@ -150,7 +150,8 @@ class Stack:
         from netcast.model import Model
         if settings is None:
             settings = {}
-        settings.setdefault("name", default_name)
+        if default_name:
+            settings.setdefault("name", default_name)
         if isinstance(component, type) and not issubclass(component, Model):
             component = self.transform_serializer(component, settings=settings)
         elif isinstance(component, type) and issubclass(component, Model):
@@ -222,10 +223,10 @@ class VersionAwareStack(SelectiveStack):
             until_version_field = until_version_field[1:-1]
         default_since_version = self.default_since_version
         default_until_version = self.default_until_version
-        version_added = combined_getattr(component, since_version_field, default_since_version)
+        version_added = combined_getattr(component, since_version_field, None)
         if version_added is None:
             version_added = default_since_version
-        version_removed = combined_getattr(component, until_version_field, default_until_version)
+        version_removed = combined_getattr(component, until_version_field, None)
         if version_removed is None:
             version_removed = default_until_version
         introduced = version_added <= version
