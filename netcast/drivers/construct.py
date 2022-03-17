@@ -116,18 +116,24 @@ class Array(Interface):
     def __init__(self, data_type, *, name=None, **settings):
         super().__init__(name=name, **settings)
         size = settings.get("size")
-        prefixed = settings.get("prefixed", False)
-        lazy = settings.get("lazy", False)
-        compiled = settings.get("compiled", False)
-
-        if prefixed and lazy:
-            raise ValueError("array can't be prefixed and lazy at the same time")
 
         if size is None:
-            size = driver.UnsignedInt8(compiled=compiled).impl
+            size = driver.UnsignedInt8(compiled=self.compiled).impl
 
+        self.size = size
+        self.prefixed = False
+        self.lazy = False
+        self.compiled = False
         self.data_type = data_type
-        self.data_type_impl = data_type_impl = self.get_impl(data_type, **settings)
+        self.data_type_impl = self.get_impl(data_type, **settings)
+
+    def configure(self, **settings):
+        prefixed = settings.get("prefixed", self.prefixed)
+        lazy = settings.get("lazy", self.lazy)
+        size = self.size
+
+        if prefixed and lazy:
+            raise ValueError("a binary array can't be prefixed and lazy at the same time")
 
         if prefixed:
             if isinstance(size, int) and 0 <= size < 256:
@@ -135,18 +141,16 @@ class Array(Interface):
             else:
                 raise ValueError("expected a netcast data type!")
 
-            self._impl = construct.PrefixedArray(size, data_type_impl)
-
+            self._impl = construct.PrefixedArray(size, self.data_type_impl)
         elif lazy:
             if not isinstance(size, int) or not callable(size):
                 raise ValueError(
                     "expected an integer or a callable that returns integer"
                 )
 
-            self._impl = construct.LazyArray(size, data_type_impl)
-
+            self._impl = construct.LazyArray(size, self.data_type_impl)
         else:
-            self._impl = construct.Array(size, data_type_impl)
+            self._impl = construct.Array(size, self.data_type_impl)
 
 
 class Struct(Interface):
@@ -162,7 +166,6 @@ class Struct(Interface):
             impl = construct.Struct(*impls)
         else:
             impl = construct.AlignedStruct(alignment_modulus, *impls)
-
         self._impl = impl
 
 
