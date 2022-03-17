@@ -2,55 +2,49 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-from typing import Any, ClassVar, Generator, TypeVar, TYPE_CHECKING, Dict
+from typing import Any, Generator, TypeVar, TYPE_CHECKING, Dict, Optional, Literal
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
-from netcast.expressions import Expression, PRE, POST
-from netcast.tools.inspection import force_compliant_kwargs
+from netcast.expressions import PRE, POST
+from netcast.tools.inspection import match_params
 
 if TYPE_CHECKING:
     from netcast.driver import DriverMeta
 
 
-SettingsT = TypeVar("SettingsT", Dict[str, Any], type(None))
+SettingsT = Optional[Dict[str, Any]]
 DependencyT = TypeVar("DependencyT")
 
 
-def _validate_identifier(identifier):
-    if identifier is not None and not isinstance(identifier, str):
-        raise TypeError("identifier must be a string")
-    return identifier
+class Coercion(enum.IntFlag):
+    LOAD_TYPE_BEFORE_DUMPING = PRE = 1 << 0
+    DUMP_TYPE_AFTER_LOADING = POST = 1 << 1
 
 
 class Serializer:
     """A base class for all serializers. A good serializer can dump and load stuff."""
 
-    load_type: ClassVar[type] = None
-    dump_type: ClassVar[type] = None
+    load_type: type | None = None
+    dump_type: type | None = None
 
     def __init__(
             self, *,
             name: str | None = None,
-            expr: Expression | None = None,
             default: Any = MISSING,
-            identifier: str | MISSING = MISSING,
+            coercion_flags: int = Coercion.PRE | Coercion.POST,
             **settings: Any
     ):
         super().__init__()
         self.name = name
         self.default = default
-        self.expr = expr
-        if identifier is MISSING:
-            identifier = self.name
-        self.identifier = _validate_identifier(identifier)
-        self.settings: dict[str, Any] = settings
-        self.contained: bool = False
+        self.contained = False
+        self.coercion_flags = coercion_flags
+        self.settings = settings
 
     def dump(
             self,
-            load, *,
-            identifier: str | MISSING = MISSING,
+            obj, *,
             settings: SettingsT = None,
             **kwargs: Any
     ):
@@ -60,21 +54,17 @@ class Serializer:
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
+        self.configure(**kwargs)
+        obj = self._cast_object(obj, PRE, settings)
         try:
-            dump = getattr(self, "_dump")
-        except AttributeError:
-            raise NotImplementedError from None
-        obj = self._evaluate_object(identifier, load, PRE, settings)
-        try:
-            obj = dump(obj, settings=settings, **kwargs)
+            obj = self._dump(obj, settings=settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"dumping failed: {exc}") from exc
         return obj
 
     def load(
             self,
-            dump, *,
-            identifier: str | MISSING = MISSING,
+            obj, *,
             settings: SettingsT = None,
             **kwargs
     ):
@@ -84,49 +74,71 @@ class Serializer:
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
+        self.configure(**kwargs)
         try:
-            load = getattr(self, "_load")
-        except AttributeError:
-            raise NotImplementedError from None
-        try:
-            obj = load(dump, settings=settings, **kwargs)
+            obj = self._load(obj, settings=settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"loading failed: {exc}") from exc
-        else:
-            obj = self._evaluate_object(identifier, obj, POST, settings)
+        obj = self._cast_object(obj, POST, settings)
         return obj
 
+    def configure(self, **settings):
+        """Configure this serializer."""
+        self.settings.update(settings)
+
+    def _dump(self, obj, settings, **kwargs):
+        """Dump an object."""
+        raise NotImplementedError
+
+    def _load(self, obj, settings, **kwargs):
+        """Load an object."""
+        raise NotImplementedError
+
     def _sanitize_settings(self, settings: SettingsT) -> SettingsT:
+        """Ensure settings are safe to set on this serializer."""
         if settings is None:
             settings = self.settings.copy()
         else:
             settings = {**self.settings, **settings}
         return settings
 
-    def _evaluate_object(self, identifier, obj, procedure, settings):
-        if self.expr is not None:
-            settings = self._sanitize_settings(settings)
-            if identifier is MISSING:
-                identifier = self.identifier
-            if _validate_identifier(identifier) is not None:
-                settings.update({self.identifier: obj})
-            try:
-                obj = self.expr.eval(procedure, **settings)
-            except Exception as exc:
-                raise NetcastError(f"expression evaluation failed: {exc}") from exc
+    def _cast_object(
+            self, obj: Any, procedure: Literal[PRE, POST], _settings: dict[str, Any]
+    ) -> Any:
+        """Cast a loaded or dumped object before or after an underlying operation."""
+        if procedure == PRE:
+            if self.coercion_flags & Coercion.PRE:
+                obj = self._pre_cast(obj)
+        elif procedure == POST:
+            if self.coercion_flags & Coercion.POST:
+                obj = self._post_cast(obj)
         return obj
 
-    def _to_load_type(self, load: Any) -> Any:
+    def _pre_cast(self, dump: Any) -> Any:
+        """Ensure a dumped object has the proper type before loading it."""
         factory = getattr(self, "load_type_factory", self.load_type)
-        if not callable(factory):
-            raise TypeError("incomplete data type")
-        return factory(load)
+        if factory is None or (isinstance(factory, type) and isinstance(dump, factory)):
+            return dump
+        try:
+            obj = factory(dump)
+        except Exception as exc:
+            raise NetcastError(
+                f"could not pre-cast an object {dump!r}\nUsed factory: {factory}"
+            ) from exc
+        return obj
 
-    def _to_dump_type(self, dump: Any) -> Any:
+    def _post_cast(self, load: Any) -> Any:
+        """Ensure a loaded object has the proper type before dumping it."""
         factory = getattr(self, "dump_type_factory", self.dump_type)
-        if not callable(factory):
-            raise TypeError("incomplete data type")
-        return factory(dump)
+        if factory is None or (isinstance(factory, type) and isinstance(load, factory)):
+            return load
+        try:
+            obj = factory(load)
+        except Exception as exc:
+            raise NetcastError(
+                f"could not post-cast an object {load!r}\nUsed factory: {factory}"
+            ) from exc
+        return obj
 
     def __call__(
             self, *,
@@ -134,6 +146,7 @@ class Serializer:
             default: Any = MISSING,
             **new_settings: str
     ) -> Serializer:
+        """Copy this serializer."""
         if name is None:
             name = self.name
         if default is MISSING:
@@ -142,37 +155,20 @@ class Serializer:
         return type(self)(name=name, default=default, **new_settings)
 
     def __repr__(self) -> str:
-        return (
-            f"{'' if self.default is MISSING else 'default '}{type(self).__name__}"
-            f"{'' if self.name is None else ' ' + repr(self.name)}"
-            + (f" ({self.settings})" if self.settings else "")
-        )
+        default = "" if self.default is MISSING else "default "
+        type_name = type(self).__name__
+        name = "" if self.name is None else " " + repr(self.name)
+        settings = f" ({self.settings})" if self.settings else ""
+        return default + type_name + name + settings
 
     @property
     def impl(self):
         return NotImplemented
 
 
-class Coercion(enum.IntFlag):
-    LOAD_TYPE_BEFORE_DUMPING = 1 << 0
-    LOAD_TYPE_AFTER_LOADING = 1 << 1
-    DUMP_TYPE_BEFORE_LOADING = 1 << 2
-    DUMP_TYPE_AFTER_DUMPING = 1 << 3
-
-
-class Interface(Serializer):  # abc.ABC
+class Interface(Serializer):
     _impl: Any = None
-    nc_origin: type = None
-
-    def __init__(
-            self, *,
-            name: str | None,
-            coercion_flags: int = 0,
-            **settings
-    ):
-        super().__init__(name=name, **settings)
-        self.coercion_flags = coercion_flags
-        self.settings["coercion_flags"] = coercion_flags
+    orig_cls: type | None = None
 
     @property
     def impl(self):
@@ -183,40 +179,42 @@ class Interface(Serializer):  # abc.ABC
     def driver(self) -> DriverMeta:
         """Return the driver here."""
 
-    def get_dependency(
+    def get_dep(
         self,
-        dependency: DependencyT,
+        dep: DependencyT,
         *,
         name: str | None = None,
         default: Any = MISSING,
-        **dependency_settings,
+        **dep_settings,
     ) -> DependencyT:
-        dependency_settings = {**self.settings, **dependency_settings}
-        if isinstance(dependency, type):
-            return dependency(
+        dep_settings = {**self.settings, **dep_settings}
+        if isinstance(dep, type):
+            return dep(
                 name=name,
                 default=default,
-                **force_compliant_kwargs(dependency, dependency_settings),
+                **match_params(dep, dep_settings),
             )
-        return dependency
+        return dep
 
-    def get_impl(self, dependency: DependencyT, **settings):
-        dependency = self.get_dependency(dependency, **settings)
-        settings = {**settings, **self.settings, **dependency.settings}
-        impl = dependency.impl
+    def get_impl(self, dep: DependencyT, **settings):
+        dep = self.get_dep(dep, **settings)
+        settings = {**settings, **self.settings, **dep.settings}
+        impl = dep.impl
 
         if impl is NotImplemented:
-            impl = self.get_dependency(
-                self.driver.lookup(type(dependency)),
-                name=dependency.name,
-                default=dependency.default,
+            dep_type = type(dep)
+            dep = self.get_dep(
+                self.driver.lookup(dep_type),
+                name=dep.name,
+                default=dep.default,
                 **settings,
-            ).impl
+            )
+            impl = dep.impl
 
         if impl is NotImplemented:
-            signature = type(dependency).__name__
-            if getattr(dependency, "name", None) is not None:
-                signature += f" ({dependency.name})"
+            signature = type(dep).__name__
+            if getattr(dep, "name", None) is not None:
+                signature += f" ({dep.name})"
             raise NotImplementedError(
                 f"{signature} is not supported by the {self.driver.name} driver"
             )
@@ -227,34 +225,12 @@ class Interface(Serializer):  # abc.ABC
         self, dependencies: tuple[DependencyT, ...], settings: dict
     ) -> Generator[DependencyT]:
         return (
-            self.get_dependency(
-                dependency, name=dependency.name, default=dependency.default, **settings
-            )
-            for dependency in dependencies
+            self.get_dep(dep, name=dep.name, default=dep.default, **settings)
+            for dep in dependencies
         )
 
-    def get_impls(self, dependencies, settings):
+    def get_impls(self, dependencies, settings) -> Generator:
         return (self.get_impl(dependency, **settings) for dependency in dependencies)
-
-    def _load(self, dump, *, settings=None):
-        if settings is None:
-            settings = {}
-        if self.coercion_flags & Coercion.DUMP_TYPE_BEFORE_LOADING:
-            dump = self._to_dump_type(dump)
-        load = self.impl.parse(dump, **settings)
-        if self.coercion_flags & Coercion.LOAD_TYPE_AFTER_LOADING:
-            load = self._to_load_type(load)
-        return load
-
-    def _dump(self, load, *, settings=None):
-        if settings is None:
-            settings = {}
-        if self.coercion_flags & Coercion.LOAD_TYPE_BEFORE_DUMPING:
-            load = self._to_load_type(load)
-        dump = self.impl.build(load, **settings)
-        if self.coercion_flags & Coercion.DUMP_TYPE_AFTER_DUMPING:
-            dump = self._to_dump_type(dump)
-        return dump
 
     def __repr__(self):
         return super().__repr__() + " interface"

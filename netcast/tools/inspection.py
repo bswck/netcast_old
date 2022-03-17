@@ -1,15 +1,19 @@
+from __future__ import annotations  # Python 3.8
+
 import functools
 import inspect
 import re
+from types import MethodType
+from typing import Any, Callable
 
 from netcast.constants import MISSING
 
 
-def is_classmethod(cls, method):
+def is_classmethod(cls: type, method: MethodType) -> bool:
     return getattr(method, "__self__", None) is cls
 
 
-def force_compliant_kwargs(func, kwargs):
+def match_params(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
     """
     def foo(baz, /, bar, biz):
         pass
@@ -19,23 +23,23 @@ def force_compliant_kwargs(func, kwargs):
 
     kwds = {"bar": "bar", "biz": "biz", "baz": "baz"}
 
-    force_compliant_kwargs(foo, kwds) -> {"bar": "bar", "biz": "biz"}
-    force_compliant_kwargs(bar, kwds) -> {"bar": "bar", "biz": "biz", "baz": "baz"}
+    match_params(foo, kwds) -> {"bar": "bar", "biz": "biz"}
+    match_params(bar, kwds) -> {"bar": "bar", "biz": "biz", "baz": "baz"}
     """
-    adj = {}
-    pms = inspect.signature(func).parameters
-    var = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in pms.values())
-    if var:
-        adj.update(kwargs)
+    params = inspect.signature(func).parameters
+    variadic = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values())
+    matched = {}
+    if variadic:
+        matched.update(kwargs)
     else:
         for name, value in kwargs.items():
-            param = pms.get(name)
+            param = params.get(name)
             if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
-                adj[name] = value
-    return adj
+                matched[name] = value
+    return matched
 
 
-def getattr_or_getitem(obj, attrs, default=MISSING):
+def get(obj: Any, attrs: str, default: Any = MISSING) -> Any:
     match = re.match("(?P<attr>\\w+)?(\\[(?P<item>.+)])?", attrs)
     if match is None:
         raise ValueError("invalid sole combined getattr attribute indicator")
@@ -58,12 +62,12 @@ def getattr_or_getitem(obj, attrs, default=MISSING):
     return got_item
 
 
-def get_attrs(obj, attrs, default=MISSING):
+def get_attrs(obj: Any, attrs: str, default: Any = MISSING) -> Any:
     *path, end = attrs.split(".")
     trailing = obj
     if path:
-        trailing = functools.reduce(functools.partial(getattr_or_getitem), path, obj)
-    got = getattr_or_getitem(trailing, end, default)
+        trailing = functools.reduce(functools.partial(get), path, obj)
+    got = get(trailing, end, default)
     if got is MISSING:
         raise AttributeError(type(obj).__name__ + "." + attrs)
     return got

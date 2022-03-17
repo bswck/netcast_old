@@ -5,10 +5,8 @@ import netcast as nc
 
 
 class Interface(nc.Interface):
-    dump_type = bytes
-
-    def __init__(self, *, name=None, coercion_flags=0, **settings):
-        super().__init__(name=name, coercion_flags=coercion_flags, **settings)
+    def __init__(self, *, name=None, **settings):
+        super().__init__(name=name, **settings)
         self.compiled = settings.get("compiled", not driver.DEBUG)
 
     @property
@@ -20,23 +18,39 @@ class Interface(nc.Interface):
             impl = construct.Renamed(impl, self.name)
         return impl
 
+    def _load(self, obj, settings, **kwargs):
+        return self.impl.parse(obj)
+
+    def _dump(self, obj, settings, **kwargs):
+        return self.impl.build(obj)
+
     @property
     def driver(self):
         return driver
 
 
 class Integer(Interface):
-    nc_origin = nc.Integer
+    orig_cls = nc.Integer
+    bit_size: int
+    signed: bool
 
     def __init__(self, name=None, **settings):
         super().__init__(name=name, **settings)
-        self.bit_size = self.settings.get("bit_size")
-        self.signed = self.settings.get("signed", True)
+        self.bit_size = settings.get("bit_size", 32)
+        self.signed = True
+        self.cpu_sized = True
+        self.little = True
+        self.big = False
+        self.native = False
+        self.configure(**settings)
 
-        cpu_sized = self.settings.get("cpu_sized", True)
-        big_endian = self.settings.get("big_endian", False)
-        little_endian = self.settings.get("little_endian", True)
-        native_endian = self.settings.get("native_endian", False)
+    def configure(self, **settings):
+        self.signed = settings.get("signed", self.signed)
+
+        cpu_sized = settings.get("cpu_sized", self.cpu_sized)
+        big_endian = settings.get("big_endian", self.big)
+        little_endian = settings.get("little_endian", self.little)
+        native_endian = settings.get("native_endian", self.native)
 
         if cpu_sized and any(map(callable, (big_endian, little_endian, native_endian))):
             cpu_sized = False
@@ -48,7 +62,7 @@ class Integer(Interface):
 
         impl = None
         if self.bit_size:
-            if cpu_sized:
+            if self.cpu_sized:
                 impl = self.get_format_field()
                 self.cpu_sized = False
             if impl is None:
@@ -85,11 +99,11 @@ class Integer(Interface):
 
 
 class FloatingPoint(Interface):
-    nc_origin = nc.FloatingPoint
+    orig_cls = nc.FloatingPoint
 
 
 class Sequence(Interface):
-    nc_origin = nc.ModelSerializer
+    orig_cls = nc.ModelSerializer
 
     def __init__(self, *fields, name=None, **settings):
         super().__init__(name=name, **settings)
@@ -97,14 +111,14 @@ class Sequence(Interface):
 
 
 class Array(Interface):
-    nc_origin = nc.ModelSerializer
+    orig_cls = nc.ModelSerializer
 
     def __init__(self, data_type, *, name=None, **settings):
         super().__init__(name=name, **settings)
-        size = self.settings.get("size")
-        prefixed = self.settings.get("prefixed", False)
-        lazy = self.settings.get("lazy", False)
-        compiled = self.settings.get("compiled", False)
+        size = settings.get("size")
+        prefixed = settings.get("prefixed", False)
+        lazy = settings.get("lazy", False)
+        compiled = settings.get("compiled", False)
 
         if prefixed and lazy:
             raise ValueError("array can't be prefixed and lazy at the same time")
@@ -136,13 +150,13 @@ class Array(Interface):
 
 
 class Struct(Interface):
-    nc_origin = nc.ModelSerializer
+    orig_cls = nc.ModelSerializer
 
     def __init__(self, *fields, name=None, **settings):
         super().__init__(name=name, **settings)
 
         impls = self.get_impls(fields, self.settings)
-        alignment_modulus = self.settings.get("alignment_modulus")
+        alignment_modulus = settings.get("alignment_modulus")
 
         if alignment_modulus is None:
             impl = construct.Struct(*impls)

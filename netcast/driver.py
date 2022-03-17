@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 __all__ = ("Driver", "DriverMeta", "serializer", "interface")
 
-ORIGIN_FIELD = "nc_origin"
+ORIGIN_FIELD = "orig_cls"
 
 
 _M = TypeVar("_M", bound="Model")
@@ -99,7 +99,7 @@ class Driver(metaclass=DriverMeta):
 
     @classmethod
     def register(cls, member: type):
-        link_to = getattr(member, "nc_origin", member.__base__)
+        link_to = getattr(member, "orig_cls", member.__base__)
         cls._lookup_dict[link_to] = member
 
 

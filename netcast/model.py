@@ -32,7 +32,6 @@ class _BaseDescriptor:
 class ComponentDescriptor(_BaseDescriptor):
     def __init__(self, component: ComponentT):
         self.component = component
-        self.proxies = []
         self._state = MISSING
 
     @property
@@ -129,7 +128,7 @@ class Model:
             )
         else:
             serializer = driver_or_serializer
-            serializer = serializer.get_dependency(
+            serializer = serializer.get_dep(
                 serializer, name=self.name, default=self.default, **self.settings
             )
 
@@ -139,7 +138,7 @@ class Model:
     def state(self) -> dict:
         return self.get_state()
 
-    def get_state(self, filling=MISSING, **settings: Any) -> dict:
+    def get_state(self, empty=MISSING, **settings: Any) -> dict:
         descriptors = self.get_suitable_descriptors(**settings)
         state = {}
 
@@ -150,16 +149,14 @@ class Model:
                 value = descriptor.component.default
 
             if value is MISSING:
-                if filling is not MISSING:
-                    value = filling
+                if empty is not MISSING:
+                    value = empty
                 else:
                     raise ValueError(
                         f"missing required {type(descriptor.component).__name__} "
-                        f"value for serializer named {descriptor.component.name}"
+                        f"value for serializer named {descriptor.component.name!r}"
                     )
-
             state[name] = value
-
         return state
 
     def get_suitable_components(self, **settings: Any) -> dict[Any, ComponentT]:
@@ -170,6 +167,11 @@ class Model:
         namespace = set(self.get_suitable_components(**settings))
         descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
         return descriptors
+
+    def bind(self, **values):
+        for key, value in values.items():
+            self[key] = value
+        return self
 
     def dump(
             self, 
