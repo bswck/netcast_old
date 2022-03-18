@@ -2,14 +2,18 @@ from __future__ import annotations  # Python 3.8
 
 from typing import Any, Callable, Protocol, TypeVar, runtime_checkable
 
-from jaraco.collections import KeyTransformingDict as _KeyTransformingDict, ItemsAsAttributes
+from jaraco.collections import (
+    KeyTransformingDict as _KeyTransformingDict,
+    ItemsAsAttributes,
+)
 
 from netcast.constants import MISSING
 
 
 @runtime_checkable
 class Comparable(Protocol):
-    def __lt__(self: _ComparableT, other: _ComparableT) -> bool | NotImplemented: ...
+    def __lt__(self: _ComparableT, other: _ComparableT) -> bool | NotImplemented:
+        ...
 
 
 _ComparableT = TypeVar("_ComparableT", bound=Comparable)
@@ -119,7 +123,9 @@ parameters = ParameterContainer.from_call
 
 
 class ForwardDependency:
-    def __init__(self, dependent_class: type | None = None, unbound: bool | None = None):
+    def __init__(
+        self, dependent_class: type | None = None, unbound: bool | None = None
+    ):
         self.__dependent_class = None
         self.__cache = IDLookupDictionary()
         self.__unbound = unbound

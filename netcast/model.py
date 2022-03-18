@@ -12,13 +12,13 @@ from netcast.stack import Stack, VersionAwareStack
 
 
 __all__ = (
-    "ProxyDescriptor",
+    "check_component",
     "ComponentDescriptor",
     "ComponentArgumentT",
     "ComponentT",
-    "Model",
-    "is_component",
     "model",
+    "Model",
+    "ProxyDescriptor",
 )
 
 
@@ -30,24 +30,25 @@ class _BaseDescriptor:
 
 
 class ComponentDescriptor(_BaseDescriptor):
+    _state = MISSING
+
     def __init__(self, component: ComponentT):
         self.component = component
-        self._state = MISSING
 
     @property
-    def state(self):
+    def state(self) -> Any:
         return self._state
 
-    def __get__(self, instance: Model | None, owner: Type[Model] | None):
+    def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
         return self.state
 
-    def __set__(self, instance: Model | None, new_state: Any):
-        self._state = new_state
+    def __set__(self, instance: Model | None = None, state: Any = MISSING):
+        self._state = state
 
-    def __call__(self, state):
-        self.__set__(None, state)
+    def __call__(self, state) -> Any:
+        self.__set__(state=state)
         return state
 
 
@@ -59,17 +60,17 @@ class ProxyDescriptor(_BaseDescriptor):
     def component(self) -> ComponentT:
         return self.ancestor.component
 
-    def __get__(self, instance: Model | None, owner: Type[Model] | None):
+    def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
         return self.state
 
-    def __set__(self, instance: Model | None, new_state: Any):
+    def __set__(self, instance: Model | None = None, new_state: Any = MISSING):
         self.component.__set__(instance, new_state)
 
-    def __call__(self, new_state: Any) -> Any:
-        self.__set__(None, new_state)
-        return new_state
+    def __call__(self, state: Any) -> Any:
+        self.component.__set__(state=state)
+        return state
 
 
 @functools.total_ordering
@@ -112,20 +113,14 @@ class Model:
                 defaults[name] = default
         return defaults
 
-    def resolve_serializer(self, driver_or_serializer, settings: SettingsT = None):
+    def _lookup_serializer(self, driver_or_serializer, settings: SettingsT = None):
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
 
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
-            components = self.get_suitable_components(**settings).values()
-            dispatch_key = None
-            serializer = driver.get_model_serializer(
-                dispatch_key,
-                components=components,
-                settings=settings
-            )
+            serializer = driver.lookup_model_serializer(self, **settings)
         else:
             serializer = driver_or_serializer
             serializer = serializer.get_dep(
@@ -139,7 +134,7 @@ class Model:
         return self.get_state()
 
     def get_state(self, empty=MISSING, **settings: Any) -> dict:
-        descriptors = self.get_suitable_descriptors(**settings)
+        descriptors = self._get_suitable_descriptors(**settings)
         state = {}
 
         for name, descriptor in descriptors.items():
@@ -163,9 +158,13 @@ class Model:
         settings = {**settings, **self.settings}
         return self.stack.get_suitable_components(settings)
 
-    def get_suitable_descriptors(self, **settings: Any) -> dict[Any, ComponentDescriptor]:
+    def _get_suitable_descriptors(
+        self, settings: SettingsT
+    ) -> dict[Any, ComponentDescriptor]:
         namespace = set(self.get_suitable_components(**settings))
-        descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
+        descriptors = {
+            name: desc for name, desc in self._descriptors.items() if name in namespace
+        }
         return descriptors
 
     def bind(self, **values):
@@ -174,20 +173,15 @@ class Model:
         return self
 
     def dump(
-            self, 
-            driver_or_serializer: Type[Driver] | Serializer, 
-            **settings: Any
+        self, driver_or_serializer: Type[Driver] | Serializer, **settings: Any
     ) -> Any:
-        serializer = self.resolve_serializer(driver_or_serializer, settings)
+        serializer = self._lookup_serializer(driver_or_serializer, settings)
         return serializer.dump(self.get_state(), settings=settings)
 
     def load(
-            self, 
-            driver_or_serializer: Type[Driver] | Serializer, 
-            dump: Any, 
-            **settings
+        self, driver_or_serializer: Type[Driver] | Serializer, dump: Any, **settings
     ) -> Model:
-        serializer = self.resolve_serializer(driver_or_serializer, settings)
+        serializer = self._lookup_serializer(driver_or_serializer, settings)
         return self.load_state(serializer.load(dump, settings=settings))
 
     def load_state(self, load: Any):
@@ -197,15 +191,10 @@ class Model:
 
     @functools.singledispatchmethod
     def parse_state(self, load: Any) -> dict | tuple[tuple[str, Any], ...]:
-        raise TypeError(
-            f"unsupported state type: {type(load).__name__}"
-        )
+        raise TypeError(f"unsupported state type: {type(load).__name__}")
 
     @parse_state.register
-    def parse_sequence_state(
-            self, 
-            load: collections.abc.Sequence
-    ) -> "dict[str, Any]":
+    def parse_sequence_state(self, load: collections.abc.Sequence) -> "dict[str, Any]":
         return dict(zip(self._descriptors, load))
 
     @parse_state.register
@@ -258,6 +247,39 @@ class Model:
 
         return tuple(state.values()) < tuple(other_state.values())
 
+    @classmethod
+    def _build_from_members(cls):
+        cls._descriptors = descriptors = {}
+        seen = {}
+
+        for attr, component in inspect.getmembers(cls, check_component):
+            name = attr
+            seen_descriptor = seen.get(id(component))
+
+            if seen_descriptor is None:
+                transformed = cls.stack.add(
+                    component, default_name=attr, settings=cls.settings
+                )
+                descriptor = cls.descriptor_class(transformed)
+                setattr(cls, transformed.name, descriptor)
+            else:
+                descriptor = seen_descriptor
+                alias_descriptor = cls.descriptor_alias_class(descriptor)
+                setattr(cls, attr, alias_descriptor)
+            descriptors[name] = descriptor
+            seen[id(component)] = descriptor
+
+        seen.clear()
+
+    @classmethod
+    def _build_from_stack(cls, **settings):
+        suitable_components = cls.stack.get_suitable_components(**settings)
+        cls._descriptors = descriptors = {}
+
+        for idx, (name, component) in enumerate(suitable_components.items()):
+            descriptor = descriptors[name] = cls.descriptor_class(component)
+            setattr(cls, name, descriptor)
+
     def __init_subclass__(
         cls,
         stack: Stack = None,
@@ -274,54 +296,25 @@ class Model:
         cls.stack = stack
         cls.settings = settings
         cls.name = cls.__name__.casefold()
-        descriptors = {}
 
         if from_members:
-            seen = {}
-
-            for attr_name, component in inspect.getmembers(cls, is_component):
-                name = attr_name
-                seen_descriptor = seen.get(id(component))
-
-                if seen_descriptor is None:
-                    transformed = cls.stack.add(
-                        component,
-                        default_name=attr_name,
-                        settings=cls.settings
-                    )
-                    descriptor = cls.descriptor_class(transformed)
-                    setattr(cls, transformed.name, descriptor)
-                else:
-                    descriptor = seen_descriptor
-                    alias_descriptor = cls.descriptor_alias_class(descriptor)
-                    setattr(cls, attr_name, alias_descriptor)
-
-                descriptors[name] = descriptor
-                seen[id(component)] = descriptor
-
-            seen.clear()
-
+            cls._build_from_members()
         else:
-            suitable_components = cls.stack.get_suitable_components(**settings)
-
-            for idx, (name, component) in enumerate(suitable_components.items()):
-                descriptor = descriptors[name] = cls.descriptor_class(component)
-                setattr(cls, name, descriptor)
-
-        cls._descriptors = descriptors
+            cls._build_from_stack(**settings)
 
 
 ComponentT = TypeVar("ComponentT", Serializer, Model)
 ComponentArgumentT = Union[ComponentT, Type[ComponentT]]
 
 
-def is_component(maybe_component: Any, allow_type: bool = True) -> bool:
-    instance_ok = isinstance(maybe_component, (Serializer, Model))
-    type_ok = allow_type and (
-        isinstance(maybe_component, type)
-        and issubclass(maybe_component, (Serializer, Model))
+def check_component(obj: Any, acknowledge_type: bool = True) -> bool:
+    is_instance = isinstance(obj, (Serializer, Model))
+    is_type = (
+        acknowledge_type
+        and isinstance(obj, type)
+        and issubclass(obj, (Serializer, Model))
     )
-    return instance_ok or type_ok
+    return is_instance or is_type
 
 
 def model(

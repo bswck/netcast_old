@@ -1,5 +1,3 @@
-import inspect
-
 import netcast as nc
 
 
@@ -20,6 +18,7 @@ class TestModel:
         assert Foo.stack.size == 2
 
         my_settings = {"setting": "value"}
+
         class Bar(nc.Model, **my_settings):
             foo = nc.List
 

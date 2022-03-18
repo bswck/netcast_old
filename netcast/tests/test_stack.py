@@ -55,7 +55,9 @@ class TestStack:
         component = stack.transform_component(serializer_class)
         assert component is not serializer_class
 
-    @pytest.mark.parametrize("components", [[component() for component in SERIALIZER_CLASSES]])
+    @pytest.mark.parametrize(
+        "components", [[component() for component in SERIALIZER_CLASSES]]
+    )
     @pytest.mark.parametrize("mock", [component() for component in SERIALIZER_CLASSES])
     def test_insert(self, stack, components, mock):
         for component in components:
@@ -66,16 +68,11 @@ class TestStack:
 
 
 class TestVersionAwareStack:
-    def duplex_factory(
-            self,
-            serializer,
-            version_added=None,
-            version_removed=None
-    ):
+    def duplex_factory(self, serializer, version_added=None, version_removed=None):
         stack = VersionAwareStack()
         serializer_settings = {
             stack.since_version_field: version_added,
-            stack.until_version_field: version_removed
+            stack.until_version_field: version_removed,
         }
         component = serializer(**serializer_settings)
         stack.add(component)
@@ -88,21 +85,21 @@ class TestVersionAwareStack:
             (0, 1, None, 1),
             (2, 1, 1.5, 2.5),
             ("c", "f", "b", "e"),
-            ((1, "alpha"), (2, "alpha"), (1, "alpha"), (1, "beta"))
-        ]
+            ((1, "alpha"), (2, "alpha"), (1, "alpha"), (1, "beta")),
+        ],
     )
     def test(
-            self,
-            serializer,
-            compatible_version,
-            incompatible_version,
-            version_added,
-            version_removed,
+        self,
+        serializer,
+        compatible_version,
+        incompatible_version,
+        version_added,
+        version_removed,
     ):
         stack, component = self.duplex_factory(
             serializer=serializer,
             version_added=version_added,
-            version_removed=version_removed
+            version_removed=version_removed,
         )
         settings = {stack.settings_version_field: compatible_version}
 

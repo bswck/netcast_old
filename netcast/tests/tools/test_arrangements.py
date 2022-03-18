@@ -75,6 +75,7 @@ class TestClassArrangement:
         from netcast.tools.contexts import QueueContext as SomeOtherContext
 
         with pytest.raises(ArrangementConstructionError):
+
             class E(ClassArrangement, descent=F):
                 context_class = SomeOtherContext
 

@@ -18,9 +18,9 @@ __all__ = ("Stack", "SelectiveStack", "VersionAwareStack")
 
 class Stack:
     def __init__(
-            self,
-            name: str | None = None,
-            default_name_template: str | string.Template = "unnamed_%(index)d",
+        self,
+        name: str | None = None,
+        default_name_template: str | string.Template = "unnamed_%(index)d",
     ):
         if name is None:
             name = f"{type(self).__name__.casefold()}_{id(self)}"
@@ -40,9 +40,7 @@ class Stack:
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(
-            component=component,
-            default_name=default_name,
-            settings=settings
+            component=component, default_name=default_name, settings=settings
         )
         self.push(transformed)
         return transformed
@@ -77,20 +75,13 @@ class Stack:
         self._components.append(component)
         self._lock.release()
 
-    def pop(
-            self,
-            index: int = -1
-    ) -> ComponentT | None:
+    def pop(self, index: int = -1) -> ComponentT | None:
         self._lock.acquire()
         obj = self._components.pop(index)
         self._lock.release()
         return obj
 
-    def get(
-            self,
-            index: int = -1,
-            settings: SettingsT = None
-    ) -> ComponentT | None:
+    def get(self, index: int = -1, settings: SettingsT = None) -> ComponentT | None:
         self._lock.acquire()
         try:
             obj = self._components[index]
@@ -109,8 +100,7 @@ class Stack:
         return len(self._components)
 
     def get_suitable_components(
-            self,
-            settings: SettingsT = None
+        self, settings: SettingsT = None
     ) -> dict[str, ComponentT]:
         if settings is None:
             settings = {}
@@ -127,9 +117,7 @@ class Stack:
 
     @classmethod
     def transform_serializer(
-            cls,
-            component: Serializer | Type,  # [Serializer],
-            settings: SettingsT = None
+        cls, component: Serializer | Type, settings: SettingsT = None  # [Serializer],
     ) -> Serializer:
         if settings is None:
             settings = {}
@@ -142,12 +130,14 @@ class Stack:
         return component
 
     def transform_component(
-            self,
-            component: ComponentArgumentT, *,
-            settings: SettingsT = None,
-            default_name: str | None = None
+        self,
+        component: ComponentArgumentT,
+        *,
+        settings: SettingsT = None,
+        default_name: str | None = None,
     ) -> ComponentT | None:
         from netcast.model import Model
+
         if settings is None:
             settings = {}
         if default_name:
@@ -199,7 +189,7 @@ class VersionAwareStack(SelectiveStack):
         default_version: Comparable = GREATEST,
         default_since_version: Comparable = LEAST,
         default_until_version: Comparable = GREATEST,
-        versioning_namespace: str | None = "settings"
+        versioning_namespace: str | None = "settings",
     ):
         super().__init__()
         self.settings_version_field = settings_version_field

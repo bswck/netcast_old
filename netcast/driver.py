@@ -8,13 +8,14 @@ from typing import ClassVar, Type, TypeVar, TYPE_CHECKING, Any
 from netcast import serializers
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer, SettingsT
+from netcast.tools.collections import IDLookupDictionary
 
 if TYPE_CHECKING:
     from netcast.serializers import ModelSerializer
     from netcast.model import Model  # noqa: F401
 
 
-__all__ = ("Driver", "DriverMeta", "serializer", "interface")
+__all__ = ("Driver", "DriverMeta", "driver_serializer", "driver_interface")
 
 ORIGIN_FIELD = "orig_cls"
 
@@ -23,23 +24,42 @@ _M = TypeVar("_M", bound="Model")
 
 
 class DriverMeta(type):
+    _memo: IDLookupDictionary[Model, Serializer]
+    _lookup_dict: dict[type, type]
+
     def _get_model_serializer(
-            cls,
-            model_serializer: Type[ModelSerializer] | None = None, /,
-            components: tuple[Any, ...] = (),
-            settings: SettingsT = None
+        cls,
+        serializer: Type[ModelSerializer],
+        /,
+        *,
+        components: tuple[Any, ...] = (),
+        settings: SettingsT = None,
     ) -> ModelSerializer:
         if settings is None:
             settings = {}
-        if model_serializer is None:
-            model_serializer = cls.default_model_serializer
-        return model_serializer(*components, **settings)
+        return serializer(*components, **settings)
 
     # Manual decoration due to some type-checking problems.
     # To be checked in detail.
     get_model_serializer = functools.singledispatchmethod(_get_model_serializer)
 
-    def lookup(cls, serializer_type: type[Serializer]):
+    def lookup_model_serializer(cls, model: Model, **settings) -> Serializer:
+        memoized = cls._memo.get(model)
+        if memoized is not None:
+            if all(
+                settings[key] == memoized.settings[key]
+                for key in (memoized.settings.keys() & settings.keys())
+            ):
+                return memoized
+            del cls._memo[model]
+        components = model.get_suitable_components(**settings).values()
+        serializer = cls.get_model_serializer(
+            cls.default_model_serializer, components=components, settings=settings
+        )
+        cls._memo[model] = serializer
+        return serializer
+
+    def lookup_type(cls, serializer_type: type[Serializer]):
         try:
             return cls._lookup_dict[serializer_type]
         except KeyError:
@@ -59,7 +79,7 @@ class DriverMeta(type):
                 raise ValueError("`Model` type or instance expected")
             if isinstance(model, type):
                 model = model()
-            return model.resolve_serializer(self, settings)
+            return model._lookup_serializer(self, settings)
         return super().__call__()
 
 
@@ -83,14 +103,15 @@ class Driver(metaclass=DriverMeta):
         cls.name = driver_name
         cls.__drivers_registry__[driver_name] = cls
         cls._lookup_dict = {}
+        cls._memo = IDLookupDictionary()
 
-        for _, member in inspect.getmembers(cls, _is_impl):
+        for _, member in inspect.getmembers(cls, _check_impl):
             cls.register(member)
 
         cls.DEBUG = __debug__
 
     @staticmethod
-    def _conjure_driver_name(stack_level: int = 1):
+    def _conjure_driver_name(stack_level: int = 1) -> str:
         f_globals = inspect.stack()[stack_level][0].f_globals
         driver_name = f_globals.get("DRIVER_NAME", f_globals.get("__name__"))
         if driver_name is None:
@@ -101,16 +122,20 @@ class Driver(metaclass=DriverMeta):
     def register(cls, member: type):
         link_to = getattr(member, "orig_cls", member.__base__)
         cls._lookup_dict[link_to] = member
+        member_name = member.__name__
+        if member_name not in cls.__dict__:
+            setattr(cls, member_name, member)
+        return member
 
 
-def _is_impl(member: Any):
+def _check_impl(member: Any) -> bool:
     return isinstance(member, type) and issubclass(member, Serializer)
 
 
-def serializer(
-        interface_class: type,
-        serializer_class: type | None = None,
-        origin: type | None = None
+def driver_serializer(
+    interface_class: type,
+    serializer_class: type | None = None,
+    origin: type | None = None,
 ):
     if serializer_class is None:
         raise NetcastError("no serializer has been set on this adapter")
@@ -122,10 +147,7 @@ def serializer(
     return impl
 
 
-def interface(
-        interface_class: type,
-        origin: type | None = None
-):
+def driver_interface(interface_class: type, origin: type | None = None):
     if origin is None:
         origin = getattr(interface_class, ORIGIN_FIELD, None)
-    return functools.partial(serializer, interface_class, origin=origin)
+    return functools.partial(driver_serializer, interface_class, origin=origin)

@@ -93,12 +93,14 @@ class Object(Serializer):
 
     def __class_getitem__(cls, size):
         from netcast import model
+
         name = cls.__name__
         components = (cls(name=f"{name}_{i}") for i in range(size))
         return model(*components, name=name)
 
     def __getitem__(self, size):
         from netcast import model
+
         name = self.name
         components = (self(name=f"{name}_{i}") for i in range(size))
         return model(*components, name=name)

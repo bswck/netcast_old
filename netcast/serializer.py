@@ -6,7 +6,6 @@ from typing import Any, Generator, TypeVar, TYPE_CHECKING, Dict, Optional, Liter
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
-from netcast.expressions import PRE, POST
 from netcast.tools.inspection import match_params
 
 if TYPE_CHECKING:
@@ -14,12 +13,12 @@ if TYPE_CHECKING:
 
 
 SettingsT = Optional[Dict[str, Any]]
-DependencyT = TypeVar("DependencyT")
+DepT = TypeVar("DepT")
 
 
-class Coercion(enum.IntFlag):
-    LOAD_TYPE_BEFORE_DUMPING = PRE = 1 << 0
-    DUMP_TYPE_AFTER_LOADING = POST = 1 << 1
+class Phase(enum.IntFlag):
+    PRE = 1
+    POST = 2
 
 
 class Serializer:
@@ -29,62 +28,65 @@ class Serializer:
     dump_type: type | None = None
 
     def __init__(
-            self, *,
-            name: str | None = None,
-            default: Any = MISSING,
-            coercion_flags: int = Coercion.PRE | Coercion.POST,
-            **settings: Any
+        self,
+        *,
+        name: str | None = None,
+        default: Any = MISSING,
+        coercion_phases: int = Phase.PRE | Phase.POST,
+        **settings: Any,
     ):
         super().__init__()
         self.name = name
         self.default = default
         self.contained = False
-        self.coercion_flags = coercion_flags
-        self.settings = settings
+        self.coercion_phases = coercion_phases
+        self.settings = {}
+        self.configure(**settings)
 
-    def dump(
-            self,
-            obj, *,
-            settings: SettingsT = None,
-            **kwargs: Any
-    ):
+    def dump(self, obj, *, settings: SettingsT = None, **kwargs: Any):
         """
         Dump a loaded object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
-        self.configure(**kwargs)
-        obj = self._cast_object(obj, PRE, settings)
+        self.configure(**{**self.settings, **kwargs})
+        obj = self._cast_object(obj, Phase.PRE, settings)
         try:
             obj = self._dump(obj, settings=settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"dumping failed: {exc}") from exc
         return obj
 
-    def load(
-            self,
-            obj, *,
-            settings: SettingsT = None,
-            **kwargs
-    ):
+    def load(self, obj, *, settings: SettingsT = None, **kwargs):
         """
         Load a dumped object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
-        self.configure(**kwargs)
+        self.configure(**{**self.settings, **kwargs})
         try:
             obj = self._load(obj, settings=settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"loading failed: {exc}") from exc
-        obj = self._cast_object(obj, POST, settings)
+        obj = self._cast_object(obj, Phase.POST, settings)
         return obj
 
     def configure(self, **settings):
-        """Configure this serializer."""
-        self.settings.update(settings)
+        """Configure this serializer, possibly applying new settings to public attributes."""
+        self.settings.update(**settings)
+        matched = match_params(self.configure, settings)
+        self._configure(**matched)
+        new_settings = self.settings
+        for attr, value in new_settings.items():
+            if attr.startswith("_"):
+                continue
+            if hasattr(self, attr):
+                setattr(self, attr, value)
+
+    def _configure(self, **settings):
+        return
 
     def _dump(self, obj, settings, **kwargs):
         """Dump an object."""
@@ -103,14 +105,14 @@ class Serializer:
         return settings
 
     def _cast_object(
-            self, obj: Any, procedure: Literal[PRE, POST], _settings: dict[str, Any]
+        self, obj: Any, phase: Literal[Phase.PRE, Phase.POST], _settings: dict[str, Any]
     ) -> Any:
         """Cast a loaded or dumped object before or after an underlying operation."""
-        if procedure == PRE:
-            if self.coercion_flags & Coercion.PRE:
+        if phase == Phase.PRE:
+            if self.coercion_phases & Phase.PRE:
                 obj = self._pre_cast(obj)
-        elif procedure == POST:
-            if self.coercion_flags & Coercion.POST:
+        elif phase == Phase.POST:
+            if self.coercion_phases & Phase.POST:
                 obj = self._post_cast(obj)
         return obj
 
@@ -141,10 +143,7 @@ class Serializer:
         return obj
 
     def __call__(
-            self, *,
-            name: str | None = None,
-            default: Any = MISSING,
-            **new_settings: str
+        self, *, name: str | None = None, default: Any = MISSING, **new_settings: str
     ) -> Serializer:
         """Copy this serializer."""
         if name is None:
@@ -181,12 +180,12 @@ class Interface(Serializer):
 
     def get_dep(
         self,
-        dep: DependencyT,
+        dep: DepT,
         *,
         name: str | None = None,
         default: Any = MISSING,
         **dep_settings,
-    ) -> DependencyT:
+    ) -> DepT:
         dep_settings = {**self.settings, **dep_settings}
         if isinstance(dep, type):
             return dep(
@@ -196,7 +195,7 @@ class Interface(Serializer):
             )
         return dep
 
-    def get_impl(self, dep: DependencyT, **settings):
+    def get_impl(self, dep: DepT, **settings):
         dep = self.get_dep(dep, **settings)
         settings = {**settings, **self.settings, **dep.settings}
         impl = dep.impl
@@ -204,7 +203,7 @@ class Interface(Serializer):
         if impl is NotImplemented:
             dep_type = type(dep)
             dep = self.get_dep(
-                self.driver.lookup(dep_type),
+                self.driver.lookup_type(dep_type),
                 name=dep.name,
                 default=dep.default,
                 **settings,
@@ -221,16 +220,14 @@ class Interface(Serializer):
 
         return impl
 
-    def get_dependencies(
-        self, dependencies: tuple[DependencyT, ...], settings: dict
-    ) -> Generator[DependencyT]:
+    def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Generator[DepT]:
         return (
             self.get_dep(dep, name=dep.name, default=dep.default, **settings)
-            for dep in dependencies
+            for dep in deps
         )
 
-    def get_impls(self, dependencies, settings) -> Generator:
-        return (self.get_impl(dependency, **settings) for dependency in dependencies)
+    def get_impls(self, deps: tuple[DepT, ...], settings: SettingsT) -> Generator:
+        return (self.get_impl(dep, **settings) for dep in deps)
 
     def __repr__(self):
         return super().__repr__() + " interface"

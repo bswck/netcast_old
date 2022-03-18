@@ -1,3 +1,4 @@
+# flake8: noqa
 from __future__ import annotations  # Python 3.8
 
 import enum
@@ -7,6 +8,16 @@ from typing import Any, Callable, Union, Literal
 
 from netcast.constants import MISSING
 from netcast.tools import strings
+
+
+__all__ = (
+    "EvalFlags",
+    "Variable",
+    "variable",
+    "variables",
+    "Expression",
+    "ExpressionOps",
+)
 
 
 class EvalFlags(enum.IntFlag):
@@ -39,10 +50,7 @@ class EvalFlags(enum.IntFlag):
 
         if (flags & cls.PRE_DUMP) and (flags & cls.POST_LOAD):
             mutex_flags.append("PRE_DUMP and POST_LOAD")
-        if (
-                (flags & cls.PRE_DUMP_REVERSE)
-                and (flags & cls.POST_LOAD_REVERSE)
-        ):
+        if (flags & cls.PRE_DUMP_REVERSE) and (flags & cls.POST_LOAD_REVERSE):
             mutex_flags.append("PRE_DUMP_REVERSE and POST_LOAD_REVERSE")
 
         if mutex_flags:
@@ -57,65 +65,170 @@ POSTREVERSE = POST_LOAD_REVERSE = EvalFlags.POST_LOAD_REVERSE
 
 
 class ExpressionOps:
-    def _operative(self): return self
-    def __add__(self, other): return Add(self._operative(), other)
-    def __radd__(self, other): return Add(other, self._operative())
-    def concat(self, other): return Concatenate(self._operative(), other)
+    def _operative(self):
+        return self
+
+    def __add__(self, other):
+        return Add(self._operative(), other)
+
+    def __radd__(self, other):
+        return Add(other, self._operative())
+
+    def concat(self, other):
+        return Concatenate(self._operative(), other)
+
     with_suffix = concat
-    def concat_left(self, other): return ConcatenateLeft(self._operative(), other)
+
+    def concat_left(self, other):
+        return ConcatenateLeft(self._operative(), other)
+
     with_prefix = concat_left
-    def __sub__(self, other): return Subtract(self._operative(), other)
-    def __rsub__(self, other): return Subtract(other, self._operative())
-    def __mul__(self, other): return Multiply(self._operative(), other)
-    def __rmul__(self, other): return Multiply(other, self._operative())
-    def __truediv__(self, other): return Divide(self._operative(), other)
-    def __rtruediv__(self, other): return Divide(other, self._operative())
-    def __floordiv__(self, other): return FloorDivide(self._operative(), other)
-    def __rfloordiv__(self, other): return FloorDivide(other, self._operative())
-    def __pow__(self, other): return Power(self._operative(), other)
-    def __rpow__(self, other): return Power(other, self._operative())
-    def root(self, other): return Root(self._operative(), other)
-    def __mod__(self, other): return Modulo(self._operative(), other)
-    def __rmod__(self, other): return Modulo(other, self._operative())
-    def divmod(self, other): return DivMod(self._operative(), other)
-    def __lshift__(self, other): return ShiftLeft(self._operative(), other)
-    def __rlshift__(self, other): return ShiftLeft(other, self._operative())
-    def __rshift__(self, other): return ShiftRight(self._operative(), other)
-    def __rrshift__(self, other): return ShiftRight(other, self._operative())
-    def __and__(self, other): return AND(self._operative(), other)
-    def __rand__(self, other): return AND(other, self._operative())
-    def nand(self, other): return NAND(self._operative(), other)
-    def __or__(self, other): return OR(self._operative(), other)
-    def __ror__(self, other): return OR(other, self._operative())
-    def nor(self, other): return NOR(self._operative(), other)
-    def __xor__(self, other): return XOR(self._operative(), other)
-    def __rxor__(self, other): return XOR(other, self._operative())
-    def equ(self, other): return EQU(self._operative(), other)
-    def and_(self, other): return And(self._operative(), other)
-    def nand_(self, other): return NAnd(self._operative(), other)
-    def or_(self, other): return Or(self._operative(), other)
-    def nor_(self, other): return NOr(self._operative(), other)
-    def xor_(self, other): return XOr(self._operative(), other)
-    def __eq__(self, other): return Equal(self._operative(), other)
-    def getitem(self, other): return GetItem(self._operative(), other)
+
+    def __sub__(self, other):
+        return Subtract(self._operative(), other)
+
+    def __rsub__(self, other):
+        return Subtract(other, self._operative())
+
+    def __mul__(self, other):
+        return Multiply(self._operative(), other)
+
+    def __rmul__(self, other):
+        return Multiply(other, self._operative())
+
+    def __truediv__(self, other):
+        return Divide(self._operative(), other)
+
+    def __rtruediv__(self, other):
+        return Divide(other, self._operative())
+
+    def __floordiv__(self, other):
+        return FloorDivide(self._operative(), other)
+
+    def __rfloordiv__(self, other):
+        return FloorDivide(other, self._operative())
+
+    def __pow__(self, other):
+        return Power(self._operative(), other)
+
+    def __rpow__(self, other):
+        return Power(other, self._operative())
+
+    def root(self, other):
+        return Root(self._operative(), other)
+
+    def __mod__(self, other):
+        return Modulo(self._operative(), other)
+
+    def __rmod__(self, other):
+        return Modulo(other, self._operative())
+
+    def divmod(self, other):
+        return DivMod(self._operative(), other)
+
+    def __lshift__(self, other):
+        return ShiftLeft(self._operative(), other)
+
+    def __rlshift__(self, other):
+        return ShiftLeft(other, self._operative())
+
+    def __rshift__(self, other):
+        return ShiftRight(self._operative(), other)
+
+    def __rrshift__(self, other):
+        return ShiftRight(other, self._operative())
+
+    def __and__(self, other):
+        return AND(self._operative(), other)
+
+    def __rand__(self, other):
+        return AND(other, self._operative())
+
+    def nand(self, other):
+        return NAND(self._operative(), other)
+
+    def __or__(self, other):
+        return OR(self._operative(), other)
+
+    def __ror__(self, other):
+        return OR(other, self._operative())
+
+    def nor(self, other):
+        return NOR(self._operative(), other)
+
+    def __xor__(self, other):
+        return XOR(self._operative(), other)
+
+    def __rxor__(self, other):
+        return XOR(other, self._operative())
+
+    def equ(self, other):
+        return EQU(self._operative(), other)
+
+    def and_(self, other):
+        return And(self._operative(), other)
+
+    def nand_(self, other):
+        return NAnd(self._operative(), other)
+
+    def or_(self, other):
+        return Or(self._operative(), other)
+
+    def nor_(self, other):
+        return NOr(self._operative(), other)
+
+    def xor_(self, other):
+        return XOr(self._operative(), other)
+
+    def __eq__(self, other):
+        return Equal(self._operative(), other)
+
+    def getitem(self, other):
+        return GetItem(self._operative(), other)
+
     get = getitem
-    def getattr(self, other): return GetAttr(self._operative(), other)
-    def call(self, other): return Call(self._operative(), other)
-    def called_by(self, other): return Call(other, self._operative())
-    def __invert__(self): return self.called_by(operator.not_)
-    def __pos__(self): return self.called_by(operator.pos)
-    def __neg__(self): return self.called_by(operator.neg)
-    def is_(self, other): return Is(self._operative(), other)
-    def is_not(self, other): return IsNot(self._operative(), other)
-    def in_(self, other): return Contains(other, self._operative())
-    def __contains__(self, other): return Contains(self._operative(), other)    
+
+    def getattr(self, other):
+        return GetAttr(self._operative(), other)
+
+    def call(self, other):
+        return Call(self._operative(), other)
+
+    def called_by(self, other):
+        return Call(other, self._operative())
+
+    def __invert__(self):
+        return self.called_by(operator.not_)
+
+    def __pos__(self):
+        return self.called_by(operator.pos)
+
+    def __neg__(self):
+        return self.called_by(operator.neg)
+
+    def is_(self, other):
+        return Is(self._operative(), other)
+
+    def is_not(self, other):
+        return IsNot(self._operative(), other)
+
+    def in_(self, other):
+        return Contains(other, self._operative())
+
+    def __contains__(self, other):
+        return Contains(self._operative(), other)
+
     @property
-    def math(self): return MathOps(self)
+    def math(self):
+        return MathOps(self)
 
 
 class OpsExtension(ExpressionOps):
-    def __init__(self, wrapped): self.wrapped = wrapped
-    def _operative(self): return self.wrapped
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+
+    def _operative(self):
+        return self.wrapped
 
 
 class Expression(ExpressionOps):
@@ -123,6 +236,7 @@ class Expression(ExpressionOps):
     Expressions that declare various pre-serialization and post-deserialization operations
     to automate processing.
     """
+
     op_func: _DelegateT
     iop_func: _DelegateT
     opreverse_func: _DelegateT
@@ -132,13 +246,13 @@ class Expression(ExpressionOps):
     _require_left = True
 
     def __init__(
-            self,
-            left: Any | Expression = MISSING,
-            right: Any | Expression = MISSING,
-            *,
-            const: bool = False,
-            flags: int = PRE | POSTREVERSE,
-            inplace: bool = False,
+        self,
+        left: Any | Expression = MISSING,
+        right: Any | Expression = MISSING,
+        *,
+        const: bool = False,
+        flags: int = PRE | POSTREVERSE,
+        inplace: bool = False,
     ):
         if self._require_left and left is MISSING:
             raise ValueError("missing required value to create an expression")
@@ -152,7 +266,7 @@ class Expression(ExpressionOps):
 
     def conf(self, **kwargs):
         configurable_keys = {"const", "flags"}
-        for key in (kwargs.keys() & configurable_keys):
+        for key in kwargs.keys() & configurable_keys:
             new_value = kwargs.get(key, MISSING)
             if key == "flags":
                 new_value = EvalFlags.validate(new_value)
@@ -175,9 +289,8 @@ class Expression(ExpressionOps):
         return result
 
     def is_reversed(self, procedure):
-        return (
-            (procedure == PRE and self.flags & PREREVERSE)
-            or (procedure == POST and self.flags & POSTREVERSE)
+        return (procedure == PRE and self.flags & PREREVERSE) or (
+            procedure == POST and self.flags & POSTREVERSE
         )
 
     def _eval(self, procedure, **kwargs) -> Any:
@@ -194,7 +307,9 @@ class Expression(ExpressionOps):
         else:
             processor = self._get_processor("op_func")
         if not callable(processor):
-            raise ValueError("value processor was not declared (and thus is not callable)")
+            raise ValueError(
+                "value processor was not declared (and thus is not callable)"
+            )
         left, right = self._eval_branches(procedure, **kwargs)
         return processor(left, right)
 
@@ -215,9 +330,8 @@ class Expression(ExpressionOps):
         return getattr(self, iattr_name, fallback)
 
     def __repr__(self):
-        return (
-            f"{type(self).__name__}({self.left}, {self.right})".lstrip("~")
-        )
+        return f"{type(self).__name__}({self.left}, {self.right})".lstrip("~")
+
 
 _DelegateT = Union[Callable[[Any, Any], Any], Callable[[Expression, Any, Any], Any]]
 
@@ -231,7 +345,7 @@ def _reverse_pow(left, right):
 
 
 def _ireverse_pow(left, right):
-    left **= (1 / right)
+    left **= 1 / right
     return left
 
 
@@ -249,7 +363,7 @@ def _nor(left, right):
 
 
 def _concat_left(left, right):
-    if not hasattr(right, '__getitem__'):
+    if not hasattr(right, "__getitem__"):
         msg = "%r object can't be concatenated" % type(right).__name__
         raise TypeError(msg)
     return right + left
@@ -302,6 +416,7 @@ def variables(names):
 
 class Add(Expression):
     """Addition expression."""
+
     op_func = staticmethod(operator.add)
     iop_func = staticmethod(operator.iadd)
     opreverse_func = staticmethod(operator.sub)
@@ -310,6 +425,7 @@ class Add(Expression):
 
 class Concatenate(Expression):
     """Concatenation expression."""
+
     op_func = staticmethod(operator.concat)
     iop_func = staticmethod(operator.iconcat)
     opreverse_func = staticmethod(strings.remove_suffix)
@@ -317,12 +433,14 @@ class Concatenate(Expression):
 
 class ConcatenateLeft(Expression):
     """Left concatenation expression."""
+
     op_func = staticmethod(_concat_left)
     opreverse_func = staticmethod(strings.remove_prefix)
 
 
 class Subtract(Expression):
     """Subtraction expression."""
+
     op_func = staticmethod(operator.sub)
     iop_func = staticmethod(operator.isub)
     opreverse_func = staticmethod(operator.add)
@@ -331,6 +449,7 @@ class Subtract(Expression):
 
 class Multiply(Expression):
     """Multiplication expression."""
+
     op_func = staticmethod(operator.mul)
     iop_func = staticmethod(operator.imul)
     opreverse_func = staticmethod(operator.truediv)
@@ -339,6 +458,7 @@ class Multiply(Expression):
 
 class Divide(Expression):
     """Division expression."""
+
     op_func = staticmethod(operator.truediv)
     iop_func = staticmethod(operator.itruediv)
     opreverse_func = staticmethod(operator.mul)
@@ -347,6 +467,7 @@ class Divide(Expression):
 
 class FloorDivide(Expression):
     """Floor division expression."""
+
     op_func = staticmethod(operator.floordiv)
     iop_func = staticmethod(operator.ifloordiv)
     opreverse_func = staticmethod(operator.mul)
@@ -355,6 +476,7 @@ class FloorDivide(Expression):
 
 class Power(Expression):
     """Exponentiation expression."""
+
     op_func = staticmethod(operator.pow)
     iop_func = staticmethod(operator.pow)
     opreverse_func = staticmethod(_reverse_pow)
@@ -363,6 +485,7 @@ class Power(Expression):
 
 class Root(Expression):
     """Root expression."""
+
     op_func = staticmethod(_reverse_pow)
     iop_func = staticmethod(_ireverse_pow)
     opreverse_func = staticmethod(operator.pow)
@@ -371,6 +494,7 @@ class Root(Expression):
 
 class Modulo(Expression):
     """Division and modulo expression."""
+
     irreversible = True
     op_func = staticmethod(operator.mod)
     iop_func = staticmethod(operator.imod)
@@ -378,18 +502,21 @@ class Modulo(Expression):
 
 class DivMod(Expression):
     """Division and modulo expression."""
+
     op_func = staticmethod(divmod)
     opreverse_func = staticmethod(_reverse_divmod)
 
 
 class MatrixMultiply(Expression):
     """Matrix multiplication (a @ b) expression."""
+
     op_func = staticmethod(operator.rshift)
     iop_func = staticmethod(operator.irshift)
 
 
 class ShiftLeft(Expression):
     """Shift left (a << b) expression."""
+
     op_func = staticmethod(operator.lshift)
     iop_func = staticmethod(operator.ilshift)
     opreverse_func = staticmethod(operator.rshift)
@@ -398,6 +525,7 @@ class ShiftLeft(Expression):
 
 class ShiftRight(Expression):
     """Shift right (a >> b) expression."""
+
     op_func = staticmethod(operator.rshift)
     iop_func = staticmethod(operator.irshift)
     opreverse_func = staticmethod(operator.lshift)
@@ -406,6 +534,7 @@ class ShiftRight(Expression):
 
 class AND(Expression):
     """Bitwise AND (a & b) expression."""
+
     irreversible = True
     op_func = staticmethod(operator.and_)
     iop_func = staticmethod(operator.iand)
@@ -413,12 +542,14 @@ class AND(Expression):
 
 class NAND(Expression):
     """Bitwise NAND (~(a & b)) expression."""
+
     irreversible = True
     op_func = staticmethod(_nand)
 
 
 class OR(Expression):
     """Bitwise OR (a | b) expression."""
+
     irreversible = True
     op_func = staticmethod(operator.or_)
     iop_func = staticmethod(operator.ior)
@@ -426,12 +557,14 @@ class OR(Expression):
 
 class NOR(Expression):
     """Bitwise NOR (~(a | b)) expression."""
+
     irreversible = True
     op_func = staticmethod(_nor)
 
 
 class XOR(Expression):
     """Bitwise XOR (a ^ b) expression."""
+
     irreversible = True
     op_func = staticmethod(operator.xor)
     iop_func = staticmethod(operator.ixor)
@@ -439,42 +572,49 @@ class XOR(Expression):
 
 class EQU(Expression):
     """Bitwise EQU (~(a ^ b)) expression."""
+
     irreversible = True
     op_func = staticmethod(lambda left, right: ~(left ^ right))
 
 
 class And(Expression):
     """Logical AND (a and b) expression."""
+
     irreversible = True
     op_func = staticmethod(lambda left, right: left and right)
 
 
 class NAnd(Expression):
     """Logical NAND (not (a and right)) expression."""
+
     irreversible = True
     op_func = staticmethod(lambda left, right: (left, right)[(left and right) is left])
 
 
 class Or(Expression):
     """Logical OR (a or right) expression."""
+
     op_func = staticmethod(lambda left, right: left or right)
     irreversible = True
 
 
 class NOr(Expression):
     """Logical NOR (not (a or right)) expression."""
+
     irreversible = True
     op_func = staticmethod(lambda left, right: (left, right)[(left or right) is left])
 
 
 class XOr(Expression):
     """Logical XOR (a ^ right) expression."""
+
     irreversible = True
     op_func = staticmethod(lambda left, right: bool(left) ^ bool(right))
 
 
 class Equal(Expression):
     """Logical EQU (a == right) expression."""
+
     op_func = staticmethod(lambda left, right: left == right)
     irreversible = True
 
@@ -506,11 +646,13 @@ class Contains(Expression):
 
 class Call(Expression):
     irreversible = True
-    op_func = staticmethod(lambda left, right: (
-        left(*right.args, **right.kwargs)
-        if hasattr(right, "args") and hasattr(right, "kwargs")
-        else left(right)
-    ))
+    op_func = staticmethod(
+        lambda left, right: (
+            left(*right.args, **right.kwargs)
+            if hasattr(right, "args") and hasattr(right, "kwargs")
+            else left(right)
+        )
+    )
 
 
 class MathOps(OpsExtension):
@@ -543,13 +685,13 @@ class MathOps(OpsExtension):
             self.rel_tol = kwargs.pop("rel_tol", 1e-09)
             self.abs_tol = kwargs.pop("abs_tol", 0.0)
             super().__init__(*args, **kwargs)
-            
+
         irreversible = True
         op_func = staticmethod(math.isclose)
 
     class LDExp(Expression):
         op_func = staticmethod(math.ldexp)
-        opreverse_func = staticmethod(lambda left, right: left / (2 ** right))
+        opreverse_func = staticmethod(lambda left, right: left / (2**right))
 
     class Log(Expression):
         irreversible = True
@@ -571,54 +713,152 @@ class MathOps(OpsExtension):
         irreversible = True
         op_func = staticmethod(math.remainder)
 
-    def acos(self): return self.called_by(math.acos)
-    def acosh(self): return self.called_by(math.acosh)
-    def asin(self): return self.called_by(math.asin)
-    def asinh(self): return self.called_by(math.asinh)
-    def atan(self): return self.called_by(math.atan)
-    def atan2(self, other): return self.ATan2(self._operative(), other)
-    def atanh(self): return self.called_by(math.atanh)
-    def ceil(self): return self.called_by(math.ceil)
-    def comb(self, other): return self.Comb(self._operative(), other)
-    def copysign(self, other): return self.CopySign(self._operative(), other)
-    def cos(self): return self.called_by(math.cos)
-    def cosh(self): return self.called_by(math.cosh)
-    def degrees(self): return self.called_by(math.degrees)
-    def dist(self, other): return self.Dist(self._operative(), other)
-    def erf(self): return self.called_by(math.erf)
-    def erfc(self): return self.called_by(math.erfc)
-    def exp(self): return self.called_by(math.exp)
-    def expm1(self): return self.called_by(math.expm1)
-    def fabs(self): return self.called_by(math.fabs)
-    def factorial(self): return self.called_by(math.factorial)
-    def floor(self): return self.called_by(math.floor)
-    def fmod(self, other): return self.FMod(self._operative(), other)
-    def frexp(self): return self.called_by(math.frexp)
-    def fsum(self): return self.called_by(math.fsum)
-    def gamma(self): return self.called_by(math.gamma)
-    def gcd(self, other): return self.GCD(self._operative(), other)
-    def hypot(self): return self.called_by(math.hypot)
-    def isclose(self, other, rel_tol=1e-09, abs_tol=0.0): return self.IsClose(
-        self._operative(), other, rel_tol=rel_tol, abs_tol=abs_tol)
-    def isfinite(self): return self.called_by(math.isfinite)
-    def isinf(self): return self.called_by(math.isinf)
-    def isnan(self): return self.called_by(math.isnan)
-    def isqrt(self): return self.called_by(math.isqrt)
-    def ldexp(self, other): return self.LDExp(self._operative(), other)
-    def lgamma(self): return self.called_by(math.lgamma)
-    def log(self, base=None): return self.Log(self._operative(), base)
-    def log10(self): return self.called_by(math.log10)
-    def log1p(self): return self.called_by(math.log1p)
-    def log2(self): return self.called_by(math.log2)
-    def modf(self): return self.called_by(math.modf)
-    def perm(self, other): return self.Perm(self._operative(), other)
-    def pow(self, other): return self.Pow(self._operative(), other)
-    def prod(self, start=1): return self.Prod(self._operative(), start)
-    def radians(self): return self.called_by(math.radians)
-    def remainder(self, other): return self.Remainder(self._operative(), other)
-    def sin(self): return self.called_by(math.sin)
-    def sinh(self): return self.called_by(math.sinh)
-    def sqrt(self): return self.called_by(math.sqrt)
-    def tan(self): return self.called_by(math.tan)
-    def tanh(self): return self.called_by(math.tanh)
-    def trunc(self): return self.called_by(math.trunc)
+    def acos(self):
+        return self.called_by(math.acos)
+
+    def acosh(self):
+        return self.called_by(math.acosh)
+
+    def asin(self):
+        return self.called_by(math.asin)
+
+    def asinh(self):
+        return self.called_by(math.asinh)
+
+    def atan(self):
+        return self.called_by(math.atan)
+
+    def atan2(self, other):
+        return self.ATan2(self._operative(), other)
+
+    def atanh(self):
+        return self.called_by(math.atanh)
+
+    def ceil(self):
+        return self.called_by(math.ceil)
+
+    def comb(self, other):
+        return self.Comb(self._operative(), other)
+
+    def copysign(self, other):
+        return self.CopySign(self._operative(), other)
+
+    def cos(self):
+        return self.called_by(math.cos)
+
+    def cosh(self):
+        return self.called_by(math.cosh)
+
+    def degrees(self):
+        return self.called_by(math.degrees)
+
+    def dist(self, other):
+        return self.Dist(self._operative(), other)
+
+    def erf(self):
+        return self.called_by(math.erf)
+
+    def erfc(self):
+        return self.called_by(math.erfc)
+
+    def exp(self):
+        return self.called_by(math.exp)
+
+    def expm1(self):
+        return self.called_by(math.expm1)
+
+    def fabs(self):
+        return self.called_by(math.fabs)
+
+    def factorial(self):
+        return self.called_by(math.factorial)
+
+    def floor(self):
+        return self.called_by(math.floor)
+
+    def fmod(self, other):
+        return self.FMod(self._operative(), other)
+
+    def frexp(self):
+        return self.called_by(math.frexp)
+
+    def fsum(self):
+        return self.called_by(math.fsum)
+
+    def gamma(self):
+        return self.called_by(math.gamma)
+
+    def gcd(self, other):
+        return self.GCD(self._operative(), other)
+
+    def hypot(self):
+        return self.called_by(math.hypot)
+
+    def isclose(self, other, rel_tol=1e-09, abs_tol=0.0):
+        return self.IsClose(self._operative(), other, rel_tol=rel_tol, abs_tol=abs_tol)
+
+    def isfinite(self):
+        return self.called_by(math.isfinite)
+
+    def isinf(self):
+        return self.called_by(math.isinf)
+
+    def isnan(self):
+        return self.called_by(math.isnan)
+
+    def isqrt(self):
+        return self.called_by(math.isqrt)
+
+    def ldexp(self, other):
+        return self.LDExp(self._operative(), other)
+
+    def lgamma(self):
+        return self.called_by(math.lgamma)
+
+    def log(self, base=None):
+        return self.Log(self._operative(), base)
+
+    def log10(self):
+        return self.called_by(math.log10)
+
+    def log1p(self):
+        return self.called_by(math.log1p)
+
+    def log2(self):
+        return self.called_by(math.log2)
+
+    def modf(self):
+        return self.called_by(math.modf)
+
+    def perm(self, other):
+        return self.Perm(self._operative(), other)
+
+    def pow(self, other):
+        return self.Pow(self._operative(), other)
+
+    def prod(self, start=1):
+        return self.Prod(self._operative(), start)
+
+    def radians(self):
+        return self.called_by(math.radians)
+
+    def remainder(self, other):
+        return self.Remainder(self._operative(), other)
+
+    def sin(self):
+        return self.called_by(math.sin)
+
+    def sinh(self):
+        return self.called_by(math.sinh)
+
+    def sqrt(self):
+        return self.called_by(math.sqrt)
+
+    def tan(self):
+        return self.called_by(math.tan)
+
+    def tanh(self):
+        return self.called_by(math.tanh)
+
+    def trunc(self):
+        return self.called_by(math.trunc)

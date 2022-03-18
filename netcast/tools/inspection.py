@@ -27,7 +27,9 @@ def match_params(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
     match_params(bar, kwds) -> {"bar": "bar", "biz": "biz", "baz": "baz"}
     """
     params = inspect.signature(func).parameters
-    variadic = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values())
+    variadic = any(
+        param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
     matched = {}
     if variadic:
         matched.update(kwargs)

@@ -41,11 +41,11 @@ if sys.version_info[:2] >= (3, 10):
     remove_suffix = str.removesuffix
 
 else:
+
     def remove_prefix(string: str, prefix: str) -> str:
         if string.startswith(prefix):
             return string[len(prefix) :]
         return string[:]
-
 
     def remove_suffix(string: str, suffix: str) -> str:
         if string.startswith(suffix):
