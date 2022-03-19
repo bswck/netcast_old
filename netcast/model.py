@@ -39,7 +39,7 @@ class ComponentDescriptor(_BaseDescriptor):
     def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
-        return self.states[instance]
+        return self.states.setdefault(instance, MISSING)
 
     def __set__(self, instance: Model | None = None, state: Any = MISSING):
         self.states[instance] = state
@@ -60,7 +60,7 @@ class ProxyDescriptor(_BaseDescriptor):
     def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
-        return self.states[instance]
+        return self.states.setdefault(instance, MISSING)
 
     def __set__(self, instance: Model | None = None, new_state: Any = MISSING):
         self.component.__set__(instance, new_state)
