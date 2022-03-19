@@ -28,7 +28,7 @@ from netcast.tools import strings
 from netcast.tools.collections import (
     AttributeDict,
     IDLookupDictionary,
-    ParameterContainer,
+    ParameterHolder,
 )
 
 try:
@@ -257,7 +257,7 @@ class _HookCaller:
         pool = self.pools.get(context)
         if pool:
             pool.enter(context, func, sys.exc_info())
-        params = ParameterContainer(args, kwargs)
+        params = ParameterHolder(args, kwargs)
         self.call_observers(context, params)
 
     def trailing_hook(self, context, func, /, *args, **kwargs):
@@ -265,7 +265,7 @@ class _HookCaller:
         pool = self.pools.get(context)
         if pool:
             pool.exit(context, func, sys.exc_info())
-        params = ParameterContainer(args, kwargs)
+        params = ParameterHolder(args, kwargs)
         self.call_observers(context, params)
 
     async def preceding_hook_async(self, context, func, /, *args, **kwargs):
@@ -273,7 +273,7 @@ class _HookCaller:
         pool = self.pools.get(context)
         if not pool:
             return
-        params = ParameterContainer(args, kwargs)
+        params = ParameterHolder(args, kwargs)
         await pool.enter(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 
@@ -282,7 +282,7 @@ class _HookCaller:
         pool = self.pools.get(context)
         if not pool:
             return
-        params = ParameterContainer(args, kwargs)
+        params = ParameterHolder(args, kwargs)
         await pool.exit(context, func, async_=True)
         await self.call_observers(context, params, async_=True)
 

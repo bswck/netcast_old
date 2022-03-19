@@ -18,7 +18,7 @@ from typing import (
 from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError
 from netcast.tools.collections import (
     IDLookupDictionary,
-    ParameterContainer,
+    ParameterHolder,
     classproperty,
 )
 from netcast.tools.contexts import *
@@ -146,7 +146,7 @@ class _BaseArrangement:
 
     Defaults to False.
     """
-    context_params = ParameterContainer()
+    context_params = ParameterHolder()
 
     @classmethod
     def _get_supercontext(cls):
@@ -644,7 +644,7 @@ def context_alias(
 
 
 def create_context(
-    *, context_class: Type[ContextT], cls_or_self: Any, params=ParameterContainer()
+    *, context_class: Type[ContextT], cls_or_self: Any, params=ParameterHolder()
 ) -> ContextT:
     args, kwargs = params.eval(cls_or_self)
     factory = _BaseArrangement._factory_registry.get(context_class, context_class)

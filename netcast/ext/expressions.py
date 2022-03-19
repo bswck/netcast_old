@@ -8,7 +8,7 @@ from typing import Any, Callable, Union, Literal
 
 from netcast.constants import MISSING
 from netcast.tools import strings
-
+from netcast.tools.collections import ParameterHolder
 
 __all__ = (
     "EvalFlags",
@@ -646,13 +646,11 @@ class Contains(Expression):
 
 class Call(Expression):
     irreversible = True
-    op_func = staticmethod(
-        lambda left, right: (
-            left(*right.args, **right.kwargs)
-            if hasattr(right, "args") and hasattr(right, "kwargs")
-            else left(right)
-        )
-    )
+
+    def op_func(self, left, right):
+        if isinstance(right, ParameterHolder):
+            return left(*right.eval_arguments(left), **right.eval_keywords(left))
+        return left(right)
 
 
 class MathOps(OpsExtension):

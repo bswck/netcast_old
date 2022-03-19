@@ -25,7 +25,7 @@ __all__ = (
 class _BaseDescriptor:
     component: ComponentT
 
-    def __getattr__(self, attribute_name: str):
+    def __getattr__(self, attribute_name: str) -> Any:
         return getattr(self.component, attribute_name)
 
 
@@ -117,7 +117,6 @@ class Model:
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
-
         if isinstance(driver_or_serializer, DriverMeta):
             driver = driver_or_serializer
             serializer = driver.lookup_model_serializer(self, **settings)
@@ -126,7 +125,6 @@ class Model:
             serializer = serializer.get_dep(
                 serializer, name=self.name, default=self.default, **self.settings
             )
-
         return serializer
 
     @property
@@ -252,23 +250,22 @@ class Model:
         cls._descriptors = descriptors = {}
         seen = {}
 
-        for attr, component in inspect.getmembers(cls, check_component):
-            name = attr
+        for attribute_name, component in inspect.getmembers(cls, check_component):
+            name = attribute_name
             seen_descriptor = seen.get(id(component))
 
             if seen_descriptor is None:
                 transformed = cls.stack.add(
-                    component, default_name=attr, settings=cls.settings
+                    component, default_name=attribute_name, settings=cls.settings
                 )
                 descriptor = cls.descriptor_class(transformed)
                 setattr(cls, transformed.name, descriptor)
             else:
                 descriptor = seen_descriptor
                 alias_descriptor = cls.descriptor_alias_class(descriptor)
-                setattr(cls, attr, alias_descriptor)
+                setattr(cls, attribute_name, alias_descriptor)
             descriptors[name] = descriptor
             seen[id(component)] = descriptor
-
         seen.clear()
 
     @classmethod
@@ -323,7 +320,7 @@ def model(
     name: str | None = None,
     model_class: Type[Model] = Model,
     model_metaclass: Type[Type] = type,
-    stack_class: Type[Stack] | None = VersionAwareStack,
+    stack_class: Type[Stack] = VersionAwareStack,
     **settings,
 ):
     if stack is None:

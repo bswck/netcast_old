@@ -13,7 +13,7 @@ from netcast.constants import MISSING
 @runtime_checkable
 class Comparable(Protocol):
     def __lt__(self: _ComparableT, other: _ComparableT) -> bool | NotImplemented:
-        ...
+        """Return self < other."""
 
 
 _ComparableT = TypeVar("_ComparableT", bound=Comparable)
@@ -62,7 +62,7 @@ class AttributeDict(dict, ItemsAsAttributes):
         return list(self.keys())
 
 
-class ParameterContainer:
+class ParameterHolder:
     arguments: tuple | Callable = ()
     keywords: dict | Callable = {}
 
@@ -90,7 +90,7 @@ class ParameterContainer:
         return self.keywords
 
     @classmethod
-    def from_call(cls, *arguments, **keywords):
+    def unstar(cls, *arguments, **keywords):
         return cls(arguments=arguments, keywords=keywords)
 
     def __iter__(self):
@@ -113,13 +113,13 @@ class ParameterContainer:
         )
 
     def __repr__(self):
-        chunks = tuple(filter(None, (self.repr_arguments(), self.repr_keywords())))
-        if not chunks:
+        params = tuple(filter(None, (self.repr_arguments(), self.repr_keywords())))
+        if not params:
             return "(no parameters)"
-        return ", ".join(chunks).join("()")
+        return ", ".join(params).join("()")
 
 
-parameters = ParameterContainer.from_call
+parameters = ParameterHolder.unstar
 
 
 class ForwardDependency:
