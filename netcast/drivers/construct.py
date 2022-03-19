@@ -203,6 +203,7 @@ class _EncodingHack:
         return bytes(unit)
 
     def c_string(self, encoding):
+        encoding = encoding.casefold()
         macro = construct.StringEncoded(
             construct.NullTerminated(
                 construct.GreedyBytes, term=self.encoding_unit(encoding)
@@ -217,6 +218,7 @@ class _EncodingHack:
         return macro
 
     def padded_string(self, length, encoding):
+        encoding = encoding.casefold()
         macro = construct.StringEncoded(
             construct.FixedSized(
                 length,
