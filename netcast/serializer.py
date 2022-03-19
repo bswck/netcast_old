@@ -90,11 +90,9 @@ class Serializer:
 
     def _dump(self, obj, settings, **kwargs):
         """Dump an object."""
-        raise NotImplementedError
 
     def _load(self, obj, settings, **kwargs):
         """Load an object."""
-        raise NotImplementedError
 
     def _sanitize_settings(self, settings: SettingsT) -> SettingsT:
         """Ensure settings are safe to set on this serializer."""
