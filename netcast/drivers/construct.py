@@ -40,7 +40,7 @@ class Sequence(Interface):
 class Array(Interface):
     orig_cls = nc.ModelSerializer
 
-    def __init__(self, data_type, **settings):
+    def __init__(self, data_type, /, **settings):
         size = settings.get("size")
         if size is None:
             size = ConstructDriver.UnsignedInt8(compiled=self.compiled).impl

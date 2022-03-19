@@ -43,7 +43,7 @@ class DriverMeta(type):
     # To be checked in detail.
     get_model_serializer = functools.singledispatchmethod(_get_model_serializer)
 
-    def lookup_model_serializer(cls, model: Model, **settings) -> Serializer:
+    def lookup_model_serializer(cls, model: Model, /, **settings) -> Serializer:
         components = model.get_suitable_components(**settings).values()
         serializer = cls.get_model_serializer(
             cls.default_model_serializer,

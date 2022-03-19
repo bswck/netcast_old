@@ -126,9 +126,9 @@ class Model:
 
     @property
     def state(self) -> dict:
-        return self.get_state()
+        return self.get_state(None)  # we make it safe to avoid unsafe property
 
-    def get_state(self, empty=MISSING, **settings: Any) -> dict:
+    def get_state(self, empty=MISSING, /, **settings: Any) -> dict:
         descriptors = self._get_suitable_descriptors(settings)
         state = {}
 
@@ -147,6 +147,7 @@ class Model:
                         f"value for serializer named {descriptor.component.name!r}"
                     )
             state[name] = value
+
         return state
 
     def get_suitable_components(self, **settings: Any) -> dict[Any, ComponentT]:
@@ -157,9 +158,7 @@ class Model:
         self, settings: SettingsT
     ) -> dict[Any, ComponentDescriptor]:
         namespace = set(self.get_suitable_components(**settings))
-        descriptors = {
-            name: desc for name, desc in self._descriptors.items() if name in namespace
-        }
+        descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
         return descriptors
 
     def bind(self, **values):
@@ -168,15 +167,15 @@ class Model:
         return self
 
     def dump(
-        self, driver_or_serializer: Type[Driver] | Serializer, **settings: Any
+        self, source: Type[Driver] | Serializer, /, **settings: Any
     ) -> Any:
-        serializer = self._lookup_serializer(driver_or_serializer, settings)
+        serializer = self._lookup_serializer(source, settings)
         return serializer.dump(self.get_state(), settings=settings)
 
     def load(
-        self, driver_or_serializer: Type[Driver] | Serializer, dump: Any, **settings
+        self, source: Type[Driver] | Serializer, dump: Any, /, **settings
     ) -> Model:
-        serializer = self._lookup_serializer(driver_or_serializer, settings)
+        serializer = self._lookup_serializer(source, settings)
         return self.load_state(serializer.load(dump, settings=settings))
 
     def load_state(self, load: Any):
@@ -266,7 +265,7 @@ class Model:
         seen.clear()
 
     @classmethod
-    def _build_from_stack(cls, **settings):
+    def _build_from_stack(cls, /, **settings):
         suitable_components = cls.stack.get_suitable_components(**settings)
         cls._descriptors = descriptors = {}
 

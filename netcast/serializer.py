@@ -192,7 +192,7 @@ class Interface(Serializer):
             )
         return dep
 
-    def get_impl(self, dep: DepT, **settings):
+    def get_impl(self, dep: DepT, /, **settings):
         dep = self.get_dep(dep, **settings)
         settings = {**settings, **dep.settings}
         impl = dep.impl
