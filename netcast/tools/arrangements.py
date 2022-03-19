@@ -10,9 +10,8 @@ from typing import (
     Final,
     Union,
     TypeVar,
-    Generator,
     Literal,
-    cast,
+    cast
 )
 
 from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError

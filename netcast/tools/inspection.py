@@ -3,13 +3,12 @@ from __future__ import annotations  # Python 3.8
 import functools
 import inspect
 import re
-from types import MethodType
 from typing import Any, Callable
 
 from netcast.constants import MISSING
 
 
-def is_classmethod(cls: type, method: MethodType) -> bool:
+def is_classmethod(cls: type, method: Callable) -> bool:
     return getattr(method, "__self__", None) is cls
 
 
@@ -36,6 +35,8 @@ def match_params(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
     else:
         for name, value in kwargs.items():
             param = params.get(name)
+            if param is None:
+                continue
             if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
                 matched[name] = value
     return matched

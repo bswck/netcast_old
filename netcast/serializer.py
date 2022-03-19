@@ -2,7 +2,7 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-from typing import Any, Generator, TypeVar, TYPE_CHECKING, Dict, Optional, Literal
+from typing import Any, TypeVar, TYPE_CHECKING, Dict, Optional, Literal, Tuple
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
@@ -76,7 +76,7 @@ class Serializer:
     def configure(self, **settings):
         """Configure this serializer, possibly applying new settings to public attributes."""
         self.settings.update(**settings)
-        matched = match_params(self.configure, settings)
+        matched = match_params(self._configure, settings)
         self._configure(**matched)
         new_settings = self.settings
         for attr, value in new_settings.items():
@@ -184,7 +184,6 @@ class Interface(Serializer):
         default: Any = MISSING,
         **dep_settings,
     ) -> DepT:
-        dep_settings = {**self.settings, **dep_settings}
         if isinstance(dep, type):
             return dep(
                 name=name,
@@ -195,7 +194,7 @@ class Interface(Serializer):
 
     def get_impl(self, dep: DepT, **settings):
         dep = self.get_dep(dep, **settings)
-        settings = {**settings, **self.settings, **dep.settings}
+        settings = {**settings, **dep.settings}
         impl = dep.impl
 
         if impl is NotImplemented:
@@ -218,14 +217,14 @@ class Interface(Serializer):
 
         return impl
 
-    def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Generator[DepT]:
-        return (
+    def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
+        return tuple(
             self.get_dep(dep, name=dep.name, default=dep.default, **settings)
             for dep in deps
         )
 
-    def get_impls(self, deps: tuple[DepT, ...], settings: SettingsT) -> Generator:
-        return (self.get_impl(dep, **settings) for dep in deps)
+    def get_impls(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
+        return tuple(self.get_impl(dep, **settings) for dep in deps)
 
     def __repr__(self):
         return super().__repr__() + " interface"

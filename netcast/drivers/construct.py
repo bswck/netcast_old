@@ -80,8 +80,8 @@ class Struct(Interface):
     orig_cls = nc.ModelSerializer
 
     def __init__(self, *fields, **settings):
-        self.impls = self.get_impls(fields, self.settings)
         self.alignment_modulus = settings.setdefault("alignment_modulus", None)
+        self.impls = self.get_impls(fields, settings)
         super().__init__(**settings)
 
     def _configure(self, alignment_modulus):

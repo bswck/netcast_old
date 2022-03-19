@@ -104,12 +104,12 @@ class Stack:
     ) -> dict[str, ComponentT]:
         if settings is None:
             settings = {}
-        related = {}
+        suitable = {}
         for idx in range(self.size):
             component = self.get(idx, settings)
             if component is not None:
-                related[component.name] = component
-        return related
+                suitable[component.name] = component
+        return suitable
 
     @classmethod
     def transform_submodel(cls, submodel: Type[Model]) -> Type[Model]:

@@ -21,6 +21,8 @@ __all__ = (
     "ProxyDescriptor",
 )
 
+from netcast.tools.collections import IDLookupDictionary
+
 
 class _BaseDescriptor:
     component: ComponentT
@@ -30,22 +32,17 @@ class _BaseDescriptor:
 
 
 class ComponentDescriptor(_BaseDescriptor):
-    _state = MISSING
-
     def __init__(self, component: ComponentT):
         self.component = component
-
-    @property
-    def state(self) -> Any:
-        return self._state
+        self.states = IDLookupDictionary()
 
     def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
-        return self.state
+        return self.states[instance]
 
     def __set__(self, instance: Model | None = None, state: Any = MISSING):
-        self._state = state
+        self.states[instance] = state
 
     def __call__(self, state) -> Any:
         self.__set__(state=state)
@@ -63,7 +60,7 @@ class ProxyDescriptor(_BaseDescriptor):
     def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
         if instance is None:
             return self
-        return self.state
+        return self.states[instance]
 
     def __set__(self, instance: Model | None = None, new_state: Any = MISSING):
         self.component.__set__(instance, new_state)
@@ -132,11 +129,11 @@ class Model:
         return self.get_state()
 
     def get_state(self, empty=MISSING, **settings: Any) -> dict:
-        descriptors = self._get_suitable_descriptors(**settings)
+        descriptors = self._get_suitable_descriptors(settings)
         state = {}
 
         for name, descriptor in descriptors.items():
-            value = descriptor.state
+            value = descriptor.states.setdefault(self, MISSING)
 
             if value is MISSING:
                 value = descriptor.component.default
