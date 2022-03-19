@@ -220,7 +220,7 @@ class Model:
         return self._descriptors[key].__get__(self, None)
 
     def __setattr__(self, key: str, value: Any):
-        if key in getattr(self, "_descriptors", {}):
+        if key in self._descriptors:
             self._descriptors[key].__set__(self, value)
             return
 
