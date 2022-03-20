@@ -284,7 +284,7 @@ class Model:
         seen = {}
 
         for attribute, component in inspect.getmembers(cls, check_component):
-            name = component.name
+            name = getattr(component, "name", None)
             if name is None:
                 name = component.name = attribute
             seen_descriptor = seen.get(id(component))
