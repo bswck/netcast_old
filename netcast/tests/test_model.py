@@ -29,7 +29,7 @@ class TestModel:
 
     def test_functional_creation(self):
         model_name = "Foo"
-        foo_model = nc.model(nc.Integer, name=model_name)
+        foo_model = nc.create_model(nc.Integer, name=model_name)
 
         assert foo_model().name == model_name
         assert isinstance(foo_model.unnamed_0, nc.ComponentDescriptor)
@@ -38,7 +38,7 @@ class TestModel:
 
         model_name = "Bar"
         field_name = "foo"
-        bar_model = nc.model(nc.Integer(name=field_name), name=model_name)
+        bar_model = nc.create_model(nc.Integer(name=field_name), name=model_name)
 
         assert getattr(bar_model, field_name, None) is not None
         assert isinstance(bar_model.foo, nc.ComponentDescriptor)

@@ -92,18 +92,18 @@ class Object(Serializer):
     """Base class for all objects."""
 
     def __class_getitem__(cls, size):
-        from netcast import model
+        from netcast import create_model
 
         name = cls.__name__
         components = (cls(name=f"{name}_{i}") for i in range(size))
-        return model(*components, name=name)
+        return create_model(*components, name=name)
 
     def __getitem__(self, size):
-        from netcast import model
+        from netcast import create_model
 
         name = self.name
         components = (self(name=f"{name}_{i}") for i in range(size))
-        return model(*components, name=name)
+        return create_model(*components, name=name)
 
 
 class Simple(Object):
