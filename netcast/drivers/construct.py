@@ -9,12 +9,13 @@ class Interface(nc.Interface):
         self.compiled = settings.setdefault("compiled", not self.driver.DEBUG)
         super().__init__(**settings)
 
-    @property
-    def impl(self):
+    def impl(self, driver=None, settings=None, final=False):
         impl = self._impl
+        if impl is NotImplemented:
+            raise NotImplementedError("missing requested serializer implementation")
         if self.compiled:
             impl = impl.compile()
-        if self.name is not None and getattr(impl, "name", None) != self.name:
+        if self.name is not None and (getattr(impl, "name", None) != self.name):
             impl = construct.Renamed(impl, self.name)
         return impl
 
@@ -23,18 +24,18 @@ class Interface(nc.Interface):
         return ConstructDriver
 
     def _load(self, obj, settings, **kwargs):
-        return self.impl.parse(obj)
+        return self.impl().parse(obj)
 
     def _dump(self, obj, settings, **kwargs):
-        return self.impl.build(obj)
+        return self.impl().build(obj)
 
 
 class Sequence(Interface):
     orig_cls = nc.ModelSerializer
 
     def __init__(self, *fields, **settings):
-        self._impl = construct.Sequence(*self.get_impls(fields, settings))
         super().__init__(**settings)
+        self._impl = construct.Sequence(*self.get_impls(fields, self.settings))
 
 
 class Array(Interface):
@@ -49,10 +50,11 @@ class Array(Interface):
         self.lazy = settings.setdefault("lazy", False)
         self.compiled = settings.setdefault("compiled", False)
         self.data_type = data_type
-        self.data_type_impl = self.get_impl(data_type, **settings)
         super().__init__(**settings)
 
     def _configure(self, prefixed, lazy):
+        self.data_type_impl = self.get_impl(self.data_type, **self.settings)
+
         size = self.size
 
         if prefixed and lazy:
@@ -81,14 +83,15 @@ class Struct(Interface):
 
     def __init__(self, *fields, **settings):
         self.alignment_modulus = settings.setdefault("alignment_modulus", None)
-        self.impls = self.get_impls(fields, settings)
+        self.fields = fields
         super().__init__(**settings)
 
     def _configure(self, alignment_modulus):
+        self.impls = impls = self.get_impls(self.fields, self.settings)
         if alignment_modulus is None:
-            impl = construct.Struct(*self.impls)
+            impl = construct.Struct(*impls)
         else:
-            impl = construct.AlignedStruct(alignment_modulus, *self.impls)
+            impl = construct.AlignedStruct(alignment_modulus, *impls)
         self._impl = impl
 
 

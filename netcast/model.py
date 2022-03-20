@@ -21,7 +21,10 @@ __all__ = (
     "ProxyDescriptor",
 )
 
+from netcast.tools import strings
 from netcast.tools.collections import IDLookupDictionary
+
+NORMALIZATION_PREFIX = "__set_"
 
 
 class _BaseDescriptor:
@@ -116,20 +119,25 @@ class Model:
     ):
         super().__init__()
 
-        if name is None:
-            name = type(self).__name__
-        self.name = name
-
         if defaults is None:
             defaults = {}
         self._defaults = defaults
 
+        self._download_states(settings)
+        self._init_defaults()
+
+        self.contained: bool = False
+        self.settings = {**self.settings, **settings}
+
+    def _download_states(self, settings: SettingsT):
         for key in set(settings):
             if key in self._descriptors:
                 self[key] = settings.pop(key)
 
-        self.contained: bool = False
-        self.settings = {**self.settings, **settings}
+    def _init_defaults(self):
+        for key, value in self.default.items():
+            if self[key] is MISSING:
+                self[key] = value
 
     @property
     def default(self) -> Any:
@@ -149,7 +157,7 @@ class Model:
         descriptors = self._get_suitable_descriptors(settings)
         substates = {}
         for name, descriptor in descriptors.items():
-            state = descriptor.get_state(self, self.default.get(name, empty), settings)
+            state = descriptor.get_state(self, empty, settings)
             if state is MISSING:
                 if empty is not MISSING:
                     state = empty
@@ -175,30 +183,33 @@ class Model:
     def bind(self, **values):
         return self.set_state(values)
 
-    def _lookup_serializer(self, driver_or_serializer, settings: SettingsT = None):
+    def impl(self, driver, settings: SettingsT = None, final: bool = False):
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
-        if isinstance(driver_or_serializer, DriverMeta):
-            driver = driver_or_serializer
-            serializer = driver.lookup_model_serializer(self, **settings)
+        if isinstance(driver, DriverMeta):
+            serializer = driver.lookup_model_serializer(
+                self, name=self.name, **settings
+            )
         else:
-            serializer = driver_or_serializer
+            serializer = driver
             serializer = serializer.get_dep(
                 serializer, name=self.name, default=self.default, **self.settings
             )
+        if final:
+            return serializer.impl(driver, settings, final=final)
         return serializer
 
     def dump(
-        self, source: Type[Driver] | Serializer, /, **settings: Any
+        self, driver: Type[Driver] | Serializer, /, **settings: Any
     ) -> Any:
-        serializer = self._lookup_serializer(source, settings)
-        return serializer.dump(self.get_state(), settings=settings)
+        serializer = self.impl(driver, settings)
+        return serializer.dump(self.get_state(**settings), settings=settings)
 
     def load(
-        self, source: Type[Driver] | Serializer, dump: Any, /, **settings
+        self, driver: Type[Driver] | Serializer, dump: Any, /, **settings
     ) -> Model:
-        serializer = self._lookup_serializer(source, settings)
+        serializer = self.impl(driver, settings)
         return self.load_state(serializer.load(dump, settings=settings))
 
     def load_state(self, load: Any):
@@ -279,27 +290,36 @@ class Model:
             seen_descriptor = seen.get(id(component))
 
             if seen_descriptor is None:
-                transformed = cls.stack.add(
-                    component, default_name=attribute, settings=cls.settings
+                component = cls.stack.add(
+                    component,
+                    default_name=attribute,
+                    settings=cls.settings
                 )
-                descriptor = cls.descriptor_class(transformed)
-                setattr(cls, transformed.name, descriptor)
+                descriptor = cls.descriptor_class(component)
+                setattr(cls, component.name, descriptor)
             else:
                 descriptor = seen_descriptor
-                alias_descriptor = cls.descriptor_alias_class(descriptor)
-                setattr(cls, attribute, alias_descriptor)
+                alias = cls.descriptor_alias_class(descriptor)
+                setattr(cls, attribute, alias)
             descriptors[name] = descriptor
             seen[id(component)] = descriptor
         seen.clear()
 
     @classmethod
-    def _load_stack(cls, /, **settings):
+    def _load_stack(cls, settings: SettingsT):
         suitable_components = cls.stack.get_suitable_components(**settings)
         cls._descriptors = descriptors = {}
 
         for idx, (name, component) in enumerate(suitable_components.items()):
             descriptor = descriptors[name] = cls.descriptor_class(component)
             setattr(cls, name, descriptor)
+
+    @classmethod
+    def _normalize_settings(cls, settings: SettingsT):
+        normalized = {}
+        for key, value in settings.items():
+            normalized[strings.remove_prefix(key, NORMALIZATION_PREFIX)] = value
+        return normalized
 
     def __init_subclass__(
         cls,
@@ -316,7 +336,7 @@ class Model:
             stack = stack_class()
         cls.stack = stack
 
-        cls.settings = settings
+        cls.settings = cls._normalize_settings(settings)
 
         if name is None:
             name = cls.__name__.casefold()
@@ -325,7 +345,7 @@ class Model:
         if build_stack:
             cls._build_stack()
         else:
-            cls._load_stack(**settings)
+            cls._load_stack(settings)
 
 
 ComponentT = TypeVar("ComponentT", Serializer, Model)

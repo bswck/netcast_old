@@ -85,6 +85,9 @@ class Serializer:
             if hasattr(self, attr):
                 setattr(self, attr, value)
 
+    def impl(self, driver=None, settings=None, final=False):
+        return NotImplemented
+
     def _configure(self, **settings):
         return
 
@@ -158,17 +161,13 @@ class Serializer:
         settings = f" ({self.settings})" if self.settings else ""
         return default + type_name + name + settings
 
-    @property
-    def impl(self):
-        return NotImplemented
-
 
 class Interface(Serializer):
-    _impl: Any = None
+    _impl: Any = NotImplemented
+    _netcast_final: bool = False
     orig_cls: type | None = None
 
-    @property
-    def impl(self):
+    def impl(self, driver=None, settings=None, final=False):
         return self._impl
 
     @property
@@ -195,7 +194,7 @@ class Interface(Serializer):
     def get_impl(self, dep: DepT, /, **settings):
         dep = self.get_dep(dep, **settings)
         settings = {**settings, **dep.settings}
-        impl = dep.impl
+        impl = dep.impl(self.driver, settings=settings, final=True)
 
         if impl is NotImplemented:
             dep_type = type(dep)
@@ -205,7 +204,7 @@ class Interface(Serializer):
                 default=dep.default,
                 **settings,
             )
-            impl = dep.impl
+            impl = dep.impl(self.driver, settings=settings, final=True)
 
         if impl is NotImplemented:
             signature = type(dep).__name__
@@ -214,17 +213,18 @@ class Interface(Serializer):
             raise NotImplementedError(
                 f"{signature} is not supported by the {self.driver.name} driver"
             )
-
         return impl
 
     def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
-        return tuple(
+        deps = tuple(
             self.get_dep(dep, name=dep.name, default=dep.default, **settings)
             for dep in deps
         )
+        return deps
 
     def get_impls(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
-        return tuple(self.get_impl(dep, **settings) for dep in deps)
+        impls = tuple(self.get_impl(dep, **settings) for dep in deps)
+        return impls
 
     def __repr__(self):
         return super().__repr__() + " interface"
