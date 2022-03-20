@@ -32,8 +32,8 @@ class TestModel:
         foo_model = nc.create_model(nc.Integer, name=model_name)
 
         assert foo_model().name == model_name
-        assert isinstance(foo_model.unnamed_0, nc.Rep)
-        assert foo_model.unnamed_0.contained
+        assert isinstance(foo_model.unnamed_1, nc.Rep)
+        assert foo_model.unnamed_1.contained
         assert foo_model.stack.size == 1
 
         model_name = "bar"

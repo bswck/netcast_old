@@ -33,7 +33,7 @@ class Serializer:
         name: str | None = None,
         default: Any = MISSING,
         coercion_phases: int = Phase.PRE | Phase.POST,
-        **settings: Any,
+        **settings: Any
     ):
         super().__init__()
         self.name = name
@@ -198,10 +198,9 @@ class Interface(Serializer):
 
         if impl is NotImplemented:
             dep_type = type(dep)
+            settings.update(name=dep.name, default=dep.default)
             dep = self.get_dep(
                 self.driver.lookup_type(dep_type),
-                name=dep.name,
-                default=dep.default,
                 **settings,
             )
             impl = dep.impl(self.driver, settings=settings, final=True)

@@ -62,18 +62,21 @@ class Stack:
         if idx is not None:
             self.pop(idx)
 
+    def next_default_name(self):
+        fmt = {"name": self.name, "index": len(self._components) + 1}
+        template = self.default_name_template
+        if isinstance(template, str):
+            name = template % fmt  # may raise a KeyError
+        elif isinstance(template, string.Template):
+            name = template.substitute(fmt)  # may raise a KeyError
+        else:
+            raise TypeError(f"cannot format type {type(template).__name__}")
+        return name
+
     def push(self, component: ComponentT):
         self._lock.acquire()
         if component.name is None:
-            fmt = {"name": self.name, "index": len(self._components)}
-            template = self.default_name_template
-            if isinstance(template, str):
-                name = template % fmt  # may raise a KeyError
-            elif isinstance(template, string.Template):
-                name = template.substitute(fmt)  # may raise a KeyError
-            else:
-                raise TypeError(f"cannot format type {type(template).__name__}")
-            component.name = name
+            component.name = self.next_default_name()
         self._components.append(component)
         self._lock.release()
 

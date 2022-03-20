@@ -134,7 +134,7 @@ class Model:
         self.settings = {**self.settings, **settings}
 
     def _download_states(self, settings: SettingsT):
-        for key in settings:
+        for key in settings.copy():
             if key in self._descriptors:
                 self[key] = settings.pop(key)
 
@@ -192,14 +192,12 @@ class Model:
             settings = {}
         settings = {**settings, **self.settings}
         if isinstance(driver, DriverMeta):
-            serializer = driver.lookup_model_serializer(
-                self, name=self.name, **settings
-            )
+            settings.update(name=self.name)
+            serializer = driver.lookup_model_serializer(self, **settings)
         else:
             serializer = driver
-            serializer = serializer.get_dep(
-                serializer, name=self.name, default=self.default, **self.settings
-            )
+            settings.update(name=self.name, default=self.default)
+            serializer = serializer.get_dep(serializer, **settings)
         if final:
             return serializer.impl(driver, settings, final=final)
         return serializer

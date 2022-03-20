@@ -94,7 +94,7 @@ class Object(Serializer):
     def __class_getitem__(cls, size):
         from netcast import create_model
 
-        name = cls.__name__
+        name = cls.__name__.casefold()
         components = (cls(name=f"{name}_{i}") for i in range(size))
         return create_model(*components, name=name)
 
@@ -102,6 +102,8 @@ class Object(Serializer):
         from netcast import create_model
 
         name = self.name
+        if name is None:
+            name = type(self).__name__.casefold()
         components = (self(name=f"{name}_{i}") for i in range(size))
         return create_model(*components, name=name)
 
