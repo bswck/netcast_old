@@ -13,12 +13,12 @@ from netcast.stack import Stack, VersionAwareStack
 
 __all__ = (
     "check_component",
-    "ComponentDescriptor",
+    "Rep",
     "ComponentArgumentT",
     "ComponentT",
     "create_model",
     "Model",
-    "ProxyDescriptor",
+    "Proxy",
 )
 
 from netcast.tools import strings
@@ -27,14 +27,11 @@ from netcast.tools.collections import IDLookupDictionary
 NORMALIZATION_PREFIX = "__set_"
 
 
-class _BaseDescriptor:
+class _BaseRep:
     component: ComponentT
 
-    def __getattr__(self, attribute: str) -> Any:
-        return getattr(self.component, attribute)
 
-
-class ComponentDescriptor(_BaseDescriptor):
+class Rep(_BaseRep):
     def __init__(self, component: ComponentT):
         self.component = component
         self.states = IDLookupDictionary()
@@ -44,7 +41,7 @@ class ComponentDescriptor(_BaseDescriptor):
     def refers_to_model(self):
         return isinstance(self.component, type) and issubclass(self.component, Model)
 
-    def get_applicable(self, model: Model) -> Serializer | Model:
+    def get_component(self, model: Model) -> Serializer | Model:
         if self.refers_to_model:
             component = self.models.get(model)
             if component is None:
@@ -58,7 +55,7 @@ class ComponentDescriptor(_BaseDescriptor):
         if self.refers_to_model:
             if settings is None:
                 settings = {}
-            return self.get_applicable(instance).get_state(empty, **settings)
+            return self.get_component(instance).get_state(empty, **settings)
         state = self.states.setdefault(instance, empty)
         return empty if state is MISSING else state
 
@@ -66,12 +63,12 @@ class ComponentDescriptor(_BaseDescriptor):
         if instance is None:
             return self
         if self.refers_to_model:
-            return self.get_applicable(instance)
+            return self.get_component(instance)
         return self.get_state(instance)
 
     def __set__(self, instance: Model | None = None, state: Any = MISSING):
         if self.refers_to_model:
-            model = self.get_applicable(instance)
+            model = self.get_component(instance)
             if state is MISSING:
                 model.clear()
             else:
@@ -83,9 +80,12 @@ class ComponentDescriptor(_BaseDescriptor):
         self.__set__(state=state)
         return state
 
+    def __getattr__(self, attribute: str) -> Any:
+        return getattr(self.component, attribute)
 
-class ProxyDescriptor(_BaseDescriptor):
-    def __init__(self, ancestor: ComponentDescriptor):
+
+class Proxy(_BaseRep):
+    def __init__(self, ancestor: Rep):
         self.ancestor = ancestor
 
     @property
@@ -93,28 +93,32 @@ class ProxyDescriptor(_BaseDescriptor):
         return self.ancestor.component
 
     def __get__(self, instance: Model | None, owner: Type[Model] | None) -> Any:
+        if instance is None:
+            return self
         return self.ancestor.__get__(instance, owner)
 
     def __set__(self, instance: Model | None = None, new_state: Any = MISSING):
-        self.component.__set__(instance, new_state)
+        self.ancestor.__set__(instance, new_state)
 
     def __call__(self, state: Any) -> Any:
-        self.component.__set__(state=state)
-        return state
+        return self.ancestor(state)
+
+    def __getattr__(self, attribute: str) -> Any:
+        return getattr(self.ancestor, attribute)
 
 
 @functools.total_ordering
 class Model:
     stack: ClassVar[Stack]
     settings: ClassVar[dict[str, Any]]
-    descriptor_class = ComponentDescriptor
-    descriptor_alias_class = ProxyDescriptor
+    component_class = Rep
+    proxy_class = Proxy
     name: str
 
     def __init__(
         self,
-        name: str | None = None,
         defaults: dict[str, Any] | None = None,
+        /,
         **settings,
     ):
         super().__init__()
@@ -130,7 +134,7 @@ class Model:
         self.settings = {**self.settings, **settings}
 
     def _download_states(self, settings: SettingsT):
-        for key in set(settings):
+        for key in settings:
             if key in self._descriptors:
                 self[key] = settings.pop(key)
 
@@ -143,7 +147,7 @@ class Model:
     def default(self) -> Any:
         defaults = self._defaults.copy()
         for name, descriptor in self._descriptors.items():
-            model = descriptor.get_applicable(self)
+            model = descriptor.get_component(self)
             default = model.default
             if default is not MISSING:
                 defaults[name] = default
@@ -175,7 +179,7 @@ class Model:
 
     def _get_suitable_descriptors(
         self, settings: SettingsT
-    ) -> dict[Any, ComponentDescriptor]:
+    ) -> dict[Any, Rep]:
         namespace = set(self.get_suitable_components(**settings))
         descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
         return descriptors
@@ -279,39 +283,42 @@ class Model:
         return tuple(state.values()) < tuple(other_state.values())
 
     @classmethod
-    def _build_stack(cls):
+    def _build_stack(cls, stack, settings):
         cls._descriptors = descriptors = {}
-        seen = {}
+        seen_descriptors = IDLookupDictionary()
 
         for attribute, component in inspect.getmembers(cls, check_component):
-            name = getattr(component, "name", None)
-            if name is None:
-                name = component.name = attribute
-            seen_descriptor = seen.get(id(component))
+            seen = seen_descriptors.get(component)
 
-            if seen_descriptor is None:
-                component = cls.stack.add(
+            if seen is None:
+                final = stack.add(
                     component,
-                    default_name=attribute,
-                    settings=cls.settings
+                    name=attribute,
+                    settings=settings
                 )
-                descriptor = cls.descriptor_class(component)
-                setattr(cls, component.name, descriptor)
+                name = final.name
+                descriptor = final
+                if not isinstance(descriptor, Rep):
+                    descriptor = cls.component_class(final)
+
             else:
-                descriptor = seen_descriptor
-                alias = cls.descriptor_alias_class(descriptor)
-                setattr(cls, attribute, alias)
+                name = attribute
+                descriptor = cls.proxy_class(seen)
+
+            setattr(cls, name, descriptor)
+
             descriptors[name] = descriptor
-            seen[id(component)] = descriptor
-        seen.clear()
+            seen_descriptors[component] = descriptor
+
+        seen_descriptors.clear()
 
     @classmethod
-    def _load_stack(cls, settings: SettingsT):
-        suitable_components = cls.stack.get_suitable_components(**settings)
+    def _load_stack(cls, stack, settings: SettingsT):
+        suitable_components = stack.get_suitable_components(**settings)
         cls._descriptors = descriptors = {}
 
         for idx, (name, component) in enumerate(suitable_components.items()):
-            descriptor = descriptors[name] = cls.descriptor_class(component)
+            descriptor = descriptors[name] = cls.component_class(component)
             setattr(cls, name, descriptor)
 
     @classmethod
@@ -334,18 +341,20 @@ class Model:
 
         if stack is None:
             stack = stack_class()
-        cls.stack = stack
 
-        cls.settings = cls._normalize_settings(settings)
+        settings = cls._normalize_settings(settings)
+
+        if build_stack:
+            cls._build_stack(stack, settings)
+        else:
+            cls._load_stack(stack, settings)
+
+        cls.stack = stack
+        cls.settings = settings
 
         if name is None:
             name = cls.__name__.casefold()
         cls.name = name
-
-        if build_stack:
-            cls._build_stack()
-        else:
-            cls._load_stack(settings)
 
 
 ComponentT = TypeVar("ComponentT", Serializer, Model)
@@ -377,4 +386,4 @@ def create_model(
         stack.add(component, settings=settings)
     if name is None:
         name = "model_" + str(id(stack))
-    return model_metaclass(name, (model_class,), {}, stack=stack, **settings)
+    return model_metaclass(name, (model_class,), {}, name=name, stack=stack, **settings)

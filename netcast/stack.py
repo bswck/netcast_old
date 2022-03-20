@@ -34,13 +34,15 @@ class Stack:
         component: ComponentArgumentT,
         *,
         settings: SettingsT = None,
-        default_name: str | None = None,
+        name: str | None = None,
     ):
         """Push with transform."""
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(
-            component=component, default_name=default_name, settings=settings
+            component=component,
+            name=name,
+            settings=settings
         )
         self.push(transformed)
         return transformed
@@ -134,14 +136,14 @@ class Stack:
         component: ComponentArgumentT,
         *,
         settings: SettingsT = None,
-        default_name: str | None = None,
+        name: str | None = None,
     ) -> ComponentT | None:
         from netcast.model import Model
 
         if settings is None:
             settings = {}
-        if default_name:
-            settings.setdefault("name", default_name)
+        if name:
+            settings.setdefault("name", name)
         if isinstance(component, type) and not issubclass(component, Model):
             component = self.transform_serializer(component, settings=settings)
         elif isinstance(component, type) and issubclass(component, Model):
