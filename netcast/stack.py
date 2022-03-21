@@ -62,7 +62,7 @@ class Stack:
         if idx is not None:
             self.pop(idx)
 
-    def next_default_name(self):
+    def default_name(self):
         fmt = {"name": self.name, "index": len(self._components) + 1}
         template = self.default_name_template
         if isinstance(template, str):
@@ -76,7 +76,7 @@ class Stack:
     def push(self, component: ComponentT):
         self._lock.acquire()
         if component.name is None:
-            component.name = self.next_default_name()
+            component.name = self.default_name()
         self._components.append(component)
         self._lock.release()
 
@@ -152,7 +152,6 @@ class Stack:
         elif isinstance(component, type) and issubclass(component, Model):
             component = self.transform_submodel(component)
         else:
-            assert isinstance(component, Serializer)
             component = self.transform_serializer(component, settings=settings)
         return component
 

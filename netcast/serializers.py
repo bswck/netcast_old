@@ -92,20 +92,22 @@ class Object(Serializer):
     """Base class for all objects."""
 
     def __class_getitem__(cls, size):
+        if size < 1:
+            raise ValueError("dimension size must be at least 1")
         from netcast import create_model
-
         name = cls.__name__.casefold()
-        components = (cls(name=f"{name}_{i}") for i in range(size))
-        return create_model(*components, name=name)
+        components = (cls(name=f"{name}_{i+1}") for i in range(size))
+        return create_model(*components, name=f"{name}_x{size}")
 
     def __getitem__(self, size):
+        if size < 1:
+            raise ValueError("dimension size must be at least 1")
         from netcast import create_model
-
         name = self.name
         if name is None:
             name = type(self).__name__.casefold()
-        components = (self(name=f"{name}_{i}") for i in range(size))
-        return create_model(*components, name=name)
+        components = (self(name=f"{name}_{i+1}") for i in range(size))
+        return create_model(*components, name=f"{name}_x{size}")
 
 
 class Simple(Object):

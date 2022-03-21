@@ -24,7 +24,7 @@ __all__ = (
 from netcast.tools import strings
 from netcast.tools.collections import IDLookupDictionary
 
-NORMALIZATION_PREFIX = "__set_"
+ESCAPE_PREFIX = "set__"
 
 
 class _BaseRep:
@@ -127,13 +127,13 @@ class Model:
             defaults = {}
         self._defaults = defaults
 
-        self._download_states(settings)
+        self._infer_states(settings)
         self._init_defaults()
 
         self.contained: bool = False
         self.settings = {**self.settings, **settings}
 
-    def _download_states(self, settings: SettingsT):
+    def _infer_states(self, settings: SettingsT):
         for key in settings.copy():
             if key in self._descriptors:
                 self[key] = settings.pop(key)
@@ -244,12 +244,28 @@ class Model:
     def clear(self):
         return self.set_state(dict.fromkeys(self._descriptors, MISSING))
 
+    @classmethod
+    def clone(cls, name=None, settings=None):
+        if name is None:
+            name = cls.name
+        old_settings = cls.settings.copy()
+        if settings is None:
+            settings = {}
+        new_settings = {**old_settings, **settings}
+        return create_model(stack=cls.stack, name=name, **new_settings)
+
     def __iter__(self):
         for name in self._descriptors:
             yield name, self[name]
 
     def __setitem__(self, key: Any, value: Any):
         self._descriptors[key].__set__(self, value)
+
+    def __class_getitem__(cls, size):
+        if size < 1:
+            raise ValueError("dimension size must be at least 1")
+        components = [cls.clone(name=f"{cls.name}_{i+1}") for i in range(size)]
+        return create_model(*components, name=f"{cls.name}_x{size}")
 
     def __getitem__(self, key: Any):
         return self._descriptors[key].__get__(self, None)
@@ -323,7 +339,7 @@ class Model:
     def _normalize_settings(cls, settings: SettingsT):
         normalized = {}
         for key, value in settings.items():
-            normalized[strings.remove_prefix(key, NORMALIZATION_PREFIX)] = value
+            normalized[strings.remove_prefix(key, ESCAPE_PREFIX)] = value
         return normalized
 
     def __init_subclass__(
