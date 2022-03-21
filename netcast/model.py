@@ -157,6 +157,12 @@ class Model:
     def state(self) -> dict:
         return self.get_state(None)  # we make it safe to avoid unsafe property
 
+    @classmethod
+    def configure(cls, **settings):
+        cls.name = settings.pop("name", cls.name)
+        cls.settings.update(settings)
+        return cls
+
     def get_state(self, empty=MISSING, /, **settings: Any) -> dict:
         descriptors = self._get_suitable_descriptors(settings)
         substates = {}
