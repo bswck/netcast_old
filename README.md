@@ -38,18 +38,18 @@ class Foo(nc.Model):
     ext = nc.Int(version_added=2, default=20)
 
 
-foo = Foo(bar="bar", baz=1, biz=2, ext=3)
+sent = Foo(bar="bar", baz=1, biz=2, ext=3)
 
 # Dumping - returned values are :attr:`serializer.dump_type` instances (bytes)
-dump_v1 = foo.dump(driver, version=1)  #  b"\x03bar\x00\x00\x00\x01\x02"
-dump_v2 = foo.dump(driver)             #  b"\x03bar\x00\x00\x00\x01\x02\x00\x00\x00\x03"
+sent_v1 = sent.dump(driver, version=1)  #  b"\x03bar\x00\x00\x00\x01\x02"
+sent_v2 = sent.dump(driver)             #  b"\x03bar\x00\x00\x00\x01\x02\x00\x00\x00\x03"
 
 # Loading - returned values are :class:`Foo` instances
-loaded_v1 = foo.load(driver, dump_v1, version=1)
-loaded_v2 = foo.load(driver, dump_v2)
+recv_v1 = Foo().load(driver, sent_v1, version=1)
+recv_v2 = Foo().load(driver, sent_v2)
 
-assert loaded_v1 == Foo(bar="bar", baz=1, biz=2)  # ext=20, default
-assert loaded_v2 == foo
+assert recv_v1 == Foo(bar="bar", baz=1, biz=2, ext=20)
+assert recv_v2 == sent
 ```
 
 #### Mutability of components
