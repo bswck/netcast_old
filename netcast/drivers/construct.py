@@ -31,7 +31,7 @@ class Interface(nc.Interface):
 
 
 class Sequence(Interface):
-    orig_cls = nc.ModelSerializer
+    implements = nc.ModelSerializer
 
     def __init__(self, *fields, **settings):
         super().__init__(**settings)
@@ -39,7 +39,7 @@ class Sequence(Interface):
 
 
 class Array(Interface):
-    orig_cls = nc.ModelSerializer
+    implements = nc.ModelSerializer
 
     def __init__(self, data_type, /, **settings):
         size = settings.get("size")
@@ -79,7 +79,7 @@ class Array(Interface):
 
 
 class Struct(Interface):
-    orig_cls = nc.ModelSerializer
+    implements = nc.ModelSerializer
 
     def __init__(self, *fields, **settings):
         self.alignment_modulus = settings.setdefault("alignment_modulus", None)
@@ -122,7 +122,7 @@ class ConstructDriver(nc.Driver):
 
 @ConstructDriver.register
 class Integer(Interface):
-    orig_cls = nc.Integer
+    implements = nc.Integer
     bit_size: int
     signed: bool
 
@@ -241,7 +241,7 @@ class _EncodingHack:
 
 @ConstructDriver.register
 class String(Interface):
-    orig_cls = nc.String
+    implements = nc.String
     default_encoding = "ASCII"
     encoding_hack = _EncodingHack()
 
@@ -278,7 +278,7 @@ class String(Interface):
 
 @ConstructDriver.register
 class FloatingPoint(Interface):
-    orig_cls = nc.FloatingPoint
+    implements = nc.FloatingPoint
 
     def __init__(self, **settings):
         self.bit_size = settings.get("bit_size", 32)  # float, double is 64

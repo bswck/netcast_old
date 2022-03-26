@@ -165,7 +165,7 @@ class Serializer:
 class Interface(Serializer):
     _impl: Any = NotImplemented
     _netcast_final: bool = False
-    orig_cls: type | None = None
+    implements: type | None = None
 
     def impl(self, driver=None, settings=None, final=False):
         return self._impl
