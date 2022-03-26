@@ -149,6 +149,8 @@ class Integer(Interface):
 
         impl = None
 
+        self.signed = signed
+
         if self.bit_size:
             if cpu_sized:
                 impl = self.get_format_field()
@@ -161,7 +163,11 @@ class Integer(Interface):
                 f"construct does not support {type(self).__name__}"
             )
 
-        self.settings.update(cpu_sized=cpu_sized)
+        self.settings.update(
+            signed=signed,
+            cpu_sized=cpu_sized
+        )
+        self.cpu_sized = cpu_sized
         self._impl = impl
 
     def get_swapped(self):
@@ -178,7 +184,9 @@ class Integer(Interface):
     def get_bytes_integer(self):
         byte_length = self.bit_size >> 3
         return construct.BytesInteger(
-            byte_length, signed=self.signed, swapped=self.get_swapped()
+            byte_length,
+            signed=self.signed,
+            swapped=self.get_swapped()
         )
 
     def get_format_field(self):

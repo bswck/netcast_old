@@ -43,31 +43,35 @@ class Serializer:
         self.settings = {}
         self.configure(**settings)
 
-    def dump(self, obj, *, settings: SettingsT = None, **kwargs: Any):
+    def dump(self, obj, settings: SettingsT = None, /, **kwargs):
         """
         Dump a loaded object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
-        self.configure(**{**self.settings, **kwargs})
+        if settings is None:
+            settings = {}
+        settings = self.configure(**settings)
         obj = self._cast_object(obj, Phase.PRE, settings)
         try:
-            obj = self._dump(obj, settings=settings, **kwargs)
+            obj = self._dump(obj, settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"dumping failed: {exc}") from exc
         return obj
 
-    def load(self, obj, *, settings: SettingsT = None, **kwargs):
+    def load(self, obj, settings, /, **kwargs):
         """
         Load a dumped object.
 
         NOTE: can be async, depending on the config.
         In that case the caller must take responsibility for coroutine execution exceptions.
         """
-        self.configure(**{**self.settings, **kwargs})
+        if settings is None:
+            settings = {}
+        settings = self.configure(**settings)
         try:
-            obj = self._load(obj, settings=settings, **kwargs)
+            obj = self._load(obj, settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"loading failed: {exc}") from exc
         obj = self._cast_object(obj, Phase.POST, settings)
@@ -76,7 +80,7 @@ class Serializer:
     def configure(self, **settings):
         """Configure this serializer, possibly applying new settings to public attributes."""
         self.settings.update(**settings)
-        matched = match_params(self._configure, settings)
+        matched = match_params(self._configure, self.settings)
         self._configure(**matched)
         new_settings = self.settings
         for attr, value in new_settings.items():
@@ -84,6 +88,7 @@ class Serializer:
                 continue
             if hasattr(self, attr):
                 setattr(self, attr, value)
+        return new_settings
 
     def impl(self, driver=None, settings=None, final=False):
         return NotImplemented
@@ -193,8 +198,8 @@ class Interface(Serializer):
 
     def get_impl(self, dep: DepT, /, **settings):
         dep = self.get_dep(dep, **settings)
-        settings = {**settings, **dep.settings}
-        impl = dep.impl(self.driver, settings=settings, final=True)
+        settings = {**dep.settings, **settings}
+        impl = dep.impl(self.driver, settings, final=True)
 
         if impl is NotImplemented:
             dep_type = type(dep)
@@ -203,7 +208,7 @@ class Interface(Serializer):
                 self.driver.lookup_type(dep_type),
                 **settings,
             )
-            impl = dep.impl(self.driver, settings=settings, final=True)
+            impl = dep.impl(self.driver, settings, final=True)
 
         if impl is NotImplemented:
             signature = type(dep).__name__

@@ -212,13 +212,13 @@ class Model:
         self, driver: Type[Driver] | Serializer, /, **settings: Any
     ) -> Any:
         serializer = self.impl(driver, settings)
-        return serializer.dump(self.get_state(**settings), settings=settings)
+        return serializer.dump(self.get_state(**settings), settings)
 
     def load(
         self, driver: Type[Driver] | Serializer, dump: Any, /, **settings
     ) -> Model:
         serializer = self.impl(driver, settings)
-        return self.load_state(serializer.load(dump, settings=settings))
+        return self.load_state(serializer.load(dump, settings))
 
     def load_state(self, load: Any):
         state = self.parse_state(load)
