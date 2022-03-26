@@ -41,10 +41,10 @@ class Foo(nc.Model):
 sent = Foo(bar="bar", baz=1, biz=2, ext=3)
 
 # Dumping - returned values are :attr:`serializer.dump_type` instances (bytes)
-sent_v1 = sent.dump(driver, version=1)  #  b"\x03bar\x00\x00\x00\x01\x02"
-sent_v2 = sent.dump(driver)             #  b"\x03bar\x00\x00\x00\x01\x02\x00\x00\x00\x03"
+sent_v1 = sent.dump(driver, version=1)  #  b'bar\x00\x01\x00\x00\x00\x02'
+sent_v2 = sent.dump(driver)             #  b'bar\x00\x01\x00\x00\x00\x02\x03\x00\x00\x00'
 
-# Loading - returned values are :class:`Foo` instances
+# Loading the returned values to the :class:`Foo` instances
 recv_v1 = Foo().load(driver, sent_v1, version=1)
 recv_v2 = Foo().load(driver, sent_v2)
 
