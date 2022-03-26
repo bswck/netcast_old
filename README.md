@@ -34,22 +34,36 @@ from netcast.drivers.construct import ConstructDriver as driver
 class Foo(nc.Model):
     bar = nc.String()
     baz = nc.Int()
-    biz = nc.Char(unsigned=False)
+    biz = nc.Char(signed=False)
     ext = nc.Int(version_added=2, default=20)
 
 
-sent = Foo(bar="bar", baz=1, biz=2, ext=3)
+sent_inst = Foo(bar="bar", baz=1, biz=2, ext=3)
 
 # Dumping - returned values are :attr:`serializer.dump_type` instances (bytes)
-sent_v1 = sent.dump(driver, version=1)  #  b'bar\x00\x01\x00\x00\x00\x02'
-sent_v2 = sent.dump(driver)             #  b'bar\x00\x01\x00\x00\x00\x02\x03\x00\x00\x00'
+sent_v1 = sent_inst.dump(driver, version=1)  #  b'bar\x00\x01\x00\x00\x00\x02'
+sent_v2 = sent_inst.dump(driver)             #  b'bar\x00\x01\x00\x00\x00\x02\x03\x00\x00\x00'
 
 # Loading the returned values to the :class:`Foo` instances
 recv_v1 = Foo().load(driver, sent_v1, version=1)
 recv_v2 = Foo().load(driver, sent_v2)
-
 assert recv_v1 == Foo(bar="bar", baz=1, biz=2, ext=20)
-assert recv_v2 == sent
+assert recv_v2 == sent_inst
+
+# Various functions of drivers (an example of construct-specific features)
+
+# Changing the endianness dynamically (for each field)
+big_endian_sent = sent_inst.dump(driver, big_endian=True)  #  b'bar\x00\x00\x00\x00\x01\x02\x00\x00\x00\x03'
+big_endian_recv = Foo().load(driver, big_endian_sent, big_endian=True)
+assert big_endian_recv == sent_inst
+
+# Changing the signedness dynamically
+signed_inst = Foo(bar="bar", baz=-1, biz=-2)
+signed_inst.dump(driver, signed=True)  # b'bar\x00\xff\xff\xff\xff\xfe\x14\x00\x00\x00'
+try:
+    signed_inst.dump(driver)
+except nc.NetcastError:  # the 'biz' field is signed, so an error is reported
+    pass
 ```
 
 #### Mutability of components
