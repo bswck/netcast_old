@@ -4,6 +4,9 @@ import construct
 import netcast as nc
 
 
+DRIVER_NAME = "construct"
+
+
 class Interface(nc.Interface):
     def __init__(self, **settings):
         self.compiled = settings.setdefault("compiled", not self.driver.DEBUG)

@@ -28,7 +28,6 @@ and put assigned values to the proper places inside them during the runtime.
 This is an example implementation of a data model with _netcast_.
 ```py
 import netcast as nc
-from netcast.drivers.construct import ConstructDriver as driver
 
 
 class Foo(nc.Model):
@@ -37,6 +36,9 @@ class Foo(nc.Model):
     biz = nc.Char(signed=False)
     ext = nc.Int(version_added=2, default=20)
 
+
+driver = "construct"
+nc.load_driver(driver)
 
 sent_inst = Foo(bar="bar", baz=1, biz=2, ext=3)
 

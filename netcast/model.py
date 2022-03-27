@@ -219,9 +219,12 @@ class Model:
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
-        default_driver = self.settings.get("default_driver")
+        default_driver = self.default_driver
         if isinstance(driver, str):
-            driver = Driver.registry.get(driver, default_driver)
+            driver_name = driver
+            driver = Driver.registry.get(driver_name, default_driver)
+            if driver is None:
+                raise ValueError(f"no driver named {driver_name!r} available")
         if isinstance(driver, DriverMeta):
             settings.update(name=self.name)
             serializer = driver.lookup_model_serializer(self, **settings)
