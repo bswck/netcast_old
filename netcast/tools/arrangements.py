@@ -2,17 +2,7 @@ from __future__ import annotations  # Python 3.8
 
 import functools
 import threading
-from typing import (
-    Any,
-    ClassVar,
-    Type,
-    Callable,
-    Final,
-    Union,
-    TypeVar,
-    Literal,
-    cast
-)
+from typing import Any, ClassVar, Type, Callable, Final, Union, TypeVar, Literal, cast
 
 from netcast.exceptions import ArrangementConstructionError, ArrangementTypeError
 from netcast.tools.collections import (

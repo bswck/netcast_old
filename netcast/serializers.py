@@ -95,6 +95,7 @@ class Object(Serializer):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
+
         name = cls.__name__.casefold()
         components = (cls(name=f"{name}_{i+1}") for i in range(size))
         return create_model(*components, name=f"{name}_x{size}")
@@ -103,6 +104,7 @@ class Object(Serializer):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
+
         name = self.name
         if name is None:
             name = type(self).__name__.casefold()

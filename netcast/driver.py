@@ -46,9 +46,7 @@ class DriverMeta(type):
     def lookup_model_serializer(cls, model: Model, /, **settings) -> Serializer:
         components = model.choose_components(**settings).values()
         serializer = cls.get_model_serializer(
-            cls.default_model_serializer,
-            components=components,
-            settings=settings
+            cls.default_model_serializer, components=components, settings=settings
         )
         return serializer
 
@@ -144,3 +142,11 @@ def driver_interface(interface_class: type, origin: type | None = None):
     if origin is None:
         origin = getattr(interface_class, ORIGIN_FIELD, None)
     return functools.partial(driver_serializer, interface_class, origin=origin)
+
+
+def load_driver(driver_name: str):
+    import importlib
+    try:
+        return importlib.import_module(f"netcast.drivers.{driver_name}")
+    except ImportError as exc:
+        raise ValueError(f"could not import driver named {driver_name!r}") from exc

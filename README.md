@@ -38,7 +38,6 @@ class Foo(nc.Model):
 
 
 driver = "construct"
-nc.load_driver(driver)
 
 sent_inst = Foo(bar="bar", baz=1, biz=2, ext=3)
 
