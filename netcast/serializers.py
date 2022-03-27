@@ -267,10 +267,18 @@ Double = Float64
 
 class Statement(Object):
     """Base class for all statements that indicate a dynamic behaviour."""
+    def __init__(self, obj, **settings: Any):
+        super().__init__(**settings)
+        self.serializer = obj
 
 
 class Switch(Statement):
-    pass
+    """
+    Switch statement.
+    """
+    def __init__(self, obj, cases=(), **settings: Any):
+        super().__init__(obj, **settings)
+        self.cases = cases
 
 
 class Case(Statement):
