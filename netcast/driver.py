@@ -25,7 +25,7 @@ _M = TypeVar("_M", bound="Model")
 
 class DriverMeta(type):
     _memo: IDLookupDictionary[Model, Serializer]
-    _lookup_dict: dict[type, type]
+    _local: dict[type, type]
 
     def _get_model_serializer(
         cls,
@@ -44,7 +44,7 @@ class DriverMeta(type):
     get_model_serializer = functools.singledispatchmethod(_get_model_serializer)
 
     def lookup_model_serializer(cls, model: Model, /, **settings) -> Serializer:
-        components = model.get_suitable_components(**settings).values()
+        components = model.choose_components(**settings).values()
         serializer = cls.get_model_serializer(
             cls.default_model_serializer,
             components=components,
@@ -54,7 +54,7 @@ class DriverMeta(type):
 
     def lookup_type(cls, serializer_type: type[Serializer]):
         try:
-            return cls._lookup_dict[serializer_type]
+            return cls._local[serializer_type]
         except KeyError:
             return NotImplemented
 
@@ -72,13 +72,13 @@ class DriverMeta(type):
                 raise ValueError("`Model` type or instance expected")
             if isinstance(model, type):
                 model = model()
-            return model._lookup_serializer(self, settings)
+            return model.impl(self, settings)
         return super().__call__()
 
 
 class Driver(metaclass=DriverMeta):
-    __drivers_registry__: dict[str, Type[Driver]] = {}
-    _lookup_dict: ClassVar[dict[Type[Serializer], Type[Serializer]]]
+    registry: dict[str, Type[Driver]] = {}
+    _local: ClassVar[dict[Type[Serializer], Type[Serializer]]]
 
     default_model_serializer = None
     DEBUG: ClassVar[bool]
@@ -90,18 +90,18 @@ class Driver(metaclass=DriverMeta):
         if driver_name is None:
             driver_name = cls._conjure_driver_name(stack_level=2)
 
-        if driver_name in Driver.__drivers_registry__:
+        if driver_name in Driver.registry:
             raise ValueError(f"{driver_name!r} driver has already been implemented")
 
         cls.name = driver_name
-        cls.__drivers_registry__[driver_name] = cls
-        cls._lookup_dict = {}
+        cls._local = {}
         cls._memo = IDLookupDictionary()
 
         for _, member in inspect.getmembers(cls, _check_impl):
             cls.register(member)
 
         cls.DEBUG = __debug__
+        Driver.registry[driver_name] = cls
 
     @staticmethod
     def _conjure_driver_name(stack_level: int = 1) -> str:
@@ -113,8 +113,8 @@ class Driver(metaclass=DriverMeta):
 
     @classmethod
     def register(cls, member: type):
-        link_to = getattr(member, "implements", member.__base__)
-        cls._lookup_dict[link_to] = member
+        link_to = getattr(member, ORIGIN_FIELD, member.__base__)
+        cls._local[link_to] = member
         member_name = member.__name__
         if member_name not in cls.__dict__:
             setattr(cls, member_name, member)

@@ -3,11 +3,11 @@ from __future__ import annotations  # Python 3.8
 import collections.abc
 import functools
 import inspect
-from typing import Any, ClassVar, Type, TypeVar, Union
+from typing import Any, ClassVar, Type, TypeVar, Union, cast
 
 from netcast.constants import MISSING, GREATEST
-from netcast.driver import Driver, DriverMeta
-from netcast.serializer import Serializer, SettingsT
+from netcast.driver import DriverMeta, Driver
+from netcast.serializer import Interface, SettingsT, Serializer
 from netcast.stack import Stack, VersionAwareStack
 
 
@@ -27,11 +27,11 @@ from netcast.tools.collections import IDLookupDictionary
 ESCAPE_PREFIX = "set__"
 
 
-class _BaseRep:
+class RepT:
     component: ComponentT
 
 
-class Rep(_BaseRep):
+class Rep(RepT):
     def __init__(self, component: ComponentT):
         self.component = component
         self.states = IDLookupDictionary()
@@ -84,7 +84,7 @@ class Rep(_BaseRep):
         return getattr(self.component, attribute)
 
 
-class Proxy(_BaseRep):
+class Proxy(RepT):
     def __init__(self, ancestor: Rep):
         self.ancestor = ancestor
 
@@ -107,6 +107,9 @@ class Proxy(_BaseRep):
         return getattr(self.ancestor, attribute)
 
 
+DriverArgT = Union[DriverMeta, Interface, str]
+
+
 @functools.total_ordering
 class Model:
     stack: ClassVar[Stack]
@@ -118,19 +121,38 @@ class Model:
     def __init__(
         self,
         defaults: dict[str, Any] | None = None,
+        empty: Any = None,
         /,
         **settings,
     ):
         super().__init__()
 
+        if empty is MISSING:
+            raise ValueError("Model arg 2 must not be a netcast.MISSING constant")
+
         if defaults is None:
             defaults = {}
+
+        default_driver = self.settings.pop("default_driver", None)
+        propagate_driver = self.settings.pop("propagate_driver", True)
+        settings = self._normalize_settings(settings)
+
         self._defaults = defaults
+        self._empty = empty
 
         self._infer_states(settings)
         self._init_defaults()
 
         self.contained: bool = False
+
+        if isinstance(default_driver, str):
+            try:
+                default_driver = Driver.registry[default_driver]
+            except KeyError:
+                raise ValueError(f"invalid driver name provided: {default_driver}") from None
+
+        self.default_driver = default_driver
+        self.propagate_driver = propagate_driver
         self.settings = {**self.settings, **settings}
 
     def _infer_states(self, settings: SettingsT):
@@ -155,7 +177,7 @@ class Model:
 
     @property
     def state(self) -> dict:
-        return self.get_state(None)  # we make it safe to avoid unsafe property
+        return self.get_state(self._empty)  # we make it safe to avoid unsafe property
 
     @classmethod
     def configure(cls, **settings):
@@ -164,8 +186,8 @@ class Model:
         return cls
 
     def get_state(self, empty=MISSING, /, **settings: Any) -> dict:
-        descriptors = self._get_suitable_descriptors(settings)
-        substates = {}
+        descriptors = self._choose_descriptors(settings)
+        states = {}
         for name, descriptor in descriptors.items():
             state = descriptor.get_state(self, empty, settings)
             if state is MISSING:
@@ -176,27 +198,30 @@ class Model:
                         f"missing required {type(descriptor.component).__name__} "
                         f"value for serializer named {descriptor.component.name!r}"
                     )
-            substates[name] = state
-        return substates
+            states[name] = state
+        return states
 
-    def get_suitable_components(self, **settings: Any) -> dict[Any, ComponentT]:
+    def choose_components(self, **settings: Any) -> dict[Any, ComponentT]:
         settings = {**settings, **self.settings}
-        return self.stack.get_suitable_components(settings)
+        return self.stack.choose_components(settings)
 
-    def _get_suitable_descriptors(
+    def _choose_descriptors(
         self, settings: SettingsT
     ) -> dict[Any, Rep]:
-        namespace = set(self.get_suitable_components(**settings))
+        namespace = set(self.choose_components(**settings))
         descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
         return descriptors
 
-    def bind(self, **values):
+    def with_(self, **values):
         return self.set_state(values)
 
-    def impl(self, driver, settings: SettingsT = None, final: bool = False):
+    def impl(self, driver: DriverArgT, settings: SettingsT = None, final: bool = False):
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
+        default_driver = self.settings.get("default_driver")
+        if isinstance(driver, str):
+            driver = Driver.registry.get(driver, default_driver)
         if isinstance(driver, DriverMeta):
             settings.update(name=self.name)
             serializer = driver.lookup_model_serializer(self, **settings)
@@ -209,13 +234,13 @@ class Model:
         return serializer
 
     def dump(
-        self, driver: Type[Driver] | Serializer, /, **settings: Any
+        self, driver: DriverArgT, /, **settings: Any
     ) -> Any:
         serializer = self.impl(driver, settings)
         return serializer.dump(self.get_state(**settings), settings)
 
     def load(
-        self, driver: Type[Driver] | Serializer, dump: Any, /, **settings
+        self, driver: DriverArgT, dump: Any, /, **settings
     ) -> Model:
         serializer = self.impl(driver, settings)
         return self.load_state(serializer.load(dump, settings))
@@ -230,11 +255,11 @@ class Model:
         raise TypeError(f"unsupported state type: {type(load).__name__}")
 
     @parse_state.register
-    def parse_sequence_state(self, load: collections.abc.Sequence) -> "dict[str, Any]":
+    def parse_sequence(self, load: collections.abc.Sequence) -> "dict[str, Any]":
         return dict(zip(self._descriptors, load))
 
     @parse_state.register
-    def parse_mapping_state(self, load: collections.abc.Mapping) -> dict:
+    def parse_mapping(self, load: collections.abc.Mapping) -> dict:
         return dict(load)
 
     def set_state(self, state: dict):
@@ -334,10 +359,10 @@ class Model:
 
     @classmethod
     def _load_stack(cls, stack, settings: SettingsT):
-        suitable_components = stack.get_suitable_components(**settings)
+        components = stack.choose_components(**settings)
         cls._descriptors = descriptors = {}
 
-        for idx, (name, component) in enumerate(suitable_components.items()):
+        for idx, (name, component) in enumerate(components.items()):
             descriptor = descriptors[name] = cls.component_class(component)
             setattr(cls, name, descriptor)
 
@@ -399,11 +424,12 @@ def create_model(
     model_metaclass: Type[Type] = type,
     stack_class: Type[Stack] = VersionAwareStack,
     **settings,
-):
+) -> Type[Model]:
     if stack is None:
         stack = stack_class()
     for component in components:
         stack.add(component, settings=settings)
     if name is None:
         name = "model_" + str(id(stack))
-    return model_metaclass(name, (model_class,), {}, name=name, stack=stack, **settings)
+    model = model_metaclass(name, (model_class,), {}, name=name, stack=stack, **settings)
+    return cast(Type[Model], model)
