@@ -33,7 +33,7 @@ class Serializer:
         name: str | None = None,
         default: Any = MISSING,
         coercion_phases: int = Phase.PRE | Phase.POST,
-        **settings: Any
+        **settings: Any,
     ):
         super().__init__()
         self.name = name
@@ -226,7 +226,9 @@ class Interface(Serializer):
         )
         return deps
 
-    def get_impls(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
+    def get_impls(
+        self, deps: tuple[DepT, ...], settings: SettingsT
+    ) -> Tuple[DepT, ...]:
         impls = tuple(self.get_impl(dep, **settings) for dep in deps)
         return impls
 

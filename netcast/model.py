@@ -1,12 +1,13 @@
 from __future__ import annotations  # Python 3.8
 
 import collections.abc
+import contextlib
 import functools
 import inspect
 from typing import Any, ClassVar, Type, TypeVar, Union, cast
 
 from netcast.constants import MISSING, GREATEST
-from netcast.driver import DriverMeta, Driver
+from netcast.driver import DriverMeta, Driver, load_driver
 from netcast.serializer import Interface, SettingsT, Serializer
 from netcast.stack import Stack, VersionAwareStack
 
@@ -51,7 +52,9 @@ class Rep(RepT):
             component = self.component
         return component
 
-    def get_state(self, instance: Model, empty: Any = MISSING, settings: SettingsT = None):
+    def get_state(
+        self, instance: Model, empty: Any = MISSING, settings: SettingsT = None
+    ):
         if self.refers_to_model:
             if settings is None:
                 settings = {}
@@ -107,7 +110,7 @@ class Proxy(RepT):
         return getattr(self.ancestor, attribute)
 
 
-DriverArgT = Union[DriverMeta, Interface, str]
+DriverArgT = Union[DriverMeta, Interface, str, type(None)]
 
 
 @functools.total_ordering
@@ -146,10 +149,14 @@ class Model:
         self.contained: bool = False
 
         if isinstance(default_driver, str):
+            with contextlib.suppress(ValueError):
+                load_driver(default_driver)
             try:
                 default_driver = Driver.registry[default_driver]
             except KeyError:
-                raise ValueError(f"invalid driver name provided: {default_driver}") from None
+                raise ValueError(
+                    f"invalid driver name provided: {default_driver}"
+                ) from None
 
         self.default_driver = default_driver
         self.propagate_driver = propagate_driver
@@ -205,23 +212,37 @@ class Model:
         settings = {**settings, **self.settings}
         return self.stack.choose_components(settings)
 
-    def _choose_descriptors(
-        self, settings: SettingsT
-    ) -> dict[Any, Rep]:
+    def _choose_descriptors(self, settings: SettingsT) -> dict[Any, Rep]:
         namespace = set(self.choose_components(**settings))
-        descriptors = {name: desc for name, desc in self._descriptors.items() if name in namespace}
+        descriptors = {
+            name: desc for name, desc in self._descriptors.items() if name in namespace
+        }
         return descriptors
 
     def with_(self, **values):
         return self.set_state(values)
 
-    def impl(self, driver: DriverArgT, settings: SettingsT = None, final: bool = False):
+    def impl(
+            self,
+            driver: DriverArgT = None,
+            settings: SettingsT = None,
+            final: bool = False
+    ):
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
-        default_driver = self.settings.get("default_driver")
-        if isinstance(driver, str):
-            driver = Driver.registry.get(driver, default_driver)
+        default_driver = self.default_driver
+        if driver is None:
+            driver = self.default_driver
+            if driver is None:
+                raise ValueError(f"neither driver nor default driver provided")
+        elif isinstance(driver, str):
+            driver_name = driver
+            with contextlib.suppress(ValueError):
+                load_driver(driver_name)
+            driver = Driver.registry.get(driver_name, default_driver)
+            if driver is None:
+                raise ValueError(f"no driver named {driver_name!r} available")
         if isinstance(driver, DriverMeta):
             settings.update(name=self.name)
             serializer = driver.lookup_model_serializer(self, **settings)
@@ -233,15 +254,13 @@ class Model:
             return serializer.impl(driver, settings, final=final)
         return serializer
 
-    def dump(
-        self, driver: DriverArgT, /, **settings: Any
-    ) -> Any:
+    def dump(self, driver: DriverArgT = None, /, **settings: Any) -> Any:
         serializer = self.impl(driver, settings)
         return serializer.dump(self.get_state(**settings), settings)
 
-    def load(
-        self, driver: DriverArgT, dump: Any, /, **settings
-    ) -> Model:
+    def load(self, driver: DriverArgT = None, dump: Any = MISSING, /, **settings) -> Model:
+        if dump is MISSING:
+            raise ValueError("the source to load from is a required argument")
         serializer = self.impl(driver, settings)
         return self.load_state(serializer.load(dump, settings))
 
@@ -336,15 +355,11 @@ class Model:
             seen = seen_descriptors.get(component)
 
             if seen is None:
-                final = stack.add(
-                    component,
-                    name=attribute,
-                    settings=settings
-                )
-                name = final.name
-                descriptor = final
+                dep = stack.add(component, name=attribute, settings=settings)
+                name = dep.name
+                descriptor = dep
                 if not isinstance(descriptor, Rep):
-                    descriptor = cls.component_class(final)
+                    descriptor = cls.component_class(dep)
 
             else:
                 name = attribute
@@ -431,5 +446,7 @@ def create_model(
         stack.add(component, settings=settings)
     if name is None:
         name = "model_" + str(id(stack))
-    model = model_metaclass(name, (model_class,), {}, name=name, stack=stack, **settings)
+    model = model_metaclass(
+        name, (model_class,), {}, name=name, stack=stack, **settings
+    )
     return cast(Type[Model], model)

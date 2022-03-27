@@ -40,9 +40,7 @@ class Stack:
         if isinstance(settings, dict):
             settings = settings.copy()
         transformed = self.transform_component(
-            component=component,
-            name=name,
-            settings=settings
+            component=component, name=name, settings=settings
         )
         self.push(transformed)
         return transformed
@@ -104,9 +102,7 @@ class Stack:
     def size(self) -> int:
         return len(self._components)
 
-    def choose_components(
-        self, settings: SettingsT = None
-    ) -> dict[str, ComponentT]:
+    def choose_components(self, settings: SettingsT = None) -> dict[str, ComponentT]:
         if settings is None:
             settings = {}
         suitable = {}
