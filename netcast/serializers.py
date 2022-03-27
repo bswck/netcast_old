@@ -263,3 +263,43 @@ Float64 = FloatingPoint(bit_size=64)
 Half = Float16
 Single = Float = Float32
 Double = Float64
+
+
+class Statement(Object):
+    """Base class for all statements that indicate a dynamic behaviour."""
+
+
+class Switch(Statement):
+    pass
+
+
+class Case(Statement):
+    pass
+
+
+class If(Statement):
+    pass
+
+
+class IfThenElse(Statement):
+    pass
+
+
+class Constraint(Statement):
+    pass
+
+
+class OneOf(Constraint):
+    pass
+
+
+class AllOf(Constraint):
+    pass
+
+
+class Enum(Constraint):
+    pass
+
+
+class Expr(Statement):
+    pass

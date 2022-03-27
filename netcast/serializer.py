@@ -17,8 +17,8 @@ DepT = TypeVar("DepT")
 
 
 class Phase(enum.IntFlag):
-    PRE = 1
-    POST = 2
+    DUMP = 1
+    LOAD = 2
 
 
 class Serializer:
@@ -32,7 +32,7 @@ class Serializer:
         *,
         name: str | None = None,
         default: Any = MISSING,
-        coercion_phases: int = Phase.PRE | Phase.POST,
+        coercion_phases: int = Phase.DUMP | Phase.LOAD,
         **settings: Any,
     ):
         super().__init__()
@@ -53,7 +53,7 @@ class Serializer:
         if settings is None:
             settings = {}
         settings = self.configure(**settings)
-        obj = self._cast_object(obj, Phase.PRE, settings)
+        obj = self._cast_object(obj, Phase.DUMP, settings)
         try:
             obj = self._dump(obj, settings, **kwargs)
         except Exception as exc:
@@ -74,7 +74,7 @@ class Serializer:
             obj = self._load(obj, settings, **kwargs)
         except Exception as exc:
             raise NetcastError(f"loading failed: {exc}") from exc
-        obj = self._cast_object(obj, Phase.POST, settings)
+        obj = self._cast_object(obj, Phase.LOAD, settings)
         return obj
 
     def configure(self, **settings):
@@ -111,40 +111,40 @@ class Serializer:
         return settings
 
     def _cast_object(
-        self, obj: Any, phase: Literal[Phase.PRE, Phase.POST], _settings: dict[str, Any]
+        self, obj: Any, phase: Literal[Phase.DUMP, Phase.LOAD], _settings: dict[str, Any]
     ) -> Any:
         """Cast a loaded or dumped object before or after an underlying operation."""
-        if phase == Phase.PRE:
-            if self.coercion_phases & Phase.PRE:
-                obj = self._pre_cast(obj)
-        elif phase == Phase.POST:
-            if self.coercion_phases & Phase.POST:
-                obj = self._post_cast(obj)
+        if phase == Phase.DUMP:
+            if self.coercion_phases & Phase.DUMP:
+                obj = self._dump_cast(obj)
+        elif phase == Phase.LOAD:
+            if self.coercion_phases & Phase.LOAD:
+                obj = self._load_cast(obj)
         return obj
 
-    def _pre_cast(self, dump: Any) -> Any:
-        """Ensure a dumped object has the proper type before loading it."""
-        factory = getattr(self, "load_type_factory", self.load_type)
-        if factory is None or (isinstance(factory, type) and isinstance(dump, factory)):
-            return dump
+    def _dump_cast(self, obj: Any) -> Any:
+        """Ensure a loaded object has the proper type before dumping it."""
+        factory = getattr(self, "dump_type_factory", self.dump_type)
+        if factory is None or (isinstance(factory, type) and isinstance(obj, factory)):
+            return obj
         try:
-            obj = factory(dump)
+            obj = factory(obj)
         except Exception as exc:
             raise NetcastError(
-                f"could not pre-cast an object {dump!r}\nUsed factory: {factory}"
+                f"could not pre-cast an object {obj!r}\nUsed factory: {factory}"
             ) from exc
         return obj
 
-    def _post_cast(self, load: Any) -> Any:
-        """Ensure a loaded object has the proper type before dumping it."""
-        factory = getattr(self, "dump_type_factory", self.dump_type)
-        if factory is None or (isinstance(factory, type) and isinstance(load, factory)):
-            return load
+    def _load_cast(self, obj: Any) -> Any:
+        """Ensure a dumped object has the proper type before loading it."""
+        factory = getattr(self, "load_type_factory", self.load_type)
+        if factory is None or (isinstance(factory, type) and isinstance(obj, factory)):
+            return obj
         try:
-            obj = factory(load)
+            obj = factory(obj)
         except Exception as exc:
             raise NetcastError(
-                f"could not post-cast an object {load!r}\nUsed factory: {factory}"
+                f"could not post-cast an object {obj!r}\nUsed factory: {factory}"
             ) from exc
         return obj
 

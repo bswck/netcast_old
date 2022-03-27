@@ -125,7 +125,7 @@ class Stack:
         if isinstance(component, type) or getattr(component, "contained", False):
             component = component(**settings)
         component.contained = True
-        for key in ("name", "default"):
+        for key in settings.keys() & {"name", "default"}:
             setattr(component, key, settings.pop(key))
         component.settings.update(settings)
         return component

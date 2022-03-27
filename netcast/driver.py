@@ -96,7 +96,7 @@ class Driver(metaclass=DriverMeta):
         cls._memo = IDLookupDictionary()
 
         for _, member in inspect.getmembers(cls, _check_impl):
-            cls.register(member)
+            cls.impl(member)
 
         cls.DEBUG = __debug__
         Driver.registry[driver_name] = cls
@@ -110,7 +110,7 @@ class Driver(metaclass=DriverMeta):
         return sys.intern(driver_name)
 
     @classmethod
-    def register(cls, member: type):
+    def impl(cls, member: type):
         link_to = getattr(member, ORIGIN_FIELD, member.__base__)
         cls._local[link_to] = member
         member_name = member.__name__

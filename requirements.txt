@@ -1,1 +1,0 @@
-jaraco.collections<=3.5.1
