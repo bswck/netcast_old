@@ -217,6 +217,7 @@ class Interface(Serializer):
             raise NotImplementedError(
                 f"{signature} is not supported by the {self.driver.name} driver"
             )
+
         return impl
 
     def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:

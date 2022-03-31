@@ -24,6 +24,7 @@ __all__ = (
 
 from netcast.tools import strings
 from netcast.tools.collections import IDLookupDictionary
+from netcast.tools.normalization import numbered_object_name, object_array_name
 
 ESCAPE_PREFIX = "set__"
 
@@ -232,10 +233,12 @@ class Model:
             settings = {}
         settings = {**settings, **self.settings}
         default_driver = self.default_driver
+
         if driver is None:
             driver = self.default_driver
             if driver is None:
                 raise ValueError(f"neither driver nor default driver provided")
+
         elif isinstance(driver, str):
             driver_name = driver
             with contextlib.suppress(ValueError):
@@ -243,15 +246,19 @@ class Model:
             driver = Driver.registry.get(driver_name, default_driver)
             if driver is None:
                 raise ValueError(f"no driver named {driver_name!r} available")
+
         if isinstance(driver, DriverMeta):
             settings.update(name=self.name)
             serializer = driver.lookup_model_serializer(self, **settings)
+
         else:
             serializer = driver
             settings.update(name=self.name, default=self.default)
             serializer = serializer.get_dep(serializer, **settings)
+
         if final:
             return serializer.impl(driver, settings, final=final)
+
         return serializer
 
     def dump(self, driver: DriverArgT = None, /, **settings: Any) -> Any:
@@ -314,8 +321,9 @@ class Model:
     def __class_getitem__(cls, size):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
-        components = [cls.clone(name=f"{cls.name}_{i+1}") for i in range(size)]
-        return create_model(*components, name=f"{cls.name}_x{size}")
+        name = object_array_name(cls, cls.__name__, size)
+        components = [cls.clone(name=numbered_object_name(cls, name, i+1)) for i in range(size)]
+        return create_model(*components, name=name)
 
     def __getitem__(self, key: Any):
         return self._descriptors[key].__get__(self, None)

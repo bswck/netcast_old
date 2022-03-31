@@ -4,7 +4,9 @@ import functools
 from typing import Type, Any, Mapping
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
+from netcast import MISSING
 from netcast.serializer import Serializer
+from netcast.tools.normalization import numbered_object_name, object_array_name
 
 
 __all__ = (
@@ -96,9 +98,9 @@ class Object(Serializer):
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
 
-        name = cls.__name__.casefold()
-        components = (cls(name=f"{name}_{i+1}") for i in range(size))
-        return create_model(*components, name=f"{name}_x{size}")
+        name = object_array_name(cls, cls.__name__, size)
+        components = (cls(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        return create_model(*components, name=name)
 
     def __getitem__(self, size):
         if size < 1:
@@ -106,10 +108,27 @@ class Object(Serializer):
         from netcast import create_model
 
         name = self.name
+        cls = type(self)
         if name is None:
-            name = type(self).__name__.casefold()
-        components = (self(name=f"{name}_{i+1}") for i in range(size))
-        return create_model(*components, name=f"{name}_x{size}")
+            name = object_array_name(cls, cls.__name__, size)
+        components = (self(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        return create_model(*components, name=name)
+
+
+class Const(Object):
+    """A constant object."""
+
+    def __init__(self, obj: Any, **settings: Any):
+        self.obj = obj
+        super().__init__(**settings)
+
+
+class Reference(Object):
+    """A reference to a certain element of the owner structure."""
+
+    def __init__(self, identifier: str, **settings: Any):
+        self.identifier = identifier
+        super().__init__(**settings)
 
 
 class Simple(Object):
@@ -159,8 +178,8 @@ class SimpleNamespace(Dict):
     load_type = SimpleNamespaceType
 
     @functools.singledispatchmethod
-    def load_type_factory(self, mapping: Mapping):
-        return self.load_type(**mapping)
+    def load_type_factory(self, obj: Mapping):
+        return SimpleNamespace.load_type(**obj)
 
 
 class Sequence(ModelSerializer):
@@ -267,47 +286,63 @@ Double = Float64
 
 class Statement(Object):
     """Base class for all statements that indicate a dynamic behaviour."""
-    def __init__(self, obj, **settings: Any):
+    def __init__(self, obj: Any, **settings: Any):
+        if not isinstance(obj, Object):
+            obj = Const(obj, **settings)
         super().__init__(**settings)
-        self.serializer = obj
+        self.obj = obj
 
 
 class Switch(Statement):
     """
     Switch statement.
     """
-    def __init__(self, obj, cases=(), **settings: Any):
+    def __init__(
+            self,
+            obj: Object | Any,
+            cases: Tuple[Case, ...] = (),
+            **settings: Any
+    ):
         super().__init__(obj, **settings)
         self.cases = cases
 
 
 class Case(Statement):
-    pass
+    """Base class for all switch-statement cases."""
 
 
 class If(Statement):
-    pass
+    """If statement."""
+    def __init__(
+            self,
+            condition: Object,
+            obj: Any = MISSING,
+            **settings: Any
+    ):
+        self.condition = condition
+        super().__init__(obj, **settings)
 
 
-class IfThenElse(Statement):
-    pass
+class IfElse(If):
+    """If-else statement."""
+    def __init__(
+            self,
+            obj: Object | Any,
+            then: Any,
+            otherwise: Any,
+            **settings: Any
+    ):
+        self.otherwise = otherwise
+        super().__init__(obj, then, **settings)
 
 
-class Constraint(Statement):
-    pass
-
-
-class OneOf(Constraint):
-    pass
-
-
-class AllOf(Constraint):
-    pass
-
-
-class Enum(Constraint):
-    pass
-
-
-class Expr(Statement):
-    pass
+class In(Statement):
+    """X in Y statement."""
+    def __init__(
+            self,
+            obj: Object | Any,
+            collection: Any,
+            **settings: Any
+    ):
+        self.collection = collection
+        super().__init__(obj, **settings)
