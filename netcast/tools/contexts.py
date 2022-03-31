@@ -630,7 +630,7 @@ LinkedListContextMixin = SinglyDownwardContextMixin
 
 _ = wrap_to_context
 
-ConstructContext = _((UpwardContextMixin, collections.OrderedDict, AttributeDict))
+ConstructContext = _((collections.OrderedDict, UpwardContextMixin, AttributeDict))
 ByteArrayContext = _(bytearray, _list_methods, name="ByteArrayContext")
 MemoryDictContext = _(IDLookupDictionary, _dict_methods)
 QueueContext = _(queue.Queue, _queue_methods)

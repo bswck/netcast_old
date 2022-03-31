@@ -263,3 +263,51 @@ Float64 = FloatingPoint(bit_size=64)
 Half = Float16
 Single = Float = Float32
 Double = Float64
+
+
+class Statement(Object):
+    """Base class for all statements that indicate a dynamic behaviour."""
+    def __init__(self, obj, **settings: Any):
+        super().__init__(**settings)
+        self.serializer = obj
+
+
+class Switch(Statement):
+    """
+    Switch statement.
+    """
+    def __init__(self, obj, cases=(), **settings: Any):
+        super().__init__(obj, **settings)
+        self.cases = cases
+
+
+class Case(Statement):
+    pass
+
+
+class If(Statement):
+    pass
+
+
+class IfThenElse(Statement):
+    pass
+
+
+class Constraint(Statement):
+    pass
+
+
+class OneOf(Constraint):
+    pass
+
+
+class AllOf(Constraint):
+    pass
+
+
+class Enum(Constraint):
+    pass
+
+
+class Expr(Statement):
+    pass

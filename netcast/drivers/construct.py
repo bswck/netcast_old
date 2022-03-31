@@ -24,7 +24,7 @@ class Interface(nc.Interface):
 
     @property
     def driver(self):
-        return ConstructDriver
+        return Construct
 
     def _load(self, obj, settings, **kwargs):
         return self.impl().parse(obj)
@@ -47,7 +47,7 @@ class Array(Interface):
     def __init__(self, data_type, /, **settings):
         size = settings.get("size")
         if size is None:
-            size = ConstructDriver.UnsignedInt8(compiled=self.compiled).impl
+            size = Construct.UnsignedInt8(compiled=self.compiled).impl
         self.size = settings.setdefault("size", size)
         self.prefixed = settings.setdefault("prefixed", False)
         self.lazy = settings.setdefault("lazy", False)
@@ -98,7 +98,7 @@ class Struct(Interface):
         self._impl = impl
 
 
-class ConstructDriver(nc.Driver):
+class Construct(nc.Driver):
     SequenceInterface = nc.driver_interface(Sequence)
     ArrayInterface = nc.driver_interface(Array)
     StructInterface = nc.driver_interface(Struct)
@@ -123,7 +123,7 @@ class ConstructDriver(nc.Driver):
     default_model_serializer = Struct
 
 
-@ConstructDriver.register
+@Construct.impl
 class Integer(Interface):
     implements = nc.Integer
     bit_size: int
@@ -245,7 +245,7 @@ class _EncodingHack:
         return macro
 
 
-@ConstructDriver.register
+@Construct.impl
 class String(Interface):
     implements = nc.String
     default_encoding = "ASCII"
@@ -282,7 +282,7 @@ class String(Interface):
         self._impl = impl
 
 
-@ConstructDriver.register
+@Construct.impl
 class FloatingPoint(Interface):
     implements = nc.FloatingPoint
 
@@ -318,10 +318,10 @@ class FloatingPoint(Interface):
         return obj
 
 
-@ConstructDriver.get_model_serializer.register(Array)
+@Construct.get_model_serializer.impl(Array)
 def get_array_serializer(_, serializer, components=(), settings=None):
     if settings is None:
         settings = {}
     if len(components) != 1:
-        raise ValueError("construct::Array() takes exactly 1 argument")
+        raise ValueError("construct.Array() takes exactly 1 argument")
     return serializer(*components, **settings)

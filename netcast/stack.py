@@ -118,14 +118,14 @@ class Stack:
 
     @classmethod
     def transform_serializer(
-        cls, component: Serializer | Type, settings: SettingsT = None  # [Serializer],
+        cls, component: Serializer | Type, settings: SettingsT = None
     ) -> Serializer:
         if settings is None:
             settings = {}
         if isinstance(component, type) or getattr(component, "contained", False):
             component = component(**settings)
         component.contained = True
-        for key in set(settings).intersection({"name", "default"}):
+        for key in settings.keys() & {"name", "default"}:
             setattr(component, key, settings.pop(key))
         component.settings.update(settings)
         return component

@@ -1,11 +1,7 @@
 from __future__ import annotations  # Python 3.8
 
+import functools
 from typing import Any, Callable, Protocol, TypeVar, runtime_checkable
-
-from jaraco.collections import (
-    KeyTransformingDict as _KeyTransformingDict,
-    ItemsAsAttributes,
-)
 
 from netcast.constants import MISSING
 
@@ -19,8 +15,48 @@ class Comparable(Protocol):
 _ComparableT = TypeVar("_ComparableT", bound=Comparable)
 
 
-class KeyTransformingDict(_KeyTransformingDict):
-    # I don't know why update() doesn't call __setitem__(), either on CPython or PyPy
+class KeyTransformingDict(dict):
+    @staticmethod
+    def transform_key(key):  # pragma: nocover
+        return key
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        descent = dict(*args, **kwargs)
+        for item in descent.items():
+            self.__setitem__(*item)
+
+    def __setitem__(self, key, val):
+        key = self.transform_key(key)
+        super().__setitem__(key, val)
+
+    def __getitem__(self, key):
+        key = self.transform_key(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        key = self.transform_key(key)
+        return super().__contains__(key)
+
+    def __delitem__(self, key):
+        key = self.transform_key(key)
+        return super().__delitem__(key)
+
+    def get(self, key, default=None):
+        key = self.transform_key(key)
+        return super().get(key, default)
+
+    def setdefault(self, key, default=None):
+        key = self.transform_key(key)
+        return super().setdefault(key, default)
+
+    def pop(self, key, default=MISSING):
+        key = self.transform_key(key)
+        if default is MISSING:
+            return super().pop(key)
+        return super().pop(key, default)
+
+    # I don't know why update() doesn't internally call __setitem__(), either on CPython or PyPy
     def update(self, e=None, **f):
         d = self
         if e:
@@ -50,12 +86,20 @@ class IDLookupDictionary(KeyTransformingDict):
         return id_of_key
 
 
-class AttributeDict(dict, ItemsAsAttributes):
-    """A modern dictionary with attribute-as-item access."""
+class AttributeDict(dict):
+    """A dictionary with attribute-as-item access."""
 
     def __setattr__(self, key: str, value: Any):
         """self[key] = value, but via attribute setting"""
         self.__setitem__(key, value)
+
+    def __getattr__(self, item: str):
+        try:
+            return self[item]
+        except KeyError as e:
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {item!r}"
+            ) from e
 
     def __dir__(self):
         """List all accessible names bound to this object."""
