@@ -6,6 +6,7 @@ from typing import Any, TypeVar, TYPE_CHECKING, Dict, Optional, Literal, Tuple
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
+from netcast.tools.arrangements import Arrangement
 from netcast.tools.inspection import match_params
 
 if TYPE_CHECKING:
@@ -21,7 +22,7 @@ class Phase(enum.IntFlag):
     LOAD = 2
 
 
-class Serializer:
+class Serializer(Arrangement):
     """A base class for all serializers. A good serializer can dump and load stuff."""
 
     load_type: type | None = None
@@ -33,9 +34,10 @@ class Serializer:
         name: str | None = None,
         default: Any = MISSING,
         coercion_phases: int = Phase.DUMP | Phase.LOAD,
+        parent: Serializer | None = None,
         **settings: Any,
     ):
-        super().__init__()
+        super().__init__(parent)
         self.name = name
         self.default = default
         self.contained = False
@@ -167,6 +169,24 @@ class Serializer:
         return default + type_name + name + settings
 
 
+class Reference(Serializer):
+    """A reference to a certain element of the owner structure."""
+
+    def __init__(self, identifier: str, **settings: Any):
+        self.identifier = identifier
+        super().__init__(**settings)
+
+    def resolve(self):
+        obj = self.context.get(self.identifier)
+        if obj is None:
+            supercontext = self.supercontext
+            while supercontext:
+                obj = supercontext.get(self.identifier)
+                supercontext = {}
+                if obj is None:
+                    supercontext = self._get_supercontext(supercontext)
+        return obj
+
 class Interface(Serializer):
     _impl: Any = NotImplemented
     _netcast_final: bool = False
@@ -196,7 +216,13 @@ class Interface(Serializer):
             )
         return dep
 
-    def get_impl(self, dep: DepT, /, **settings):
+    def get_impl(self, dep: DepT, /, **settings: Any):
+        if isinstance(dep, Reference):
+            resolved = dep.resolve()
+            if resolved is None:
+                raise ValueError(f"unresolved reference {dep.identifier!r}")
+            dep = resolved
+
         dep = self.get_dep(dep, **settings)
         settings = {**dep.settings, **settings}
         impl = dep.impl(self.driver, settings, final=True)

@@ -583,12 +583,13 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return contexts[self]
 
     @classmethod
-    def _get_supercontext(cls, self=None):
+    def _get_supercontext(cls, self=None, context=None):
         """Get the current supercontext."""
         if self is None:
             return super()._get_supercontext()
-
-        return _BaseArrangement._super_registry.get(cls._get_context(self))
+        if context is None:
+            context = cls._get_context(self)
+        return _BaseArrangement._super_registry.get(context)
 
     @property
     def context(self: Arrangement) -> ContextT | None:
@@ -596,12 +597,12 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return self._get_context(self)
 
     @property
-    def supercontext(self: Arrangement) -> Context | None:
+    def supercontext(self: Arrangement) -> ContextT | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext(self)
 
     @property
-    def subcontexts(self: Arrangement) -> tuple[Context, ...] | None:
+    def subcontexts(self: Arrangement) -> tuple[ContextT, ...] | None:
         return self._get_subcontexts(self)
 
     @property

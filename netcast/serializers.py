@@ -123,14 +123,6 @@ class Const(Object):
         super().__init__(**settings)
 
 
-class Reference(Object):
-    """A reference to a certain element of the owner structure."""
-
-    def __init__(self, identifier: str, **settings: Any):
-        self.identifier = identifier
-        super().__init__(**settings)
-
-
 class Simple(Object):
     """Base class for all primitive types."""
 
@@ -337,12 +329,12 @@ class IfElse(If):
 
 
 class In(Statement):
-    """X in Y statement."""
+    """In statement."""
     def __init__(
             self,
             obj: Object | Any,
             collection: Any,
             **settings: Any
     ):
-        self.collection = collection
+        self.container = collection
         super().__init__(obj, **settings)
