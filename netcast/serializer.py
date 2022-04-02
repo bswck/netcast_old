@@ -2,7 +2,7 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-from typing import Any, TypeVar, TYPE_CHECKING, Dict, Optional, Literal, Tuple
+from typing import Any, TypeVar, TYPE_CHECKING, Dict, Optional, Literal
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
@@ -187,9 +187,9 @@ class Reference(Serializer):
                     supercontext = self._get_supercontext(supercontext)
         return obj
 
+
 class Interface(Serializer):
     _impl: Any = NotImplemented
-    _netcast_final: bool = False
     implements: type | None = None
 
     def impl(self, driver=None, settings=None, final=False):
@@ -246,7 +246,7 @@ class Interface(Serializer):
 
         return impl
 
-    def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> Tuple[DepT, ...]:
+    def get_deps(self, deps: tuple[DepT, ...], settings: SettingsT) -> tuple[DepT, ...]:
         deps = tuple(
             self.get_dep(dep, name=dep.name, default=dep.default, **settings)
             for dep in deps
@@ -255,7 +255,7 @@ class Interface(Serializer):
 
     def get_impls(
         self, deps: tuple[DepT, ...], settings: SettingsT
-    ) -> Tuple[DepT, ...]:
+    ) -> tuple[DepT, ...]:
         impls = tuple(self.get_impl(dep, **settings) for dep in deps)
         return impls
 

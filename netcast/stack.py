@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import string
 import threading
-from typing import TYPE_CHECKING, Type
+import typing
+from typing import Type
 
 from netcast import GREATEST, LEAST
 from netcast.tools.collections import Comparable
 from netcast.tools.inspection import get_attrs
 from netcast.serializer import Serializer, SettingsT
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from netcast.model import Model, ComponentArgumentT, ComponentT
 
 
