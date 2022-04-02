@@ -2,6 +2,7 @@ from __future__ import annotations  # Python 3.8
 
 import construct
 import netcast as nc
+from netcast import MISSING
 
 
 DRIVER_NAME = "construct"
@@ -14,12 +15,39 @@ class Interface(nc.Interface):
 
     def impl(self, driver=None, settings=None, final=False):
         impl = self._impl
+
         if impl is NotImplemented:
             raise NotImplementedError("missing requested serializer implementation")
+
+        return self._wrap_impl(impl)
+
+    def _wrap_impl(self, impl):
+        api_default = self.settings.get("api_default", MISSING)
+        if api_default is not MISSING:
+            impl = construct.Default(impl, api_default)
+
+        one_of = self.settings.get("one_of")
+        if one_of is not None:
+            impl = construct.OneOf(impl, one_of)
+
+        none_of = self.settings.get("none_of")
+        if none_of is not None:
+            impl = construct.NoneOf(impl, none_of)
+
+        condition = self.settings.get("condition", MISSING)
+        if condition is not MISSING:
+            impl = construct.If(condition, impl)
+
+        optional = self.settings.get("optional", False)
+        if optional:
+            impl = construct.Optional(impl)
+
         if self.compiled:
             impl = impl.compile()
+
         if self.name is not None and (getattr(impl, "name", None) != self.name):
             impl = construct.Renamed(impl, self.name)
+
         return impl
 
     @property

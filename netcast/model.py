@@ -47,7 +47,7 @@ class Rep(RepT):
         if self.refers_to_model:
             component = self.models.get(model)
             if component is None:
-                component = self.component()
+                component = self.component(model)
                 self.models[model] = component
         else:
             component = self.component
@@ -118,9 +118,10 @@ DriverArgT = Union[DriverMeta, Interface, str, type(None)]
 class Model:
     stack: ClassVar[Stack]
     settings: ClassVar[dict[str, Any]]
-    component_class = Rep
-    proxy_class = Proxy
     name: str
+    _rep_class = Rep
+    _proxy_class = Proxy
+    _check_descent_type = False
 
     def __init__(
         self,
@@ -129,8 +130,6 @@ class Model:
         /,
         **settings,
     ):
-        super().__init__()
-
         if empty is MISSING:
             raise ValueError("Model arg 2 must not be a netcast.MISSING constant")
 
@@ -162,6 +161,13 @@ class Model:
         self.default_driver = default_driver
         self.propagate_driver = propagate_driver
         self.settings = {**self.settings, **settings}
+
+    def _choose_descriptors(self, settings: SettingsT) -> dict[Any, Rep]:
+        namespace = set(self.choose_components(**settings))
+        descriptors = {
+            name: desc for name, desc in self._descriptors.items() if name in namespace
+        }
+        return descriptors
 
     def _infer_states(self, settings: SettingsT):
         for key in settings.copy():
@@ -212,13 +218,6 @@ class Model:
     def choose_components(self, **settings: Any) -> dict[Any, ComponentT]:
         settings = {**settings, **self.settings}
         return self.stack.choose_components(settings)
-
-    def _choose_descriptors(self, settings: SettingsT) -> dict[Any, Rep]:
-        namespace = set(self.choose_components(**settings))
-        descriptors = {
-            name: desc for name, desc in self._descriptors.items() if name in namespace
-        }
-        return descriptors
 
     def with_(self, **values):
         return self.set_state(values)
@@ -321,8 +320,9 @@ class Model:
     def __class_getitem__(cls, size):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
-        name = object_array_name(cls, cls.__name__, size)
+        name = cls.__name__
         components = [cls.clone(name=numbered_object_name(cls, name, i+1)) for i in range(size)]
+        name = object_array_name(cls, name, size)
         return create_model(*components, name=name)
 
     def __getitem__(self, key: Any):
@@ -332,7 +332,6 @@ class Model:
         if key in self._descriptors:
             self._descriptors[key].__set__(self, value)
             return
-
         object.__setattr__(self, key, value)
 
     def __eq__(self, other: Model):
@@ -367,11 +366,11 @@ class Model:
                 name = dep.name
                 descriptor = dep
                 if not isinstance(descriptor, Rep):
-                    descriptor = cls.component_class(dep)
+                    descriptor = cls._rep_class(dep)
 
             else:
                 name = attribute
-                descriptor = cls.proxy_class(seen)
+                descriptor = cls._proxy_class(seen)
 
             setattr(cls, name, descriptor)
 
@@ -386,7 +385,7 @@ class Model:
         cls._descriptors = descriptors = {}
 
         for idx, (name, component) in enumerate(components.items()):
-            descriptor = descriptors[name] = cls.component_class(component)
+            descriptor = descriptors[name] = cls._rep_class(component)
             setattr(cls, name, descriptor)
 
     @classmethod
@@ -398,10 +397,11 @@ class Model:
 
     def __init_subclass__(
         cls,
-        stack: Stack = None,
+        stack: Stack | None = None,
         name: str | None = None,
         build_stack: bool | None = None,
         stack_class: Type[Stack] = VersionAwareStack,
+        serializer: Type[Serializer] | None = None,
         **settings: Any,
     ):
         if build_stack is None:
@@ -417,6 +417,8 @@ class Model:
         else:
             cls._load_stack(stack, settings)
 
+        if serializer is not None:
+            cls.serializer = serializer
         cls.stack = stack
         cls.settings = settings
 
@@ -446,6 +448,7 @@ def create_model(
     model_class: Type[Model] = Model,
     model_metaclass: Type[Type] = type,
     stack_class: Type[Stack] = VersionAwareStack,
+    serializer: Type[Serializer] | None = None,
     **settings,
 ) -> Type[Model]:
     if stack is None:
@@ -455,6 +458,10 @@ def create_model(
     if name is None:
         name = "model_" + str(id(stack))
     model = model_metaclass(
-        name, (model_class,), {}, name=name, stack=stack, **settings
+        name, (model_class,), {},
+        name=name,
+        stack=stack,
+        serializer=serializer,
+        **settings
     )
     return cast(Type[Model], model)

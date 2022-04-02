@@ -5,6 +5,7 @@ from typing import ClassVar, Type
 
 import pytest
 
+from netcast.model import Model
 from netcast.serializer import Serializer
 from netcast.exceptions import ArrangementConstructionError
 from netcast.tools.arrangements import (
@@ -34,6 +35,7 @@ arrangements = {Arrangement, *Arrangement.__subclasses__()}
 arrangements.discard(FileIOArrangement)
 arrangements.discard(SSLSocketArrangement)
 arrangements.discard(Serializer)
+arrangements.discard(Model)
 
 
 @pytest.fixture(params=arrangements, scope="session")

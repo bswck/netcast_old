@@ -2,15 +2,17 @@ from __future__ import annotations  # Python 3.8
 
 import abc
 import enum
-from typing import Any, TypeVar, TYPE_CHECKING, Dict, Optional, Literal
+import typing
+from typing import Any, TypeVar, Dict, Optional, Literal
 
 from netcast.constants import MISSING
 from netcast.exceptions import NetcastError
 from netcast.tools.arrangements import Arrangement
 from netcast.tools.inspection import match_params
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from netcast.driver import DriverMeta
+    from netcast.model import Model
 
 
 SettingsT = Optional[Dict[str, Any]]
@@ -22,8 +24,10 @@ class Phase(enum.IntFlag):
     LOAD = 2
 
 
-class Serializer(Arrangement):
+class Serializer:
     """A base class for all serializers. A good serializer can dump and load stuff."""
+
+    _check_descent_type = False
 
     load_type: type | None = None
     dump_type: type | None = None
@@ -34,10 +38,8 @@ class Serializer(Arrangement):
         name: str | None = None,
         default: Any = MISSING,
         coercion_phases: int = Phase.DUMP | Phase.LOAD,
-        parent: Serializer | None = None,
         **settings: Any,
     ):
-        super().__init__(parent)
         self.name = name
         self.default = default
         self.contained = False
@@ -172,6 +174,22 @@ class Serializer(Arrangement):
         settings = f" ({self.settings})" if self.settings else ""
         return default + type_name + name + settings
 
+    def __setattr__(self, key, value):
+        object.__setattr__(self, key, value)
+        try:
+            settings = object.__getattribute__(self, "settings")
+        except AttributeError:
+            settings = {}
+        if key in settings:
+            settings.update({key: value})
+
+    def __getattr__(self, item):
+        value = self.settings.get(item, MISSING)
+        if value is MISSING:
+            msg = f"{type(self).__name__!r} object has no attribute {item!r}"
+            raise AttributeError(msg)
+        return value
+
 
 class Reference(Serializer):
     """A reference to a certain element of the owner structure."""
@@ -229,11 +247,15 @@ class Interface(Serializer):
 
         dep = self.get_dep(dep, **settings)
         settings = {**dep.settings, **settings}
+        settings.update(parent=dep)
         impl = dep.impl(self.driver, settings, final=True)
 
         if impl is NotImplemented:
             dep_type = type(dep)
-            settings.update(name=dep.name, default=dep.default)
+            settings.update(
+                name=dep.name,
+                default=dep.default,
+            )
             dep = self.get_dep(
                 self.driver.lookup_type(dep_type),
                 **settings,

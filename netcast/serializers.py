@@ -4,7 +4,6 @@ import functools
 from typing import Type, Any, Mapping
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
-from netcast import MISSING
 from netcast.serializer import Serializer
 from netcast.tools.normalization import numbered_object_name, object_array_name
 
@@ -97,9 +96,9 @@ class Object(Serializer):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
-
-        name = object_array_name(cls, cls.__name__, size)
+        name = cls.__name__
         components = (cls(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        name = object_array_name(cls, name, size)
         return create_model(*components, name=name)
 
     def __getitem__(self, size):
@@ -107,11 +106,12 @@ class Object(Serializer):
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
 
-        name = self.name
         cls = type(self)
-        if name is None:
-            name = object_array_name(cls, cls.__name__, size)
+        name = self.name
+        if name:
+            name = cls.__name__
         components = (self(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        name = object_array_name(cls, name, size)
         return create_model(*components, name=name)
 
 
@@ -301,40 +301,3 @@ class Switch(Statement):
 
 class Case(Statement):
     """Base class for all switch-statement cases."""
-
-
-class If(Statement):
-    """If statement."""
-    def __init__(
-            self,
-            condition: Object,
-            obj: Any = MISSING,
-            **settings: Any
-    ):
-        self.condition = condition
-        super().__init__(obj, **settings)
-
-
-class IfElse(If):
-    """If-else statement."""
-    def __init__(
-            self,
-            obj: Object | Any,
-            then: Any,
-            otherwise: Any,
-            **settings: Any
-    ):
-        self.otherwise = otherwise
-        super().__init__(obj, then, **settings)
-
-
-class In(Statement):
-    """In statement."""
-    def __init__(
-            self,
-            obj: Object | Any,
-            collection: Any,
-            **settings: Any
-    ):
-        self.container = collection
-        super().__init__(obj, **settings)

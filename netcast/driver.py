@@ -3,14 +3,15 @@ from __future__ import annotations  # Python 3.8
 import functools
 import inspect
 import sys
-from typing import ClassVar, Type, TypeVar, TYPE_CHECKING, Any
+import typing
+from typing import ClassVar, Type, Any
 
 from netcast import serializers
 from netcast.exceptions import NetcastError
 from netcast.serializer import Serializer, SettingsT
 from netcast.tools.collections import IDLookupDictionary
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from netcast.serializers import ModelSerializer
     from netcast.model import Model  # noqa: F401
 
@@ -20,9 +21,6 @@ __all__ = ("Driver", "DriverMeta", "driver_serializer", "driver_interface")
 ORIGIN_FIELD = "implements"
 
 
-_M = TypeVar("_M", bound="Model")
-
-
 class DriverMeta(type):
     _memo: IDLookupDictionary[Model, Serializer]
     _local: dict[type, type]
@@ -30,8 +28,7 @@ class DriverMeta(type):
     def _get_model_serializer(
         cls,
         serializer: Type[ModelSerializer],
-        /,
-        *,
+        /, *,
         components: tuple[Any, ...] = (),
         settings: SettingsT = None,
     ) -> ModelSerializer:
@@ -45,8 +42,9 @@ class DriverMeta(type):
 
     def lookup_model_serializer(cls, model: Model, /, **settings) -> Serializer:
         components = model.choose_components(**settings).values()
+        model_serializer = getattr(model, "serializer", cls.default_model_serializer)
         serializer = cls.get_model_serializer(
-            cls.default_model_serializer, components=components, settings=settings
+            model_serializer, components=components, settings=settings
         )
         return serializer
 
@@ -63,7 +61,7 @@ class DriverMeta(type):
         return object.__getattribute__(cls, alias.__name__)
 
     def __call__(
-        self, model: _M = None, return_serializer=True, **settings
+        self, model: Model | None = None, return_serializer: bool = True, **settings
     ) -> ModelSerializer:
         if return_serializer:
             if model is None:

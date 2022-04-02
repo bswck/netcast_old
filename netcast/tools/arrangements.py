@@ -462,6 +462,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
     descent: Arrangement | None
     _new_context: bool = True
     _setup_context: bool = True
+    _check_descent_type: bool | None = None
 
     def __init__(self, descent: Arrangement | None = None):
         _init(self, descent)
@@ -474,7 +475,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         config: bool = False,
         no_subclasshook: bool = False,
         setup_context: bool = _setup_context,
-        check_descent_type: Literal[True] = True,
+        check_descent_type: bool | None = None,
     ):
         if no_subclasshook:
             return
@@ -495,6 +496,8 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
             check_descent_type=False,
         )
 
+        if check_descent_type is not None:
+            cls._check_descent_type = check_descent_type
         cls.context_class = context_class
         cls._new_context = new_context
         cls._setup_context = setup_context
@@ -508,13 +511,19 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return descent
 
     @classmethod
-    def _get_descent(cls, args=(), kwargs=None, validate_type=True):
+    def _get_descent(cls, args=(), kwargs=None, validate_type=None):
         if kwargs is None:
             kwargs = {}
+
+        if validate_type is None:
+            validate_type = cls._check_descent_type
+        if validate_type is None:
+            validate_type = True
+
         descent = cls._resolve_descent(args, kwargs)
         expected_type = cls._get_descent_type()
 
-        if validate_type and descent is not None and expected_type is not None:
+        if validate_type and (descent is not None and expected_type is not None):
             if not isinstance(descent, expected_type):
                 raise ArrangementTypeError(
                     "passed descent's type and the fixed descent type are not equal"

@@ -73,7 +73,8 @@ class Stack:
 
     def push(self, component: ComponentT):
         self._lock.acquire()
-        if component.name is None:
+        name = getattr(component, "name", None)
+        if name is None:
             component.name = self.default_name()
         self._components.append(component)
         self._lock.release()
