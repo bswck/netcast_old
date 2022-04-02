@@ -500,7 +500,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         cls._setup_context = setup_context
 
     @classmethod
-    def _resolve_descent(cls, args):
+    def _resolve_descent(cls, args, _kwargs):
         if args:
             descent, *args = args
         else:
@@ -508,8 +508,10 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return descent
 
     @classmethod
-    def _get_descent(cls, args=(), validate_type=True):
-        descent = cls._resolve_descent(args)
+    def _get_descent(cls, args=(), kwargs=None, validate_type=True):
+        if kwargs is None:
+            kwargs = {}
+        descent = cls._resolve_descent(args, kwargs)
         expected_type = cls._get_descent_type()
 
         if validate_type and descent is not None and expected_type is not None:
@@ -555,7 +557,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
             contexts[self] = setup(context)
 
     def __new__(cls, *args, **kwargs):
-        descent = cls._get_descent(args)
+        descent = cls._get_descent(args, kwargs)
 
         self = object.__new__(cls)
         _init(self, descent)

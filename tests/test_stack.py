@@ -70,11 +70,7 @@ class TestStack:
 class TestVersionAwareStack:
     def duplex_factory(self, serializer, version_added=None, version_removed=None):
         stack = VersionAwareStack()
-        serializer_settings = {
-            stack.since_version_field: version_added,
-            stack.until_version_field: version_removed,
-        }
-        component = serializer(**serializer_settings)
+        component = serializer(version_added=version_added, version_removed=version_removed)
         stack.add(component)
         return stack, component
 

@@ -3,11 +3,10 @@ from __future__ import annotations
 import string
 import threading
 import typing
-from typing import Type
+from typing import Callable, Type
 
 from netcast import GREATEST, LEAST
 from netcast.tools.collections import Comparable
-from netcast.tools.inspection import get_attrs
 from netcast.serializer import Serializer, SettingsT
 
 if typing.TYPE_CHECKING:
@@ -185,41 +184,42 @@ class VersionAwareStack(SelectiveStack):
         self,
         *,
         settings_version_field: str = "version",
-        since_field: str = "version_added",
-        until_field: str = "version_removed",
+        version_added_field: str | Callable = (
+            lambda component: component.settings.get("version_added")
+        ),
+        version_removed_field: str | Callable = (
+            lambda component: component.settings.get("version_removed")
+        ),
         default_version: Comparable = GREATEST,
-        default_since_version: Comparable = LEAST,
-        default_until_version: Comparable = GREATEST,
-        versioning_namespace: str | None = "settings",
+        default_version_added: Comparable = LEAST,
+        default_version_removed: Comparable = GREATEST,
     ):
         super().__init__()
         self.settings_version_field = settings_version_field
-        self.since_version_field = since_field
-        self.until_version_field = until_field
+        self.version_added_field = version_added_field
+        self.version_removed_field = version_removed_field
         self.default_version = default_version
-        self.default_since_version = default_since_version
-        self.default_until_version = default_until_version
-        if versioning_namespace is None:
-            versioning_namespace = ""
-        self.versioning_namespace = versioning_namespace
+        self.default_version_added = default_version_added
+        self.default_version_removed = default_version_removed
 
     def predicate_version(self, component: ComponentT, settings: SettingsT):
         if settings is None:
             settings = {}
         version = settings.get(self.settings_version_field, self.default_version)
-        since_version_field = f"{self.versioning_namespace}[{self.since_version_field}]"
-        until_version_field = f"{self.versioning_namespace}[{self.until_version_field}]"
-        if not self.versioning_namespace:
-            since_version_field = since_version_field[1:-1]
-            until_version_field = until_version_field[1:-1]
-        default_since_version = self.default_since_version
-        default_until_version = self.default_until_version
-        version_added = get_attrs(component, since_version_field, None)
+        default_added = self.default_version_added
+        default_removed = self.default_version_removed
+        if callable(self.version_added_field):
+            version_added = self.version_added_field(component)
+        else:
+            version_added = getattr(component, self.version_added_field, None)
         if version_added is None:
-            version_added = default_since_version
-        version_removed = get_attrs(component, until_version_field, None)
+            version_added = default_added
+        if callable(self.version_added_field):
+            version_removed = self.version_removed_field(component)
+        else:
+            version_removed = getattr(component, self.version_removed_field, None)
         if version_removed is None:
-            version_removed = default_until_version
+            version_removed = default_removed
         introduced = version_added <= version
         up_to_date = version_removed > version
         return introduced and up_to_date

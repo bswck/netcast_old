@@ -150,6 +150,10 @@ class Serializer(Arrangement):
             ) from exc
         return obj
 
+    @classmethod
+    def _resolve_descent(cls, args, kwargs):
+        return kwargs.get("parent")
+
     def __call__(
         self, *, name: str | None = None, default: Any = MISSING, **new_settings: str
     ) -> Serializer:
@@ -260,4 +264,4 @@ class Interface(Serializer):
         return impls
 
     def __repr__(self):
-        return super().__repr__() + " interface"
+        return super().__repr__() + " [intermediate interface]"

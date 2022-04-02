@@ -318,7 +318,7 @@ class FloatingPoint(Interface):
         return obj
 
 
-@Construct.get_model_serializer.impl(Array)
+@Construct.get_model_serializer.register(Array)
 def get_array_serializer(_, serializer, components=(), settings=None):
     if settings is None:
         settings = {}
