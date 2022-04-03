@@ -1,7 +1,7 @@
 from __future__ import annotations  # Python 3.8
 
 import functools
-from typing import Type, Any, Mapping
+from typing import Type, Any, Mapping, Callable
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
@@ -9,15 +9,13 @@ from netcast.tools.normalization import numbered_object_name, object_array_name
 
 
 __all__ = (
-    "FloatingPoint",
-    "Integer",
-    "AnySignedInt",
     "Bit",
     "Bool",
     "ModelSerializer",
     "Byte",
     "ByteArray",
     "Bytes",
+    "Case",
     "Char",
     "Dict",
     "Double",
@@ -25,6 +23,7 @@ __all__ = (
     "Float16",
     "Float32",
     "Float64",
+    "FloatingPoint",
     "FrozenSet",
     "Half",
     "HalfByte",
@@ -36,6 +35,7 @@ __all__ = (
     "Int512",
     "Int64",
     "Int8",
+    "Integer",
     "List",
     "Long",
     "LongInt",
@@ -44,6 +44,7 @@ __all__ = (
     "MappingProxy",
     "Nibble",
     "Number",
+    "Range",
     "Serializer",
     "Set",
     "Short",
@@ -52,6 +53,7 @@ __all__ = (
     "SignedByte",
     "SignedChar",
     "SignedInt",
+    "SignedInteger",
     "SignedInt128",
     "SignedInt16",
     "SignedInt256",
@@ -68,6 +70,7 @@ __all__ = (
     "SimpleNamespace",
     "Single",
     "String",
+    "Switch",
     "Tetrade",
     "Tuple",
     "Type",
@@ -146,6 +149,10 @@ class FloatingPoint(Number):
     """Base class for all floats."""
 
     load_type = float
+
+
+class Range(Object):
+    """Base class for range objects."""
 
 
 class ModelSerializer(Object):
@@ -233,7 +240,7 @@ class ByteArray(String):
 
 
 SignedNumber = Number
-AnySignedInt = Integer
+SignedInteger = Integer
 Bool = Bit = Integer(bit_size=1, signed=False)
 Nibble = HalfByte = Tetrade = Integer(bit_size=4, signed=False)
 
@@ -278,11 +285,6 @@ Double = Float64
 
 class Statement(Object):
     """Base class for all statements that indicate a dynamic behaviour."""
-    def __init__(self, obj: Any, **settings: Any):
-        if not isinstance(obj, Object):
-            obj = Const(obj, **settings)
-        super().__init__(**settings)
-        self.obj = obj
 
 
 class Switch(Statement):
@@ -290,14 +292,22 @@ class Switch(Statement):
     Switch statement.
     """
     def __init__(
-            self,
-            obj: Object | Any,
+            self, *,
+            func: Callable,
             cases: Tuple[Case, ...] = (),
             **settings: Any
     ):
-        super().__init__(obj, **settings)
+        self.func = func
         self.cases = cases
+        super().__init__(**settings)
 
 
 class Case(Statement):
     """Base class for all switch-statement cases."""
+
+    def __init__(self, *, key: Any, obj: Any, **settings: Any):
+        self.key = key
+        if not isinstance(obj, Object):
+            obj = Const(obj, **settings)
+        self.obj = obj
+        super().__init__(**settings)

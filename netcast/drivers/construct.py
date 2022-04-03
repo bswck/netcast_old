@@ -11,6 +11,7 @@ DRIVER_NAME = "construct"
 class Interface(nc.Interface):
     def __init__(self, **settings):
         self.compiled = settings.setdefault("compiled", not self.driver.DEBUG)
+        self.wrap = True
         super().__init__(**settings)
 
     def impl(self, driver=None, settings=None, final=False):
@@ -19,7 +20,9 @@ class Interface(nc.Interface):
         if impl is NotImplemented:
             raise NotImplementedError("missing requested serializer implementation")
 
-        return self._wrap_impl(impl)
+        if self.wrap:
+            return self._wrap_impl(impl)
+        return impl
 
     def _wrap_impl(self, impl):
         api_default = self.settings.get("api_default", MISSING)
@@ -34,9 +37,32 @@ class Interface(nc.Interface):
         if none_of is not None:
             impl = construct.NoneOf(impl, none_of)
 
-        condition = self.settings.get("condition", MISSING)
-        if condition is not MISSING:
-            impl = construct.If(condition, impl)
+        if_ = self.settings.get("if_", MISSING)
+        else_ = self.settings.get("else_", MISSING)
+        if if_ is not MISSING and else_ is MISSING:
+            impl = construct.If(if_, impl)
+        elif if_ is not MISSING and else_ is not MISSING:
+            impl = construct.IfThenElse(if_, impl, else_)
+
+        const = self.settings.get("const")
+        if const is not None:
+            impl = construct.Const(const, impl)
+
+        padded = self.settings.get("padded")
+        if padded:
+            impl = construct.Padded(padded, impl)
+
+        aligned = self.settings.get("aligned")
+        if aligned is not None:
+            impl = construct.Aligned(aligned, impl)
+
+        null_terminated = self.settings.get("null_terminated", False)
+        if null_terminated and not isinstance(impl, construct.StringEncoded):
+            impl = construct.NullTerminated(impl)
+
+        null_stripped = self.settings.get("null_stripped", False)
+        if null_stripped:
+            impl = construct.NullStripped(impl)
 
         optional = self.settings.get("optional", False)
         if optional:
@@ -55,10 +81,12 @@ class Interface(nc.Interface):
         return Construct
 
     def _load(self, obj, settings, **kwargs):
-        return self.impl().parse(obj)
+        impl = self.impl()
+        return impl.parse(obj)
 
     def _dump(self, obj, settings, **kwargs):
-        return self.impl().build(obj)
+        impl = self.impl()
+        return impl.build(obj)
 
 
 class Sequence(Interface):
@@ -113,17 +141,12 @@ class Struct(Interface):
     implements = nc.ModelSerializer
 
     def __init__(self, *fields, **settings):
-        self.alignment_modulus = settings.setdefault("alignment_modulus", None)
         self.fields = fields
         super().__init__(**settings)
 
-    def _configure(self, alignment_modulus):
+    def _configure(self):
         self.impls = impls = self.get_impls(self.fields, self.settings)
-        if alignment_modulus is None:
-            impl = construct.Struct(*impls)
-        else:
-            impl = construct.AlignedStruct(alignment_modulus, *impls)
-        self._impl = impl
+        self._impl = construct.Struct(*impls)
 
 
 class Construct(nc.Driver):
@@ -284,8 +307,8 @@ class String(Interface):
         self.encoding = settings.setdefault("encoding", self.default_encoding)
         self.pascal = settings.setdefault("pascal", False)
         self.greedy = settings.setdefault("greedy", False)
-        self.padded = settings.setdefault("padded", False)
-        self.size = settings.setdefault("size", None)
+        self.padded = settings.setdefault("padded", 0)
+        self.size = settings.setdefault("size")
         super().__init__(**settings)
 
     def _configure(self, size, null_terminated, pascal, greedy, padded, encoding):
@@ -344,6 +367,50 @@ class FloatingPoint(Interface):
             type_name += "n"
         obj = getattr(construct, type_name, None)
         return obj
+
+
+@Construct.impl
+class Range(Interface):
+    implements = nc.Range
+
+    def __init__(self, obj, **settings):
+        self.obj = obj
+        super().__init__(**settings)
+
+    def _configure(self):
+        self._impl = construct.GreedyRange(self.get_impl(self.obj, **self.settings))
+
+
+@Construct.impl
+class Switch(Interface):
+    implements = nc.Switch
+
+    def __init__(self, *, func, cases=(), **settings):
+        self.func = func
+        self.cases = cases
+        self.default_case = settings.setdefault("default_case")
+        super().__init__(**settings)
+
+    def _configure(self, default_case):
+        cases = {
+            case.key: self.get_impl(case.obj, **self.settings)
+            for case in self.cases
+        }
+        self._impl = construct.Switch(self.func, cases, default_case)
+
+
+@Construct.impl
+class Case(Interface):
+    implements = nc.Case
+
+    def __init__(self, *, key, obj, **settings):
+        self.key = key
+        self.obj = obj
+        self.wrap_impl = False
+        super().__init__(**settings)
+
+    def _configure(self, **settings):
+        self._impl = self.get_impl(self.obj, **settings)
 
 
 @Construct.get_model_serializer.register(Array)
