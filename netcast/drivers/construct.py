@@ -406,7 +406,7 @@ class Case(Interface):
     def __init__(self, *, key, obj, **settings):
         self.key = key
         self.obj = obj
-        self.wrap_impl = False
+        self.wrap = False
         super().__init__(**settings)
 
     def _configure(self, **settings):
