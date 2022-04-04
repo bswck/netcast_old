@@ -175,8 +175,8 @@ class Stack:
 
     def __repr__(self) -> str:
         name = type(self).__name__
-        component = list(map(operator.attrgetter("component"), self._components))
-        return f"<{name} {self._components}>"
+        components = list(map(operator.attrgetter("component"), self._components))
+        return f"<{name} {components}>"
 
 
 class SelectiveStack(Stack):
