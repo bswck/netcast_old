@@ -1,22 +1,21 @@
 from __future__ import annotations  # Python 3.8
 
-import functools
-from typing import Type, Any, Mapping
+from typing import Type, Any, Mapping, Callable
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
+from netcast.tools.normalization import numbered_object_name, object_array_name
 
 
 __all__ = (
-    "FloatingPoint",
-    "Integer",
-    "AnySignedInt",
+    "Array",
     "Bit",
     "Bool",
     "ModelSerializer",
     "Byte",
     "ByteArray",
     "Bytes",
+    "Case",
     "Char",
     "Dict",
     "Double",
@@ -24,6 +23,7 @@ __all__ = (
     "Float16",
     "Float32",
     "Float64",
+    "FloatingPoint",
     "FrozenSet",
     "Half",
     "HalfByte",
@@ -35,6 +35,7 @@ __all__ = (
     "Int512",
     "Int64",
     "Int8",
+    "Integer",
     "List",
     "Long",
     "LongInt",
@@ -43,6 +44,8 @@ __all__ = (
     "MappingProxy",
     "Nibble",
     "Number",
+    "Range",
+    "Sequence",
     "Serializer",
     "Set",
     "Short",
@@ -51,6 +54,7 @@ __all__ = (
     "SignedByte",
     "SignedChar",
     "SignedInt",
+    "SignedInteger",
     "SignedInt128",
     "SignedInt16",
     "SignedInt256",
@@ -63,10 +67,10 @@ __all__ = (
     "SignedLongLong",
     "SignedLongLongInt",
     "SignedNumber",
-    "Simple",
     "SimpleNamespace",
     "Single",
     "String",
+    "Switch",
     "Tetrade",
     "Tuple",
     "Type",
@@ -84,7 +88,7 @@ __all__ = (
     "UnsignedLong",
     "UnsignedLongInt",
     "UnsignedLongLong",
-    "UnsignedLongLongInt",
+    "UnsignedLongLongInt"
 )
 
 
@@ -95,28 +99,26 @@ class Object(Serializer):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
-
-        name = cls.__name__.casefold()
-        components = (cls(name=f"{name}_{i+1}") for i in range(size))
-        return create_model(*components, name=f"{name}_x{size}")
+        name = cls.__name__
+        components = (cls(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        name = object_array_name(cls, name, size)
+        return create_model(*components, name=name)
 
     def __getitem__(self, size):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
 
+        cls = type(self)
         name = self.name
-        if name is None:
-            name = type(self).__name__.casefold()
-        components = (self(name=f"{name}_{i+1}") for i in range(size))
-        return create_model(*components, name=f"{name}_x{size}")
+        if name:
+            name = cls.__name__
+        components = (self(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        name = object_array_name(cls, name, size)
+        return create_model(*components, name=name)
 
 
-class Simple(Object):
-    """Base class for all primitive types."""
-
-
-class Number(Simple):
+class Number(Object):
     """
     Base class for all numbers.
 
@@ -135,6 +137,10 @@ class FloatingPoint(Number):
     """Base class for all floats."""
 
     load_type = float
+
+
+class Range(Object):
+    """Base class for range objects."""
 
 
 class ModelSerializer(Object):
@@ -158,52 +164,53 @@ class SimpleNamespace(Dict):
 
     load_type = SimpleNamespaceType
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, mapping: Mapping):
-        return self.load_type(**mapping)
+    def _load_type_guard(self, obj: Mapping):
+        return SimpleNamespace.load_type(**obj)
 
 
 class Sequence(ModelSerializer):
     """Base class for all sequences."""
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj: Any):
+    def _load_type_guard(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type(obj.values())
         return self.load_type(obj)
 
 
-class List(Sequence):
+class Array(ModelSerializer):
+    """Base class for all arrays."""
+
+
+class List(Sequence, Array):
     """Base class for all lists."""
 
     load_type = list
 
 
-class Tuple(Sequence):
+class Tuple(Sequence, Array):
     """Base class for all tuples."""
 
     load_type = tuple
 
 
-class Set(Sequence):
+class Set(Sequence, Array):
     """Base class for all sets."""
 
     load_type = set
 
 
-class FrozenSet(Sequence):
+class FrozenSet(Sequence, Array):
     """Base class for all frozen sets."""
 
     load_type = frozenset
 
 
-class String(Sequence):
+class String(Sequence, Array):
     """Base class for all strings."""
 
     load_type = str
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj: Any):
+    def _load_type_guard(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type().join(obj.values())
         return self.load_type(obj)
@@ -222,7 +229,7 @@ class ByteArray(String):
 
 
 SignedNumber = Number
-AnySignedInt = Integer
+SignedInteger = Integer
 Bool = Bit = Integer(bit_size=1, signed=False)
 Nibble = HalfByte = Tetrade = Integer(bit_size=4, signed=False)
 
@@ -267,47 +274,27 @@ Double = Float64
 
 class Statement(Object):
     """Base class for all statements that indicate a dynamic behaviour."""
-    def __init__(self, obj, **settings: Any):
-        super().__init__(**settings)
-        self.serializer = obj
 
 
 class Switch(Statement):
     """
     Switch statement.
     """
-    def __init__(self, obj, cases=(), **settings: Any):
-        super().__init__(obj, **settings)
-        self.cases = cases
+    def __init__(
+            self,
+            func: Callable,
+            cases: Tuple[Case, ...] = (),
+            **settings: Any
+    ):
+        self.func = settings["func"] = func
+        self.cases = settings["cases"] = cases
+        super().__init__(**settings)
 
 
 class Case(Statement):
-    pass
+    """Base class for all switch-statement cases."""
 
-
-class If(Statement):
-    pass
-
-
-class IfThenElse(Statement):
-    pass
-
-
-class Constraint(Statement):
-    pass
-
-
-class OneOf(Constraint):
-    pass
-
-
-class AllOf(Constraint):
-    pass
-
-
-class Enum(Constraint):
-    pass
-
-
-class Expr(Statement):
-    pass
+    def __init__(self, key: Any, obj: Any, **settings: Any):
+        self.key = settings["key"] = key
+        self.obj = settings["obj"] = obj
+        super().__init__(**settings)

@@ -462,6 +462,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
     descent: Arrangement | None
     _new_context: bool = True
     _setup_context: bool = True
+    _check_descent_type: bool | None = None
 
     def __init__(self, descent: Arrangement | None = None):
         _init(self, descent)
@@ -474,7 +475,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         config: bool = False,
         no_subclasshook: bool = False,
         setup_context: bool = _setup_context,
-        check_descent_type: Literal[True] = True,
+        check_descent_type: bool | None = None,
     ):
         if no_subclasshook:
             return
@@ -495,12 +496,14 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
             check_descent_type=False,
         )
 
+        if check_descent_type is not None:
+            cls._check_descent_type = check_descent_type
         cls.context_class = context_class
         cls._new_context = new_context
         cls._setup_context = setup_context
 
     @classmethod
-    def _resolve_descent(cls, args):
+    def _resolve_descent(cls, args, _kwargs):
         if args:
             descent, *args = args
         else:
@@ -508,11 +511,19 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return descent
 
     @classmethod
-    def _get_descent(cls, args=(), validate_type=True):
-        descent = cls._resolve_descent(args)
+    def _get_descent(cls, args=(), kwargs=None, validate_type=None):
+        if kwargs is None:
+            kwargs = {}
+
+        if validate_type is None:
+            validate_type = cls._check_descent_type
+        if validate_type is None:
+            validate_type = True
+
+        descent = cls._resolve_descent(args, kwargs)
         expected_type = cls._get_descent_type()
 
-        if validate_type and descent is not None and expected_type is not None:
+        if validate_type and (descent is not None and expected_type is not None):
             if not isinstance(descent, expected_type):
                 raise ArrangementTypeError(
                     "passed descent's type and the fixed descent type are not equal"
@@ -555,7 +566,7 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
             contexts[self] = setup(context)
 
     def __new__(cls, *args, **kwargs):
-        descent = cls._get_descent(args)
+        descent = cls._get_descent(args, kwargs)
 
         self = object.__new__(cls)
         _init(self, descent)
@@ -583,12 +594,13 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return contexts[self]
 
     @classmethod
-    def _get_supercontext(cls, self=None):
+    def _get_supercontext(cls, self=None, context=None):
         """Get the current supercontext."""
         if self is None:
             return super()._get_supercontext()
-
-        return _BaseArrangement._super_registry.get(cls._get_context(self))
+        if context is None:
+            context = cls._get_context(self)
+        return _BaseArrangement._super_registry.get(context)
 
     @property
     def context(self: Arrangement) -> ContextT | None:
@@ -596,12 +608,12 @@ class Arrangement(ClassArrangement, no_subclasshook=True):
         return self._get_context(self)
 
     @property
-    def supercontext(self: Arrangement) -> Context | None:
+    def supercontext(self: Arrangement) -> ContextT | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return self._get_supercontext(self)
 
     @property
-    def subcontexts(self: Arrangement) -> tuple[Context, ...] | None:
+    def subcontexts(self: Arrangement) -> tuple[ContextT, ...] | None:
         return self._get_subcontexts(self)
 
     @property

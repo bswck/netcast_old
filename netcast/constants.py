@@ -1,5 +1,3 @@
-import functools
-
 from netcast.tools.symbol import Symbol
 
 __all__ = ("MISSING", "GREATEST", "LEAST")

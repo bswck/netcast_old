@@ -5,6 +5,8 @@ from typing import ClassVar, Type
 
 import pytest
 
+from netcast.model import Model
+from netcast.serializer import Serializer
 from netcast.exceptions import ArrangementConstructionError
 from netcast.tools.arrangements import (
     ClassArrangement,
@@ -32,6 +34,8 @@ def class_arrangement_class(request) -> ArrangementT:
 arrangements = {Arrangement, *Arrangement.__subclasses__()}
 arrangements.discard(FileIOArrangement)
 arrangements.discard(SSLSocketArrangement)
+arrangements.discard(Serializer)
+arrangements.discard(Model)
 
 
 @pytest.fixture(params=arrangements, scope="session")
@@ -221,8 +225,8 @@ class TestClassArrangement:
         from netcast.tools.arrangements import ClassQueueArrangement
 
         class CQA(ClassQueueArrangement):
-            get = ForwardDependency()
-            put = ForwardDependency()
+            get = ForwardDependency(bind=False)
+            put = ForwardDependency(bind=False)
 
         class Get(ClassQueueArrangement, descent=CQA):
             def __call__(self):
@@ -231,10 +235,6 @@ class TestClassArrangement:
         CQA.get.dependency(Get)
 
         class Put(ClassQueueArrangement, descent=CQA):
-            def __init__(self, *args):
-                """We do this to check if ForwardDependency() guessed the unbound param well"""
-                assert not args
-
             def __call__(self, item):
                 self.context.put(item)
 

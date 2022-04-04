@@ -20,6 +20,7 @@ from typing import (
     Union,
     Type,
     Tuple,
+    cast,
 )
 
 from netcast.constants import MISSING
@@ -159,7 +160,7 @@ class ExitPool:
                     trigger = _exit_context(cm=cm, exc_info=_exc_info)
                     if inspect.isawaitable(trigger):
                         await trigger
-                except Exception:
+                except Exception:  # noqa
                     _exc_info = sys.exc_info()
                 finally:
                     return _exc_info
@@ -173,7 +174,7 @@ class ExitPool:
             def _call_exit(_exc_info, cm):
                 try:
                     _exit_context(cm=cm, exc_info=_exc_info)
-                except Exception:
+                except Exception:  # noqa
                     _exc_info = sys.exc_info()
                 finally:
                     return _exc_info
@@ -224,6 +225,8 @@ def _call_observer(observer, context, params):
     try:
         observer(
             context,
+            *params.arguments,
+            **params.keywords
         )
     except Exception as e:
         raise NetcastError("observer failed") from e
@@ -464,7 +467,7 @@ def wrap_to_context(
     name: str | None = None,
     doc: str | None = None,
     init_subclass: dict[str, Any] | None = None,
-) -> Type[Context] | Union[type, Tuple[type, ...]]:
+) -> Union[Type[Context], Tuple[type, ...]]:
     """Build a context class and its modification hooks."""
 
     if isinstance(bases, Sequence):
@@ -508,7 +511,7 @@ def wrap_to_context(
     if init_subclass is None:
         init_subclass = {}
 
-    return type(name, bases, attrs, **init_subclass)
+    return cast(Type[Context], type(name, bases, attrs, **init_subclass))
 
 
 _list_methods = (

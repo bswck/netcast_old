@@ -1,6 +1,5 @@
 from __future__ import annotations  # Python 3.8
 
-import functools
 from typing import Any, Callable, Protocol, TypeVar, runtime_checkable
 
 from netcast.constants import MISSING
@@ -168,11 +167,11 @@ parameters = ParameterHolder.unstar
 
 class ForwardDependency:
     def __init__(
-        self, dependent_class: type | None = None, unbound: bool | None = None
+        self, dependent_class: type | None = None, bind: bool | None = None
     ):
         self.__dependent_class = None
         self.__cache = IDLookupDictionary()
-        self.__unbound = unbound
+        self.__bind = bind
 
         self.dependency(dependent_class)
 
@@ -186,13 +185,10 @@ class ForwardDependency:
         if instance is None:
             return self
         if instance not in self.__cache:
-            if self.__unbound is None:
-                # pylint: disable=CO415
-                from netcast.tools.arrangements import Arrangement
+            unbound = self.__bind
+            if unbound is None:
+                unbound = True
 
-                unbound = issubclass(type(instance), Arrangement)
-            else:
-                unbound = self.__unbound
             self.__cache[instance] = (
                 self.__dependent_class(instance)
                 if unbound
@@ -202,12 +198,35 @@ class ForwardDependency:
 
 
 class ClassProperty(classmethod):
+    def __init__(self, f):
+        super().__init__(f)
+        self.fget = self.__func__
+        self.fset = None
+
     def __get__(self, instance: Any, owner: type | None = None):
         if instance is None:
             cls = owner
         else:
+            if isinstance(instance, type):
+                cls = instance
+            else:
+                cls = type(instance)
+        return self.fget(cls)
+
+    def __set__(self, instance, value):
+        if isinstance(instance, type):
+            cls = instance
+        else:
             cls = type(instance)
-        return self.__func__(cls)
+        self.fset(cls, value)
+
+    def getter(self, func):
+        self.fget = func
+        return self
+
+    def setter(self, func):
+        self.fset = func
+        return self
 
 
 classproperty = ClassProperty  # pylint: disable=C0103
