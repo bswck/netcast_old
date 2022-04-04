@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import functools
+import heapq
+import operator
 import string
 import threading
 import typing
@@ -16,11 +19,23 @@ if typing.TYPE_CHECKING:
 __all__ = ("Stack", "SelectiveStack", "VersionAwareStack")
 
 
+@functools.total_ordering
+class _PrioritySortWrapper:
+    def __init__(self, component):
+        self.component = component
+
+    def __eq__(self, other: _PrioritySortWrapper) -> bool:
+        return self.component.priority == other.component.priority
+
+    def __lt__(self, other: _PrioritySortWrapper) -> bool:
+        return self.component.priority < other.component.priority
+
+
 class Stack:
     def __init__(
         self,
         name: str | None = None,
-        default_name_template: str | string.Template = "unnamed_%(index)d",
+        default_name_template: str | string.Template = "f_%(index)d",
     ):
         if name is None:
             name = f"{type(self).__name__.casefold()}_{id(self)}"
@@ -45,10 +60,8 @@ class Stack:
         self.push(transformed)
         return transformed
 
-    def insert(self, idx: int, component: ComponentT):
-        self._lock.acquire()
-        self._components.insert(idx, component)
-        self._lock.release()
+    def all(self):
+        return self._components.copy()
 
     def discard(self, component: ComponentT):
         self._lock.acquire()
@@ -76,19 +89,22 @@ class Stack:
         name = getattr(component, "name", None)
         if name is None:
             component.name = self.default_name()
-        self._components.append(component)
+        heapq.heappush(self._components, _PrioritySortWrapper(component))
         self._lock.release()
 
-    def pop(self, index: int = -1) -> ComponentT | None:
+    def pop(self, index: int | None = None) -> ComponentT | None:
         self._lock.acquire()
-        obj = self._components.pop(index)
+        if index is None:
+            obj = heapq.heappop(self._components)
+        else:
+            obj = self._components.pop(index)
         self._lock.release()
         return obj
 
     def get(self, index: int = -1, settings: SettingsT = None) -> ComponentT | None:
         self._lock.acquire()
         try:
-            obj = self._components[index]
+            obj = self._components[index].component
         except IndexError:
             obj = None
         self._lock.release()
@@ -155,10 +171,11 @@ class Stack:
     def __del__(self):
         for component in self._components:
             component.contained = False
-        self._components.clear()
+        self.clear()
 
     def __repr__(self) -> str:
         name = type(self).__name__
+        component = list(map(operator.attrgetter("component"), self._components))
         return f"<{name} {self._components}>"
 
 

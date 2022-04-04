@@ -2,7 +2,6 @@ from __future__ import annotations  # Python 3.8
 
 import construct
 import netcast as nc
-from netcast import MISSING
 
 
 DRIVER_NAME = "construct"
@@ -11,7 +10,7 @@ DRIVER_NAME = "construct"
 class Interface(nc.Interface):
     def __init__(self, **settings):
         self.compiled = settings.setdefault("compiled", not self.driver.DEBUG)
-        self.wrap = True
+        self.skip = set()
         super().__init__(**settings)
 
     def impl(self, driver=None, settings=None, final=False):
@@ -20,56 +19,54 @@ class Interface(nc.Interface):
         if impl is NotImplemented:
             raise NotImplementedError("missing requested serializer implementation")
 
-        if self.wrap:
-            return self._wrap_impl(impl)
+        if ... in self.skip:
+            return impl
+        return self._wrap_impl(impl)
+
+    def _wrap_once(self, impl, *, key, default, fn):
+        if key not in self.skip:
+            value = self.settings.get(key, default)
+            if value is not default:
+                impl = fn(impl, value)
         return impl
 
     def _wrap_impl(self, impl):
-        api_default = self.settings.get("api_default", MISSING)
-        if api_default is not MISSING:
-            impl = construct.Default(impl, api_default)
+        impl = self._wrap_once(
+            impl, key="api_default", default=nc.MISSING, fn=construct.Default
+        )
+        impl = self._wrap_once(impl, key="one_of", default=None, fn=construct.OneOf)
+        impl = self._wrap_once(impl, key="none_of", default=None, fn=construct.NoneOf)
 
-        one_of = self.settings.get("one_of")
-        if one_of is not None:
-            impl = construct.OneOf(impl, one_of)
+        if not self.skip.intersection({"if_", "else_"}):
+            if_ = self.settings.get("if_", nc.MISSING)
+            else_ = self.settings.get("else_", nc.MISSING)
+            if if_ is not nc.MISSING and else_ is nc.MISSING:
+                impl = construct.If(if_, impl)
+            elif if_ is not nc.MISSING and else_ is not nc.MISSING:
+                impl = construct.IfThenElse(if_, impl, else_)
 
-        none_of = self.settings.get("none_of")
-        if none_of is not None:
-            impl = construct.NoneOf(impl, none_of)
+        impl = self._wrap_once(
+            impl, key="const", default=None, fn=lambda i, v: construct.Const(v, i)
+        )
+        impl = self._wrap_once(
+            impl, key="padded", default=0, fn=lambda i, v: construct.Padded(v, i)
+        )
+        impl = self._wrap_once(
+            impl, key="aligned", default=None, fn=lambda i, v: construct.Aligned(v, i)
+        )
 
-        if_ = self.settings.get("if_", MISSING)
-        else_ = self.settings.get("else_", MISSING)
-        if if_ is not MISSING and else_ is MISSING:
-            impl = construct.If(if_, impl)
-        elif if_ is not MISSING and else_ is not MISSING:
-            impl = construct.IfThenElse(if_, impl, else_)
-
-        const = self.settings.get("const")
-        if const is not None:
-            impl = construct.Const(const, impl)
-
-        padded = self.settings.get("padded")
-        if padded:
-            impl = construct.Padded(padded, impl)
-
-        aligned = self.settings.get("aligned")
-        if aligned is not None:
-            impl = construct.Aligned(aligned, impl)
-
-        null_terminated = self.settings.get("null_terminated", False)
-        if null_terminated and not isinstance(impl, construct.StringEncoded):
-            impl = construct.NullTerminated(impl)
-
-        null_stripped = self.settings.get("null_stripped", False)
-        if null_stripped:
-            impl = construct.NullStripped(impl)
-
-        optional = self.settings.get("optional", False)
-        if optional:
-            impl = construct.Optional(impl)
+        for key, cls in (
+            ("null_terminated", construct.NullTerminated),
+            ("null_stripped", construct.NullTerminated),
+            ("bitwise", construct.Bitwise),
+            ("bytewise", construct.Bytewise),
+            ("optional", construct.Optional),
+        ):
+            impl = self._wrap_once(impl, key=key, default=False, fn=lambda i, v: cls(i))
 
         if self.compiled:
-            impl = impl.compile()
+            filename = self.settings.get("filename")
+            impl = impl.compile(filename)
 
         if self.name is not None and (getattr(impl, "name", None) != self.name):
             impl = construct.Renamed(impl, self.name)
@@ -78,7 +75,7 @@ class Interface(nc.Interface):
 
     @property
     def driver(self):
-        return Construct
+        return Driver
 
     def _load(self, obj, settings, **kwargs):
         impl = self.impl()
@@ -90,28 +87,27 @@ class Interface(nc.Interface):
 
 
 class Sequence(Interface):
-    implements = nc.ModelSerializer
+    implements = nc.Sequence
 
     def __init__(self, *fields, **settings):
         super().__init__(**settings)
-        self._impl = construct.Sequence(*self.get_impls(fields, self.settings))
+        self._impl = construct.Sequence(*self.get_impls(fields, settings=self.settings))
 
 
 class Array(Interface):
-    implements = nc.ModelSerializer
+    implements = nc.Array
 
     def __init__(self, data_type, /, **settings):
-        size = settings.get("size")
-        if size is None:
-            size = Construct.UnsignedInt8(compiled=self.compiled).impl
-        self.size = settings.setdefault("size", size)
+        self.compiled = settings.setdefault("compiled", False)
+        self.size = settings.setdefault("size")
+        if self.size is None:
+            raise ValueError("array size must not be None")
         self.prefixed = settings.setdefault("prefixed", False)
         self.lazy = settings.setdefault("lazy", False)
-        self.compiled = settings.setdefault("compiled", False)
         self.data_type = data_type
         super().__init__(**settings)
 
-    def _configure(self, prefixed, lazy):
+    def _configure(self, *, prefixed, lazy):
         self.data_type_impl = self.get_impl(self.data_type, **self.settings)
 
         size = self.size
@@ -149,9 +145,9 @@ class Struct(Interface):
         self._impl = construct.Struct(*impls)
 
 
-class Construct(nc.Driver):
+class Driver(nc.Driver):
     SequenceInterface = nc.driver_interface(Sequence)
-    ArrayInterface = nc.driver_interface(Array)
+    ArrayInterface = nc.driver_interface(Array, default=nc.List)
     StructInterface = nc.driver_interface(Struct)
 
     ListSequence = SequenceInterface(nc.List)
@@ -174,7 +170,7 @@ class Construct(nc.Driver):
     default_model_serializer = Struct
 
 
-@Construct.impl
+@Driver.impl
 class Integer(Interface):
     implements = nc.Integer
     bit_size: int
@@ -233,13 +229,52 @@ class Integer(Interface):
         return True if self.big_endian is None else self.big_endian
 
     def get_bytes_integer(self):
-        byte_length = self.bit_size >> 3
+        byte_length = self.bit_size // 8
         return construct.BytesInteger(
             byte_length, signed=self.signed, swapped=self.get_swapped()
         )
 
     def get_format_field(self):
         type_name = "Int" + str(self.bit_size) + "us"[self.signed]
+        if self.big_endian:
+            type_name += "b"
+        elif self.little_endian:
+            type_name += "l"
+        else:
+            type_name += "n"
+        obj = getattr(construct, type_name, None)
+        return obj
+
+
+@Driver.impl
+class FloatingPoint(Interface):
+    implements = nc.FloatingPoint
+
+    def __init__(self, **settings):
+        self.bit_size = settings.get("bit_size", 32)  # float, double is 64
+        self.little_endian = settings.setdefault("little_endian", True)
+        self.big_endian = settings.setdefault("big_endian", False)
+        self.native_endian = settings.setdefault("native_endian", False)
+        super().__init__(**settings)
+
+    def _configure(
+        self,
+        *,
+        big_endian,
+        little_endian,
+        native_endian,
+    ):
+        impl = None
+        if self.bit_size:
+            impl = self.get_format_field()
+        if impl is None:
+            raise NotImplementedError(
+                f"construct does not support {type(self).__name__}"
+            )
+        self._impl = impl
+
+    def get_format_field(self):
+        type_name = "Float" + str(self.bit_size)
         if self.big_endian:
             type_name += "b"
         elif self.little_endian:
@@ -296,7 +331,7 @@ class _EncodingHack:
         return macro
 
 
-@Construct.impl
+@Driver.impl
 class String(Interface):
     implements = nc.String
     default_encoding = "ASCII"
@@ -309,9 +344,12 @@ class String(Interface):
         self.greedy = settings.setdefault("greedy", False)
         self.padded = settings.setdefault("padded", 0)
         self.size = settings.setdefault("size")
+
         super().__init__(**settings)
 
-    def _configure(self, size, null_terminated, pascal, greedy, padded, encoding):
+        self.skip.update("null_terminated", "padded")
+
+    def _configure(self, *, size, null_terminated, pascal, greedy, padded, encoding):
         impl = None
         if pascal or null_terminated:
             if null_terminated:
@@ -333,43 +371,7 @@ class String(Interface):
         self._impl = impl
 
 
-@Construct.impl
-class FloatingPoint(Interface):
-    implements = nc.FloatingPoint
-
-    def __init__(self, **settings):
-        self.bit_size = settings.get("bit_size", 32)  # float, double is 64
-        super().__init__(**settings)
-
-    def _configure(
-        self,
-        *,
-        big_endian,
-        little_endian,
-        native_endian,
-    ):
-        impl = None
-        if self.bit_size:
-            impl = self.get_format_field()
-        if impl is None:
-            raise NotImplementedError(
-                f"construct does not support {type(self).__name__}"
-            )
-        self._impl = impl
-
-    def get_format_field(self):
-        type_name = "Float" + str(self.bit_size)
-        if self.big_endian:
-            type_name += "b"
-        elif self.little_endian:
-            type_name += "l"
-        else:
-            type_name += "n"
-        obj = getattr(construct, type_name, None)
-        return obj
-
-
-@Construct.impl
+@Driver.impl
 class Range(Interface):
     implements = nc.Range
 
@@ -381,42 +383,40 @@ class Range(Interface):
         self._impl = construct.GreedyRange(self.get_impl(self.obj, **self.settings))
 
 
-@Construct.impl
+@Driver.impl
 class Switch(Interface):
     implements = nc.Switch
 
-    def __init__(self, *, func, cases=(), **settings):
+    def __init__(self, func, cases=(), **settings):
         self.func = func
         self.cases = cases
         self.default_case = settings.setdefault("default_case")
         super().__init__(**settings)
 
     def _configure(self, default_case):
-        cases = {
-            case.key: self.get_impl(case.obj, **self.settings)
-            for case in self.cases
-        }
+        cases = {case.key: self.get_impl(case, **self.settings) for case in self.cases}
         self._impl = construct.Switch(self.func, cases, default_case)
 
 
-@Construct.impl
+@Driver.impl
 class Case(Interface):
     implements = nc.Case
 
-    def __init__(self, *, key, obj, **settings):
+    def __init__(self, key, obj, **settings):
         self.key = key
         self.obj = obj
-        self.wrap = False
+        self.skip = {...}
         super().__init__(**settings)
 
     def _configure(self, **settings):
         self._impl = self.get_impl(self.obj, **settings)
 
 
-@Construct.get_model_serializer.register(Array)
-def get_array_serializer(_, serializer, components=(), settings=None):
+@Driver.initializes(nc.Array)
+def init_array(origin, serializer, components=(), settings=None):
     if settings is None:
         settings = {}
+    settings = {**origin.settings, **settings}
     if len(components) != 1:
         raise ValueError("construct.Array() takes exactly 1 argument")
     return serializer(*components, **settings)

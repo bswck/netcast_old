@@ -4,7 +4,7 @@ from typing import Type
 import pytest
 
 from netcast.stack import Stack, SelectiveStack, VersionAwareStack
-from netcast.serializers import FloatingPoint, Integer, String
+from netcast.common import FloatingPoint, Integer, String
 
 
 SERIALIZER_CLASSES = (FloatingPoint, Integer, String)
@@ -54,17 +54,6 @@ class TestStack:
     def test_transform(self, stack, serializer_class):
         component = stack.transform_component(serializer_class)
         assert component is not serializer_class
-
-    @pytest.mark.parametrize(
-        "components", [[component() for component in SERIALIZER_CLASSES]]
-    )
-    @pytest.mark.parametrize("mock", [component() for component in SERIALIZER_CLASSES])
-    def test_insert(self, stack, components, mock):
-        for component in components:
-            stack.add(component)
-        offset = random.randint(0, stack.size - 1)
-        stack.insert(offset, mock)
-        assert stack.get(offset) is mock
 
 
 class TestVersionAwareStack:

@@ -1,62 +1,98 @@
 from __future__ import annotations  # Python 3.8
 
+import contextlib
 import functools
 import inspect
 import sys
 import typing
 from typing import ClassVar, Type, Any
 
-from netcast import serializers
+from netcast import common
 from netcast.exceptions import NetcastError
-from netcast.serializer import Serializer, SettingsT
+from netcast.serializer import Serializer, SettingsT, Interface
 from netcast.tools.collections import IDLookupDictionary
 
 if typing.TYPE_CHECKING:
-    from netcast.serializers import ModelSerializer
+    from netcast.common import ModelSerializer
     from netcast.model import Model  # noqa: F401
 
 
-__all__ = ("Driver", "DriverMeta", "driver_serializer", "driver_interface")
+__all__ = (
+    "Driver",
+    "DriverMeta",
+    "driver_serializer",
+    "driver_interface",
+    "get_driver",
+)
 
-ORIGIN_FIELD = "implements"
+IMPLEMENTS_FIELD = "implements"
+common_paths = ["netcast.drivers.%(driver_name)s"]
 
 
 class DriverMeta(type):
     _memo: IDLookupDictionary[Model, Serializer]
-    _local: dict[type, type]
+    _map: dict[Type[Serializer], Type[Serializer]]
 
-    def _get_model_serializer(
+    default_model_serializer = None
+
+    # Note: singledispatchmethod's __get__ doesn't return itself,
+    #  but a function or method object instead - to provide the public API,
+    #  it sets `register` attribute on it.
+    init_model_serializer: functools.singledispatchmethod
+
+    def _init_model_serializer(
         cls,
-        serializer: Type[ModelSerializer],
-        /, *,
+        origin: ModelSerializer,
+        /,
+        *,
+        serializer: ModelSerializer,
         components: tuple[Any, ...] = (),
         settings: SettingsT = None,
     ) -> ModelSerializer:
         if settings is None:
             settings = {}
+        settings = {**origin.settings, **settings}
         return serializer(*components, **settings)
-
-    # Manual decoration due to some type-checking problems.
-    # To be checked in detail.
-    get_model_serializer = functools.singledispatchmethod(_get_model_serializer)
 
     def lookup_model_serializer(cls, model: Model, /, **settings) -> Serializer:
         components = model.choose_components(**settings).values()
-        model_serializer = getattr(model, "serializer", cls.default_model_serializer)
-        serializer = cls.get_model_serializer(
-            model_serializer, components=components, settings=settings
+        model_serializer = getattr(model, "serializer", None)
+        if model_serializer is None:
+            model_serializer = cls.default_model_serializer
+            origin = origin_type = getattr(model_serializer, IMPLEMENTS_FIELD, model_serializer)
+            if not isinstance(origin, type):
+                origin_type = type(origin)
+        else:
+            origin = origin_type = model_serializer
+            if not isinstance(origin, type):
+                origin_type = type(origin)
+            model_serializer = cls.lookup_type(origin_type)
+            if model_serializer is NotImplemented:
+                raise NotImplementedError(
+                    f"no implementation found for the {origin_type.__name__} serializer"
+                )
+
+        if isinstance(origin, type):
+            origin = object.__new__(origin_type)
+            object.__setattr__(origin, "settings", {})
+
+        serializer = cls.init_model_serializer(
+            origin,
+            serializer=model_serializer,
+            components=components,
+            settings=settings,
         )
         return serializer
 
     def lookup_type(cls, serializer_type: type[Serializer]):
         try:
-            return cls._local[serializer_type]
+            return cls._map[serializer_type]
         except KeyError:
             return NotImplemented
 
     def __getattr__(cls, item):
-        alias = getattr(serializers, item, None)
-        if alias is None or not issubclass(alias, Serializer):
+        alias = getattr(common, item, None)
+        if alias is None or (isinstance(alias, type) and not issubclass(alias, Serializer)):
             raise AttributeError(item)
         return object.__getattribute__(cls, alias.__name__)
 
@@ -74,9 +110,7 @@ class DriverMeta(type):
 
 class Driver(metaclass=DriverMeta):
     registry: dict[str, Type[Driver]] = {}
-    _local: ClassVar[dict[Type[Serializer], Type[Serializer]]]
-
-    default_model_serializer = None
+    _map: ClassVar[dict[Type[Serializer], Type[Serializer]]]
     DEBUG: ClassVar[bool]
 
     def __init_subclass__(cls, driver_name: str | None = None, config: bool = False):
@@ -90,8 +124,11 @@ class Driver(metaclass=DriverMeta):
             raise ValueError(f"{driver_name!r} driver has already been implemented")
 
         cls.name = driver_name
-        cls._local = {}
+        cls._map = {}
         cls._memo = IDLookupDictionary()
+        cls.init_model_serializer = functools.singledispatchmethod(
+            cls._init_model_serializer
+        )
 
         for _, member in inspect.getmembers(cls, _check_impl):
             cls.impl(member)
@@ -108,17 +145,35 @@ class Driver(metaclass=DriverMeta):
         return sys.intern(driver_name)
 
     @classmethod
-    def impl(cls, member: type):
-        link_to = getattr(member, ORIGIN_FIELD, member.__base__)
-        cls._local[link_to] = member
-        member_name = member.__name__
-        if member_name not in cls.__dict__:
-            setattr(cls, member_name, member)
-        return member
+    def impl(cls, impl_counterpart: type[Interface]) -> type:
+        link_to = getattr(impl_counterpart, IMPLEMENTS_FIELD, impl_counterpart.__base__)
+        cls._map[link_to] = impl_counterpart
+        name = impl_counterpart.__name__
+        if name not in cls.__dict__:
+            setattr(cls, name, impl_counterpart)
+        return impl_counterpart
+
+    @classmethod
+    def initializes(cls, *types: type[Serializer]):
+        def _register(init):
+            for serializer_type in types:
+                cls.init_model_serializer.register(serializer_type, init)
+            return init
+
+        return _register
 
 
 def _check_impl(member: Any) -> bool:
     return isinstance(member, type) and issubclass(member, Serializer)
+
+
+def get_driver(name: str, load: bool = True) -> DriverMeta | None:
+    driver = Driver.registry.get(name)
+    if driver is None and load:
+        with contextlib.suppress(ValueError):
+            load_driver(name)
+        driver = Driver.registry.get(name)
+    return driver
 
 
 def driver_serializer(
@@ -131,20 +186,36 @@ def driver_serializer(
     impl = type(
         serializer_class.__name__,
         (serializer_class, interface_class),
-        {ORIGIN_FIELD: (serializer_class if origin is None else origin)},
+        {IMPLEMENTS_FIELD: (serializer_class if origin is None else origin)},
     )
     return impl
 
 
-def driver_interface(interface_class: type, origin: type | None = None):
+def driver_interface(
+    interface_class: type[Interface],
+    origin: type | None = None,
+    default: type | None = None,
+):
     if origin is None:
-        origin = getattr(interface_class, ORIGIN_FIELD, None)
-    return functools.partial(driver_serializer, interface_class, origin=origin)
+        origin = getattr(interface_class, IMPLEMENTS_FIELD, None)
+
+    return lambda serializer_class=default: driver_serializer(
+        interface_class, serializer_class, origin=origin
+    )
 
 
-def load_driver(driver_name: str):
+def load_driver(driver_name: str, paths: list[str] | None = None):
     import importlib
-    try:
-        return importlib.import_module(f"netcast.drivers.{driver_name}")
-    except ImportError as exc:
-        raise ValueError(f"could not import driver named {driver_name!r}") from exc
+
+    if paths is None:
+        paths = common_paths
+    else:
+        paths = [*common_paths, *paths]
+
+    for path in paths:
+        try:
+            return importlib.import_module(path % dict(driver_name=driver_name))
+        except ImportError:
+            pass
+
+    raise ValueError(f"could not import driver named {driver_name!r}")

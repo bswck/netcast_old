@@ -1,6 +1,5 @@
 from __future__ import annotations  # Python 3.8
 
-import functools
 from typing import Type, Any, Mapping, Callable
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
@@ -9,6 +8,7 @@ from netcast.tools.normalization import numbered_object_name, object_array_name
 
 
 __all__ = (
+    "Array",
     "Bit",
     "Bool",
     "ModelSerializer",
@@ -45,6 +45,7 @@ __all__ = (
     "Nibble",
     "Number",
     "Range",
+    "Sequence",
     "Serializer",
     "Set",
     "Short",
@@ -66,7 +67,6 @@ __all__ = (
     "SignedLongLong",
     "SignedLongLongInt",
     "SignedNumber",
-    "Simple",
     "SimpleNamespace",
     "Single",
     "String",
@@ -88,7 +88,7 @@ __all__ = (
     "UnsignedLong",
     "UnsignedLongInt",
     "UnsignedLongLong",
-    "UnsignedLongLongInt",
+    "UnsignedLongLongInt"
 )
 
 
@@ -118,19 +118,7 @@ class Object(Serializer):
         return create_model(*components, name=name)
 
 
-class Const(Object):
-    """A constant object."""
-
-    def __init__(self, obj: Any, **settings: Any):
-        self.obj = obj
-        super().__init__(**settings)
-
-
-class Simple(Object):
-    """Base class for all primitive types."""
-
-
-class Number(Simple):
+class Number(Object):
     """
     Base class for all numbers.
 
@@ -176,52 +164,53 @@ class SimpleNamespace(Dict):
 
     load_type = SimpleNamespaceType
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj: Mapping):
+    def _load_type_guard(self, obj: Mapping):
         return SimpleNamespace.load_type(**obj)
 
 
 class Sequence(ModelSerializer):
     """Base class for all sequences."""
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj: Any):
+    def _load_type_guard(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type(obj.values())
         return self.load_type(obj)
 
 
-class List(Sequence):
+class Array(ModelSerializer):
+    """Base class for all arrays."""
+
+
+class List(Sequence, Array):
     """Base class for all lists."""
 
     load_type = list
 
 
-class Tuple(Sequence):
+class Tuple(Sequence, Array):
     """Base class for all tuples."""
 
     load_type = tuple
 
 
-class Set(Sequence):
+class Set(Sequence, Array):
     """Base class for all sets."""
 
     load_type = set
 
 
-class FrozenSet(Sequence):
+class FrozenSet(Sequence, Array):
     """Base class for all frozen sets."""
 
     load_type = frozenset
 
 
-class String(Sequence):
+class String(Sequence, Array):
     """Base class for all strings."""
 
     load_type = str
 
-    @functools.singledispatchmethod
-    def load_type_factory(self, obj: Any):
+    def _load_type_guard(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type().join(obj.values())
         return self.load_type(obj)
@@ -292,22 +281,20 @@ class Switch(Statement):
     Switch statement.
     """
     def __init__(
-            self, *,
+            self,
             func: Callable,
             cases: Tuple[Case, ...] = (),
             **settings: Any
     ):
-        self.func = func
-        self.cases = cases
+        self.func = settings["func"] = func
+        self.cases = settings["cases"] = cases
         super().__init__(**settings)
 
 
 class Case(Statement):
     """Base class for all switch-statement cases."""
 
-    def __init__(self, *, key: Any, obj: Any, **settings: Any):
-        self.key = key
-        if not isinstance(obj, Object):
-            obj = Const(obj, **settings)
-        self.obj = obj
+    def __init__(self, key: Any, obj: Any, **settings: Any):
+        self.key = settings["key"] = key
+        self.obj = settings["obj"] = obj
         super().__init__(**settings)
