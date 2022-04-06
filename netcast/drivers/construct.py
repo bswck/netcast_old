@@ -338,16 +338,20 @@ class String(Interface):
     encoding_hack = _EncodingHack()
 
     def __init__(self, **settings):
-        self.null_terminated = settings.setdefault("null_terminated", True)
+        self.null_terminated = settings.setdefault("null_terminated")
         self.encoding = settings.setdefault("encoding", self.default_encoding)
-        self.pascal = settings.setdefault("pascal", False)
-        self.greedy = settings.setdefault("greedy", False)
+        self.pascal = settings.setdefault("pascal")
+        self.greedy = settings.setdefault("greedy")
+
+        if not any((self.null_terminated, self.pascal, self.greedy)):
+            self.null_terminated = settings["null_terminated"] = True
+
         self.padded = settings.setdefault("padded", 0)
         self.size = settings.setdefault("size")
 
         super().__init__(**settings)
 
-        self.skip.update("null_terminated", "padded")
+        self.skip.update({"null_terminated", "padded"})
 
     def _configure(self, *, size, null_terminated, pascal, greedy, padded, encoding):
         impl = None
