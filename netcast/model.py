@@ -25,14 +25,22 @@ __all__ = (
     "Model",
 )
 
-ESCAPE_PREFIX = "f__"
+ESCAPE_FIELD_NAME = "f__"
 
 
-class FieldBase:
+def escape(field_name: str) -> str:
+    return ESCAPE_FIELD_NAME + field_name
+
+
+def unescape(field_name: str) -> str:
+    return strings.remove_prefix(field_name, ESCAPE_FIELD_NAME)
+
+
+class ModelProperty:
     component: ComponentT
 
 
-class Field(FieldBase):
+class Field(ModelProperty):
     def __init__(self, component: ComponentT):
         self.component = component
         self.states = IDLookupDictionary()
@@ -87,7 +95,7 @@ class Field(FieldBase):
         return getattr(self.component, attribute)
 
 
-class FieldAlias(FieldBase):
+class FieldAlias(ModelProperty):
     def __init__(self, ancestor: Field):
         self.ancestor = ancestor
 
@@ -377,20 +385,21 @@ class Model:
             inspect.getmembers(cls, check_component), start=1
         ):
             seen = seen_descriptors.get(component)
-            attribute = strings.remove_prefix(attribute, ESCAPE_PREFIX)
+            attribute_unescaped = unescape(attribute)
 
             if seen is None:
                 if not (isinstance(component, type) and not issubclass(component, Model)):
                     if component.priority == 0:
                         component.settings["priority"] = idx
-                dep = stack.add(component, name=attribute, settings=settings)
-                name = dep.name
+                dep = stack.add(component, name=attribute_unescaped, settings=settings)
                 field = dep
                 if not isinstance(field, Field):
                     field = cls._field_class(dep)
-
+                name = dep.name
+                if name == attribute_unescaped:
+                    name = attribute
             else:
-                name = attribute
+                name = attribute_unescaped
                 field = cls._field_alias_class(seen)
 
             setattr(cls, name, field)
@@ -410,13 +419,15 @@ class Model:
         for idx, (name, component) in enumerate(components.items(), start=1):
             component.settings.setdefault("priority", idx)
             descriptor = descriptors[name] = cls._field_class(component)
+            while not isinstance(getattr(cls, name, None), ModelProperty):
+                name = escape(name)
             setattr(cls, name, descriptor)
 
     @classmethod
     def _normalize_settings(cls, settings: SettingsT):
         normalized = {}
         for key, value in settings.items():
-            normalized[strings.remove_prefix(key, ESCAPE_PREFIX)] = value
+            normalized[unescape(key)] = value
         return normalized
 
     def __init_subclass__(
