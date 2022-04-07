@@ -419,7 +419,7 @@ class Model:
         for idx, (name, component) in enumerate(components.items(), start=1):
             component.settings.setdefault("priority", idx)
             descriptor = descriptors[name] = cls._field_class(component)
-            while not isinstance(getattr(cls, name, None), ModelProperty):
+            while isinstance(getattr(cls, name, None), ModelProperty):
                 name = escape(name)
             setattr(cls, name, descriptor)
 
