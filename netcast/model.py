@@ -17,7 +17,7 @@ from netcast.tools.normalization import numbered_object_name, object_array_name
 
 __all__ = (
     "check_component",
-    "ComponentArgumentT",
+    "ComponentArgT",
     "ComponentT",
     "create_model",
     "Field",
@@ -25,15 +25,15 @@ __all__ = (
     "Model",
 )
 
-ESCAPE_FIELD_NAME = "f__"
+FIELD_NAME_ESCAPE = "f__"
 
 
 def escape(field_name: str) -> str:
-    return ESCAPE_FIELD_NAME + field_name
+    return FIELD_NAME_ESCAPE + field_name
 
 
 def unescape(field_name: str) -> str:
-    return strings.remove_prefix(field_name, ESCAPE_FIELD_NAME)
+    return strings.remove_prefix(field_name, FIELD_NAME_ESCAPE)
 
 
 class ModelProperty:
@@ -481,7 +481,7 @@ class Model:
 
 
 ComponentT = TypeVar("ComponentT", Serializer, Model)
-ComponentArgumentT = Union[ComponentT, Type[ComponentT]]
+ComponentArgT = Union[ComponentT, Type[ComponentT]]
 
 
 def check_component(obj: Any, acknowledge_type: bool = True) -> bool:
@@ -495,7 +495,7 @@ def check_component(obj: Any, acknowledge_type: bool = True) -> bool:
 
 
 def create_model(
-    *components: ComponentArgumentT,
+    *components: ComponentArgT,
     stack: Stack | None = None,
     name: str | None = None,
     model_class: type[Model] = Model,

@@ -3,9 +3,10 @@ from __future__ import annotations  # Python 3.8
 import contextlib
 import functools
 import inspect
+import itertools
 import sys
 import typing
-from typing import ClassVar, Type, Any
+from typing import Any, ClassVar, Type
 
 from netcast import common
 from netcast.exceptions import NetcastError
@@ -154,7 +155,7 @@ class Driver(metaclass=DriverMeta):
         return impl_counterpart
 
     @classmethod
-    def initializes(cls, *types: type[Serializer]):
+    def init_for(cls, *types: type[Serializer]):
         def _register(init):
             for serializer_type in types:
                 cls.init_model_serializer.register(serializer_type, init)
@@ -210,12 +211,20 @@ def load_driver(driver_name: str, paths: list[str] | None = None):
     if paths is None:
         paths = common_paths
     else:
-        paths = [*common_paths, *paths]
+        # chain, but not a flat [*, *] list - to prevent double iteration (below)
+        paths = itertools.chain(common_paths, paths)
 
-    for path in paths:
+    tried_paths = []
+
+    for path in map(lambda p: p % dict(driver_name=driver_name), paths):
         try:
-            return importlib.import_module(path % dict(driver_name=driver_name))
+            return importlib.import_module(path)
         except ImportError:
             pass
+        finally:
+            tried_paths.append(path)
 
-    raise ValueError(f"could not import driver named {driver_name!r}")
+    raise ValueError(
+        f"could not import driver named {driver_name!r}, tried paths:\n"
+        + "\n".join(tried_paths)
+    )

@@ -285,7 +285,7 @@ class FloatingPoint(Interface):
         return obj
 
 
-class _EncodingHack:
+class _EncodingUnitExtension:
     def __init__(self):
         self._unit_cache = construct.possiblestringencodings.copy()
 
@@ -335,7 +335,7 @@ class _EncodingHack:
 class String(Interface):
     implements = nc.String
     default_encoding = "ASCII"
-    encoding_hack = _EncodingHack()
+    encoded_strings = _EncodingUnitExtension()
 
     def __init__(self, **settings):
         self.null_terminated = settings.setdefault("null_terminated")
@@ -355,23 +355,26 @@ class String(Interface):
 
     def _configure(self, *, size, null_terminated, pascal, greedy, padded, encoding):
         impl = None
-        if pascal or null_terminated:
-            if null_terminated:
-                impl = self.encoding_hack.c_string(encoding)
-            elif padded:
-                if size is None:
-                    raise ValueError(
-                        "undefined size for a fixed-size string serializer"
-                    )
-                impl = self.encoding_hack.padded_string(size, encoding)
-            elif pascal:
-                if size is None:
-                    size = self.get_impl(self.driver.Int8(signed=False))
-                impl = construct.PascalString(size, encoding)
-            elif greedy:
-                impl = construct.GreedyString(encoding)
+
+        if null_terminated:
+            impl = self.encoded_strings.c_string(encoding)
+
+        elif pascal:
+            if size is None:
+                size = self.get_impl(self.driver.Int8(signed=False))
+            impl = construct.PascalString(size, encoding)
+
+        elif padded:
+            if size is None:
+                raise ValueError("undefined size for a fixed-size string serializer")
+            impl = self.encoded_strings.padded_string(size, encoding)
+
+        elif greedy:
+            impl = construct.GreedyString(encoding)
+
         if impl is None:
             raise ValueError("invalid string serializer configuration")
+
         self._impl = impl
 
 
@@ -416,7 +419,7 @@ class Case(Interface):
         self._impl = self.get_impl(self.obj, **settings)
 
 
-@Driver.initializes(nc.Array)
+@Driver.init_for(nc.Array)
 def init_array(origin, serializer, components=(), settings=None):
     if settings is None:
         settings = {}

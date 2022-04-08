@@ -55,13 +55,13 @@ __all__ = (
     "SignedChar",
     "SignedInt",
     "SignedInteger",
-    "SignedInt128",
-    "SignedInt16",
-    "SignedInt256",
-    "SignedInt32",
-    "SignedInt512",
-    "SignedInt64",
     "SignedInt8",
+    "SignedInt16",
+    "SignedInt32",
+    "SignedInt64",
+    "SignedInt128",
+    "SignedInt256",
+    "SignedInt512",
     "SignedLong",
     "SignedLongInt",
     "SignedLongLong",
@@ -88,7 +88,7 @@ __all__ = (
     "UnsignedLong",
     "UnsignedLongInt",
     "UnsignedLongLong",
-    "UnsignedLongLongInt"
+    "UnsignedLongLongInt",
 )
 
 
@@ -99,8 +99,11 @@ class Object(Serializer):
         if size < 1:
             raise ValueError("dimension size must be at least 1")
         from netcast import create_model
+
         name = cls.__name__
-        components = (cls(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        components = (
+            cls(name=numbered_object_name(cls, name, i + 1)) for i in range(size)
+        )
         name = object_array_name(cls, name, size)
         return create_model(*components, name=name)
 
@@ -113,7 +116,9 @@ class Object(Serializer):
         name = self.name
         if name:
             name = cls.__name__
-        components = (self(name=numbered_object_name(cls, name, i+1)) for i in range(size))
+        components = (
+            self(name=numbered_object_name(cls, name, i + 1)) for i in range(size)
+        )
         name = object_array_name(cls, name, size)
         return create_model(*components, name=name)
 
@@ -280,12 +285,8 @@ class Switch(Statement):
     """
     Switch statement.
     """
-    def __init__(
-            self,
-            func: Callable,
-            cases: Tuple[Case, ...] = (),
-            **settings: Any
-    ):
+
+    def __init__(self, func: Callable, cases: Tuple[Case, ...] = (), **settings: Any):
         self.func = settings["func"] = func
         self.cases = settings["cases"] = cases
         super().__init__(**settings)

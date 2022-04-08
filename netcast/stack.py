@@ -13,7 +13,7 @@ from netcast.tools.collections import Comparable
 from netcast.serializer import Serializer, SettingsT
 
 if typing.TYPE_CHECKING:
-    from netcast.model import Model, ComponentArgumentT, ComponentT
+    from netcast.model import Model, ComponentArgT, ComponentT
 
 
 __all__ = ("Stack", "SelectiveStack", "VersionAwareStack")
@@ -46,7 +46,7 @@ class Stack:
 
     def add(
         self,
-        component: ComponentArgumentT,
+        component: ComponentArgT,
         *,
         settings: SettingsT = None,
         name: str | None = None,
@@ -149,7 +149,7 @@ class Stack:
 
     def transform_component(
         self,
-        component: ComponentArgumentT,
+        component: ComponentArgT,
         *,
         settings: SettingsT = None,
         name: str | None = None,
@@ -202,12 +202,10 @@ class VersionAwareStack(SelectiveStack):
         self,
         *,
         settings_version_field: str = "version",
-        version_added_field: str | Callable = (
-            lambda component: component.settings.get("version_added")
-        ),
-        version_removed_field: str | Callable = (
-            lambda component: component.settings.get("version_removed")
-        ),
+        version_added_field: str
+        | Callable = (lambda component: component.settings.get("version_added")),
+        version_removed_field: str
+        | Callable = (lambda component: component.settings.get("version_removed")),
         default_version: Comparable = GREATEST,
         default_version_added: Comparable = LEAST,
         default_version_removed: Comparable = GREATEST,
