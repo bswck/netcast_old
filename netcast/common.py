@@ -4,7 +4,6 @@ from typing import Type, Any, Mapping, Callable
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
-from netcast.model import repeated
 
 
 __all__ = (
@@ -97,10 +96,10 @@ class Object(Serializer):
     """Base class for all objects."""
 
     def __class_getitem__(cls, repeat):
-        return repeated(cls, repeat=repeat)
+        return __import__("netcast.model").repeated(cls, repeat=repeat)
 
     def __getitem__(self, repeat):
-        return repeated(type(self), name=self.name, repeat=repeat)
+        return __import__("netcast.model").repeated(type(self), name=self.name, repeat=repeat)
 
 
 class Entity(Object):
