@@ -12,7 +12,6 @@ from netcast.serializer import Interface, SettingsT, Serializer
 from netcast.stack import Stack, VersionAwareStack
 from netcast.tools import strings
 from netcast.tools.collections import IDLookupDictionary, classproperty
-from netcast.tools.normalization import numbered_object_name, object_array_name
 
 
 __all__ = (
@@ -26,6 +25,8 @@ __all__ = (
 )
 
 FIELD_NAME_ESCAPE = "f__"
+REPEATED_NAME_TEMPLATE = "%(name)s[%(size)d]"
+REPEATED_MEMBER_NAME_TEMPLATE = "%(name)s_%(index)d"
 
 
 def escape(field_name: str) -> str:
@@ -128,6 +129,8 @@ class Model:
     name: str
     _field_class = Field
     _field_alias_class = FieldAlias
+    _repeated_name_template = None
+    _repeated_member_name_template = None
 
     def __init__(
         self,
@@ -336,15 +339,8 @@ class Model:
     def __setitem__(self, key: Any, value: Any):
         self._descriptors[key].__set__(self, value)
 
-    def __class_getitem__(cls, size):
-        if size < 1:
-            raise ValueError("dimension size must be at least 1")
-        name = cls.__name__
-        components = [
-            cls.clone(name=numbered_object_name(cls, name, i + 1)) for i in range(size)
-        ]
-        name = object_array_name(cls, name, size)
-        return create_model(*components, name=name)
+    def __class_getitem__(cls, repeat):
+        return repeated(cls, repeat, name=cls.name)
 
     def __getitem__(self, key: Any):
         return self._descriptors[key].__get__(self, None)
@@ -520,3 +516,24 @@ def create_model(
         **settings,
     )
     return cast(Type[Model], model)
+
+
+def repeated(
+    cls,
+    repeat,
+    name=None,
+    name_template=None,
+    member_name_template=None,
+    factory=create_model,
+) -> Type[Model]:
+    if repeat < 1:
+        raise ValueError("dimension size must be at least 1")
+    if name_template is None:
+        name_template = REPEATED_NAME_TEMPLATE
+    if member_name_template is None:
+        member_name_template = REPEATED_MEMBER_NAME_TEMPLATE
+    if name is None:
+        name = cls.__name__
+    fmt = {"name": name, "size": repeat}
+    components = (cls(name=member_name_template % {**fmt, "index": i + 1} for i in range(repeat)))
+    return factory(*components, name=name_template % fmt)

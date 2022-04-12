@@ -4,7 +4,7 @@ from typing import Type, Any, Mapping, Callable
 from types import MappingProxyType, SimpleNamespace as SimpleNamespaceType
 
 from netcast.serializer import Serializer
-from netcast.tools.normalization import numbered_object_name, object_array_name
+from netcast.model import repeated
 
 
 __all__ = (
@@ -19,6 +19,7 @@ __all__ = (
     "Char",
     "Dict",
     "Double",
+    "Entity",
     "Float",
     "Float16",
     "Float32",
@@ -95,32 +96,15 @@ __all__ = (
 class Object(Serializer):
     """Base class for all objects."""
 
-    def __class_getitem__(cls, size):
-        if size < 1:
-            raise ValueError("dimension size must be at least 1")
-        from netcast import create_model
+    def __class_getitem__(cls, repeat):
+        return repeated(cls, repeat=repeat)
 
-        name = cls.__name__
-        components = (
-            cls(name=numbered_object_name(cls, name, i + 1)) for i in range(size)
-        )
-        name = object_array_name(cls, name, size)
-        return create_model(*components, name=name)
+    def __getitem__(self, repeat):
+        return repeated(type(self), name=self.name, repeat=repeat)
 
-    def __getitem__(self, size):
-        if size < 1:
-            raise ValueError("dimension size must be at least 1")
-        from netcast import create_model
 
-        cls = type(self)
-        name = self.name
-        if name:
-            name = cls.__name__
-        components = (
-            self(name=numbered_object_name(cls, name, i + 1)) for i in range(size)
-        )
-        name = object_array_name(cls, name, size)
-        return create_model(*components, name=name)
+class Entity(Object):
+    """A generic entity, setting-dependent placeholder, might serializer-dependent."""
 
 
 class Number(Object):

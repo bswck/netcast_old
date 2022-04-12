@@ -1,5 +1,7 @@
 from __future__ import annotations  # Python 3.8
 
+import enum
+
 import construct
 import netcast as nc
 
@@ -23,11 +25,25 @@ class Interface(nc.Interface):
             return impl
         return self._wrap_impl(impl)
 
+    def _wrap_one_of(self, impl, value, fn):
+        if isinstance(value, (enum.Enum, enum.EnumMeta)):
+            if self.settings.get("flags_enum", False):
+                impl = construct.FlagsEnum(impl, value)
+            else:
+                impl = construct.Enum(impl, value)
+        else:
+            impl = fn(impl, value)
+        return impl
+
     def _wrap_once(self, impl, *, key, default, fn):
         if key not in self.skip:
             value = self.settings.get(key, default)
             if value is not default:
-                impl = fn(impl, value)
+                wrapper = getattr(self, "_wrap_" + key, None)
+                if callable(wrapper):
+                    impl = wrapper(impl, value, fn)
+                else:
+                    impl = fn(impl, value)
         return impl
 
     def _wrap_impl(self, impl):
@@ -417,6 +433,11 @@ class Case(Interface):
 
     def _configure(self, **settings):
         self._impl = self.get_impl(self.obj, **settings)
+
+
+# @Driver.impl
+class Entity(Interface):
+    implements = nc.Entity
 
 
 @Driver.init_for(nc.Array)
