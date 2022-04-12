@@ -535,5 +535,8 @@ def repeated(
     if name is None:
         name = cls.__name__
     fmt = {"name": name, "size": repeat}
-    components = (cls(name=member_name_template % {**fmt, "index": i + 1} for i in range(repeat)))
+    components = (cls(
+        name=(member_name_template % {**fmt, "index": i + 1})
+        for i in range(repeat))
+    )
     return factory(*components, name=name_template % fmt)
