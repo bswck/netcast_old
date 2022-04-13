@@ -166,19 +166,19 @@ class Driver(nc.Driver):
     ArrayInterface = nc.driver_interface(Array, default=nc.List)
     StructInterface = nc.driver_interface(Struct, default=nc.Dict)
 
-    ListSequence = SequenceInterface(nc.List)
+    ListSequence = SequenceInterface()
     TupleSequence = SequenceInterface(nc.Tuple)
     SetSequence = SequenceInterface(nc.Set)
     FrozenSetSequence = SequenceInterface(nc.FrozenSet)
     Sequence = ListSequence
 
-    ListArray = ArrayInterface(nc.List)
+    ListArray = ArrayInterface()
     TupleArray = ArrayInterface(nc.Tuple)
     SetArray = ArrayInterface(nc.Set)
     FrozenSetArray = ArrayInterface(nc.FrozenSet)
     Array = ListArray
 
-    DictStruct = StructInterface(nc.Dict)
+    DictStruct = StructInterface()
     MappingProxyStruct = StructInterface(nc.MappingProxy)
     SimpleNamespaceStruct = StructInterface(nc.SimpleNamespace)
     Struct = DictStruct
