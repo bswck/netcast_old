@@ -162,9 +162,9 @@ class Struct(Interface):
 
 
 class Driver(nc.Driver):
-    SequenceInterface = nc.driver_interface(Sequence)
+    SequenceInterface = nc.driver_interface(Sequence, default=nc.List)
     ArrayInterface = nc.driver_interface(Array, default=nc.List)
-    StructInterface = nc.driver_interface(Struct)
+    StructInterface = nc.driver_interface(Struct, default=nc.Dict)
 
     ListSequence = SequenceInterface(nc.List)
     TupleSequence = SequenceInterface(nc.Tuple)
