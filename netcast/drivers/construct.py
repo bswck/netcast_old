@@ -94,11 +94,11 @@ class Interface(nc.Interface):
         return Driver
 
     def _load(self, obj, settings, **kwargs):
-        impl = self.impl()
+        impl = self.impl(final=True)
         return impl.parse(obj)
 
     def _dump(self, obj, settings, **kwargs):
-        impl = self.impl()
+        impl = self.impl(final=True)
         return impl.build(obj)
 
 
