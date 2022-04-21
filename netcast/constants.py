@@ -1,8 +1,7 @@
 from netcast.tools.symbol import Symbol
 
-__all__ = ("MISSING", "GREATEST", "LEAST")
 
-MISSING = Symbol("missing")
+__all__ = ("MISSING", "GREATEST", "LEAST")
 
 
 class _Greatest:
@@ -15,5 +14,6 @@ class _Least:
     __gt__ = __ge__ = staticmethod(lambda _: False)
 
 
-GREATEST = _Greatest()
-LEAST = _Least()
+MISSING: Symbol = Symbol("MISSING")
+GREATEST: _Greatest = _Greatest()
+LEAST: _Least = _Least()

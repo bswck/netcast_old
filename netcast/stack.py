@@ -61,7 +61,7 @@ class Stack:
         return transformed
 
     def all(self):
-        return self._components.copy()
+        return list(map(operator.attrgetter("component"), self._components))
 
     def discard(self, component: ComponentT):
         self._lock.acquire()
