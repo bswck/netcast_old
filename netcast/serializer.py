@@ -105,20 +105,20 @@ class Serializer:
     def _load(self, obj, settings, **kwargs):
         """Load an object."""
 
-    def load_type_guard(self, obj):
+    def ensure_load_type_impl(self, obj):
         if self.load_type is None or isinstance(obj, self.load_type):
             return obj
-        return self._load_type_guard(obj)
+        return self._ensure_load_type_impl(obj)
 
-    def _load_type_guard(self, obj):
+    def _ensure_load_type_impl(self, obj):
         return self.load_type(obj)
 
-    def dump_type_guard(self, obj):
+    def ensure_dump_type_impl(self, obj):
         if self.dump_type is None or isinstance(obj, self.dump_type):
             return obj
-        return self._dump_type_guard(obj)
+        return self._ensure_dump_type_impl(obj)
 
-    def _dump_type_guard(self, obj):
+    def _ensure_dump_type_impl(self, obj):
         return self.dump_type(obj)
 
     def _sanitize_settings(self, settings: SettingsT) -> SettingsT:
@@ -203,8 +203,8 @@ class Serializer:
         return value
 
     def __init_subclass__(cls, **kwargs):
-        cls.ensure_load_type = functools.singledispatchmethod(cls.load_type_guard)
-        cls.ensure_dump_type = functools.singledispatchmethod(cls.dump_type_guard)
+        cls.ensure_load_type = functools.singledispatchmethod(cls.ensure_load_type_impl)
+        cls.ensure_dump_type = functools.singledispatchmethod(cls.ensure_dump_type_impl)
 
 
 # Don't use yet, it's being tested

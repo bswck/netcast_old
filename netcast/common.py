@@ -152,14 +152,14 @@ class SimpleNamespace(Dict):
 
     load_type = SimpleNamespaceType
 
-    def _load_type_guard(self, obj: Mapping):
+    def _ensure_load_type_impl(self, obj: Mapping):
         return SimpleNamespace.load_type(**obj)
 
 
 class Sequence(ModelSerializer):
     """Base class for all sequences."""
 
-    def _load_type_guard(self, obj: Any):
+    def _ensure_load_type_impl(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type(obj.values())
         return self.load_type(obj)
@@ -198,7 +198,7 @@ class String(Sequence, Array):
 
     load_type = str
 
-    def _load_type_guard(self, obj: Any):
+    def _ensure_load_type_impl(self, obj: Any):
         if callable(getattr(obj, "values", None)):
             return self.load_type().join(obj.values())
         return self.load_type(obj)
