@@ -175,11 +175,16 @@ class Serializer:
         return type(self)(name=name, default=default, **new_settings)
 
     def __repr__(self) -> str:
-        default = "" if self.default is MISSING else "default "
-        type_name = type(self).__name__
-        name = "" if self.name is None else " " + repr(self.name)
-        settings = f" ({self.settings})" if self.settings else ""
-        return default + type_name + name + settings
+        repr_default = "" if self.default is MISSING else "default "
+        repr_type_name = type(self).__name__
+        repr_name = "" if self.name is None else " " + repr(self.name)
+        repr_settings = ", ".join(map(
+            lambda pair: f"{pair[0]}={pair[1]!r}",
+            self.settings.items())
+        )
+        if self.settings:
+            repr_settings = " " + repr_settings.join("()")
+        return repr_default + repr_type_name + repr_name + repr_settings
 
     def __setattr__(self, key, value):
         object.__setattr__(self, key, value)

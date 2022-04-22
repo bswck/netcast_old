@@ -3,14 +3,13 @@ from __future__ import annotations  # Python 3.8
 import collections.abc
 import contextlib
 import functools
-import inspect
 from typing import Any, cast, ClassVar, Type, TypeVar, Union
 
 from netcast.constants import MISSING, GREATEST
 from netcast.driver import DriverMeta, Driver, load_driver
 from netcast.serializer import Interface, SettingsT, Serializer
 from netcast.stack import Stack, VersionAwareStack
-from netcast.tools.collections import classproperty, IDLookupDictionary
+from netcast.tools.collections import class_property, IDLookupDictionary
 from netcast.tools.strings import remove_prefix
 
 __all__ = (
@@ -36,11 +35,11 @@ def unescape(field_name: str) -> str:
     return remove_prefix(field_name, FIELD_NAME_ESCAPE)
 
 
-class ModelProperty:
+class BaseField:
     component: ComponentT
 
 
-class Field(ModelProperty):
+class Field(BaseField):
     def __init__(self, component: ComponentT):
         self.component = component
         self.states = IDLookupDictionary()
@@ -95,7 +94,7 @@ class Field(ModelProperty):
         return getattr(self.component, attribute)
 
 
-class FieldAlias(ModelProperty):
+class FieldAlias(BaseField):
     def __init__(self, ancestor: Field):
         self.ancestor = ancestor
 
@@ -241,9 +240,7 @@ class Model:
     def with_(self, **values):
         return self.set_state(values)
 
-    def impl(
-        self, driver: DriverArgT = None, settings: SettingsT = None, final: bool = False
-    ):
+    def impl(self, driver: DriverArgT = None, settings: SettingsT = None, final: bool = False):
         if settings is None:
             settings = {}
         settings = {**settings, **self.settings}
@@ -284,14 +281,10 @@ class Model:
         source = serializer.ensure_load_type(self.get_state(**settings))
         return serializer.dump(source, settings)
 
-    def load(
-        self, driver: DriverArgT = None, dump: Any = MISSING, /, **settings
-    ) -> Model:
+    def load(self, driver: DriverArgT = None, dump: Any = MISSING, /, **settings) -> Model:
         return self.load_state(self.load_externally(driver, dump, **settings))
 
-    def load_externally(
-        self, driver: DriverArgT = None, dump: Any = MISSING, /, **settings
-    ):
+    def load_externally(self, driver: DriverArgT = None, dump: Any = MISSING, /, **settings):
         if dump is MISSING:
             raise ValueError("the source to load from is a required argument")
         serializer = self.impl(driver, settings)
@@ -303,12 +296,11 @@ class Model:
         self.set_state(state)
         return self
 
-    # noinspection PyPropertyDefinition
-    @classproperty
+    @class_property
     def priority(cls):
         return cls.settings.setdefault("priority", 0)
 
-    @classproperty
+    @class_property
     def fields(cls):
         return cls._fields
 
@@ -364,7 +356,6 @@ class Model:
         if key in self._fields:
             self._fields[key].__set__(self, value)
             return
-        # TODO: find a better way to do it
         object.__setattr__(self, key, value)
 
     def __eq__(self, other: Model):
@@ -377,24 +368,23 @@ class Model:
         if not isinstance(other, Model):
             return NotImplemented
 
-        state = self.get_state()
-        other_state = dict.fromkeys(self.get_state(), GREATEST)
+        local_state = self.get_state()
+        comp_state = dict.fromkeys(self.get_state(), GREATEST)
         input_state = other.get_state()
 
-        for key in state.keys() & input_state.keys():
-            other_state[key] = input_state[key]
+        for key in local_state.keys() & input_state.keys():
+            comp_state[key] = input_state[key]
 
-        return tuple(state.values()) < tuple(other_state.values())
+        return tuple(local_state.values()) < tuple(comp_state.values())
 
     @classmethod
-    def _build_stack(cls, stack, settings):
-        cls._fields = final = collections.OrderedDict()
+    def _build_stack(cls, stack: Stack, settings: SettingsT):
+        cls._fields = final_fields = collections.OrderedDict()
         fields = {}
         seen_fields = IDLookupDictionary()
+        iter_fields = filter(lambda pair: check_component(pair[1]), cls.__dict__.items())
 
-        for idx, (attribute, component) in enumerate(
-            inspect.getmembers(cls, check_component), start=1
-        ):
+        for idx, (attribute, component) in enumerate(iter_fields, start=1):
             seen = seen_fields.get(component)
             attribute_unescaped = unescape(attribute)
 
@@ -402,10 +392,9 @@ class Model:
                 if not (isinstance(component, type) and not issubclass(component, Model)):
                     if component.priority == 0:
                         component.settings["priority"] = idx
-                dep = stack.add(component, name=attribute_unescaped, settings=settings)
-                field = dep
+                dep = field = stack.add(component, name=attribute_unescaped, settings=settings)
                 if not isinstance(field, Field):
-                    field = cls._field_class(dep)
+                    field = cls._field_class(field)
                 name = dep.name
                 if name == attribute_unescaped:
                     name = attribute
@@ -418,7 +407,8 @@ class Model:
             fields[name] = field
             seen_fields[component] = field
 
-        final.update(sorted(fields.items(), key=lambda kv: kv[1].priority))
+        sorted_fields = sorted(fields.items(), key=lambda pair: pair[1].priority)
+        final_fields.update(sorted_fields)
         fields.clear()
         seen_fields.clear()
 
@@ -430,7 +420,7 @@ class Model:
         for idx, (name, component) in enumerate(components.items(), start=1):
             component.settings.setdefault("priority", idx)
             field = fields[name] = cls._field_class(component)
-            while isinstance(getattr(cls, name, None), ModelProperty):
+            while isinstance(getattr(cls, name, None), BaseField):
                 name = escape(name)
             setattr(cls, name, field)
 
@@ -458,21 +448,18 @@ class Model:
             base = cls.__base__
             stack = stack_class()
             if issubclass(base, Model) and base != Model:
-                base_components = base.stack.all()
+                base_comps = base.stack.all()
                 if include_fields is None:
-                    for component in base_components:
+                    for component in base_comps:
                         stack.push(component)
                 else:
                     for name in include_fields:
-                        matched = tuple(filter(
-                            lambda comp: comp.name == name,
-                            base_components
-                        ))
+                        matched = tuple(filter(lambda comp: comp.name == name, base_comps))
                         if len(matched) > 1:
                             raise ValueError(f"multiple components match name {name!r}")
                         if len(matched) == 0:
                             raise ValueError(f"no component matches name {name!r}")
-                        stack.push(*matched)
+                        stack.push(matched[0])
         else:
             cls._load_stack(stack, settings)
 

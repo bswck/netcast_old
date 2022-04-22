@@ -8,7 +8,7 @@ from netcast.exceptions import ArrangementConstructionError, ArrangementTypeErro
 from netcast.tools.collections import (
     IDLookupDictionary,
     ParameterHolder,
-    classproperty,
+    class_property,
 )
 from netcast.tools.contexts import *
 from netcast.tools.inspection import is_classmethod
@@ -423,21 +423,21 @@ class ClassArrangement(_BaseArrangement):
         if clear_init:
             cls.__init__ = _init
 
-    @classproperty
+    @class_property
     def context(cls) -> ContextT | None:
         """Get the current context. Note: this is the proper API for modifying it."""
         return cls._get_context()
 
-    @classproperty
+    @class_property
     def supercontext(cls) -> Context | None:
         """Get the current supercontext. Note: this is the proper API for modifying it."""
         return cls._get_supercontext()
 
-    @classproperty
+    @class_property
     def subcontexts(cls) -> tuple[Context, ...] | None:
         return cls._get_subcontexts()
 
-    @classproperty
+    @class_property
     def has_new_context(cls) -> bool:
         return cls.new_context
 

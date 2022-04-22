@@ -229,4 +229,5 @@ class ClassProperty(classmethod):
         return self
 
 
-classproperty = ClassProperty  # pylint: disable=C0103
+def class_property(property_fn):
+    return ClassProperty(property_fn)
